@@ -61,8 +61,6 @@ fi
 cat <<EOF
 
 ──────────────────────────────────────────────────
-  C2 map (local):   http://localhost:8000/map
-  C2 map (public):  $TUNNEL/map
   Node page:        https://dnhacks-node.vercel.app?server=$TUNNEL
                     (QR-encode that URL for judges)
   Pinned anchors:   append &lat=..&lon=..&acc=3 per surveyed spot, e.g.

@@ -14,7 +14,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 try:
@@ -67,8 +67,8 @@ async def ingest_heartbeat(body: dict):
 @app.post("/ingest/remoteid")
 async def ingest_remoteid(body: dict):
     """RemoteID sidecar (bonus node type): an Android phone running OpenDroneID
-    or a laptop + BT dongle POSTs drone ID + broadcast GPS here. Fused into
-    /state as identity alongside the acoustic track. Never the critical path:
+    or a laptop + BT dongle POSTs drone ID + broadcast GPS here. Logged as a
+    `remoteid` event alongside the acoustic track. Never the critical path:
     sub-250g drones broadcast nothing — that's why acoustic matters."""
     ev = {
         "type": "remoteid",
@@ -253,60 +253,11 @@ def get_nodes():
     }
 
 
-@app.get("/state")
-def get_state():
-    """Everything the map needs in one poll: live nodes, latest track, recent alerts."""
-    now = time.time()
-    nodes, tracks, alerts, rid = {}, [], [], []
-    if EVENTS.exists():
-        for line in EVENTS.read_text().strip().splitlines():
-            ev = json.loads(line)
-            typ = ev.get("type")
-            if typ == "heartbeat":
-                nodes[ev.get("node_id")] = ev
-            elif typ == "track":
-                tracks.append(ev)
-            elif typ == "detection":
-                alerts.append(ev)
-            elif typ == "remoteid":
-                rid.append(ev)
-    live_nodes = {
-        nid: {
-            "lat": ev.get("lat"), "lon": ev.get("lon"),
-            "loudness": ev.get("loudness", 0),
-            "gps_accuracy_m": ev.get("gps_accuracy_m"),
-            "age_s": round(now - ev.get("server_t", now), 1),
-        }
-        for nid, ev in nodes.items()
-        if ev.get("lat") is not None and now - ev.get("server_t", 0) < 30
-    }
-    return {
-        "t": now,
-        "nodes": live_nodes,
-        "track": tracks[-1] if tracks and now - tracks[-1]["t"] < 15 else None,
-        "track_history": tracks[-50:],
-        "remoteid": rid[-1] if rid and now - rid[-1].get("server_t", 0) < 30 else None,
-        "alerts": [
-            {
-                "node_id": a.get("node_id"), "t": a.get("server_t"),
-                "server_conf": a.get("server_conf"), "loudness": a.get("loudness"),
-                "clip_ref": a.get("clip_ref"),
-            }
-            for a in alerts[-12:]
-        ][::-1],
-        "model_loaded": HAVE_MODEL,
-    }
-
-
-@app.get("/map")
-def map_page():
-    return FileResponse(ROOT / "map.html")
-
 
 # ── Replay: demo insurance ───────────────────────────────────────────────────
 # POST /replay/save?session=demo1   snapshot current events.jsonl
 # POST /replay/start?session=demo1&speed=2   re-emit into the live log with
-#   original relative timing (rebased to now), so the map animates it again.
+#   original relative timing (rebased to now).
 # GET  /replay/sessions              list saved snapshots
 
 SESSIONS = ROOT / "sessions"
@@ -358,7 +309,7 @@ async def replay_start(session: str = "demo1", speed: float = 1.0):
                     await asyncio.sleep(sleep_for)
                 ev = dict(ev)
                 ev["replayed"] = True
-                # rebase timestamps so the map's freshness windows accept them
+                # rebase timestamps so consumers' freshness windows accept them
                 ev["server_t"] = time.time()
                 if "t" in ev:
                     ev["t"] = time.time()

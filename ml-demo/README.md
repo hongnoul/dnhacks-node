@@ -1,8 +1,9 @@
 # ml-demo — live-mic drone detection (Demo 1)
 
 Port of the working `justin-draft` branch: phone/laptop mics detect drone
-audio on-device, a FastAPI server fuses detections into a live track on a
-Leaflet C2 map. All e2e-tested. See the repo root `README.md` for the
+audio on-device, a FastAPI server scores clips with a CRNN and fuses
+detections into track events. No map here — the operator C2 map lives in
+Demo 2 (`../sim-demo/`). See the repo root `README.md` for the
 two-demo story.
 
 ## How it works
@@ -60,18 +61,13 @@ outliers are handled statistically at fusion time.
   Physical sim: **8.7 m error vs 51 m centroid**. Coarse trigger alignment
   only — no clock-sync rabbit hole.
 - **RemoteID sidecar (built):** `POST /ingest/remoteid
-  {node_id, drone_id, lat, lon, alt_m?, speed_mps?}` → `remoteid` event →
-  `/state.remoteid` (30 s freshness) → badge on the map. Feed from
+  {node_id, drone_id, lat, lon, alt_m?, speed_mps?}` → `remoteid` event
+  (30 s freshness, fused alongside the acoustic track). Feed from
   OpenDroneID or a BT dongle. Never the critical path: sub-250 g drones
   broadcast nothing — that's why acoustic matters.
-- **`/map` (operator C2 view):** nodes + GPS accuracy discs, fused track +
-  error circle + contribution lines, per-node health table (accuracy,
-  loudness, staleness), track history (last 8), alert feed with CRNN
-  verdicts + clip playback, RemoteID badge (or the no-broadcast punchline).
-  Polls `/state` at 1 Hz.
 - **`/replay` (demo insurance):** `POST /replay/save?session=X` snapshots
   the log; `POST /replay/start?session=X&speed=2` re-emits with rebased
-  timing so the map reanimates.
+  timing for a Demo-2 dashboard to reanimate.
 
 ### Test suite (all runnable without hardware)
 
@@ -81,8 +77,6 @@ outliers are handled statistically at fusion time.
 | `sim_fusion.py` | CRNN separation on real DADS audio, fusion accuracy vs truth, ellipse tightening, noise rejection |
 | `test_tdoa.py` | GCC-PHAT recovers a known 23.1 ms shift; physical sim 8.7 m vs 51 m centroid |
 | `e2e-browser.mjs` | prod page in real Chromium (fake mic + GPS): join → gate → clips reach the live server via `?server=` override; asserts its own node id |
-| `e2e-map.mjs` | self-seeding: map renders nodes/track/alerts/health/history, zero JS errors |
-| `e2e-map-tunnel.mjs` | same through the live public tunnel (judge's-eye view) |
 
 `drone_tone.wav` (fake-mic fixture) regenerates on first `e2e-browser.mjs`
 run — never committed. `testdata/` (DADS clips) and `models/` (CRNN
