@@ -1,0 +1,33 @@
+import type { Metadata, Viewport } from "next";
+
+export const metadata: Metadata = {
+  title: "SkyMesh Node",
+  description: "Crowd-sourced drone detection sensor node",
+  manifest: "/manifest.webmanifest",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#0a0f1a",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body
+        style={{
+          margin: 0,
+          background: "#0a0f1a",
+          color: "#e6edf3",
+          fontFamily:
+            "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          minHeight: "100vh",
+        }}
+      >
+        {children}
+      </body>
+    </html>
+  );
+}
