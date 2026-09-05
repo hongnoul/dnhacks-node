@@ -98,10 +98,12 @@ export class MicCapture {
     return { loudness, bandLoudness };
   }
 
-  /** Snapshot the most recent CLIP_SECONDS from the ring buffer as a 16-bit PCM WAV. */
+  /** Snapshot the most recent CLIP_SECONDS from the ring buffer as a 16-bit PCM WAV.
+   *  Returns null until a full clip's worth of audio has been captured. */
   clip(): ClipResult | null {
-    const n = Math.min(Math.floor(CLIP_SECONDS * this.sampleRate), this.ringFilled);
-    if (n === 0) return null;
+    const want = Math.floor(CLIP_SECONDS * this.sampleRate);
+    if (this.ringFilled < want) return null; // don't ship short first clips
+    const n = want;
     const out = new Float32Array(n);
     // last n samples ending at ringWrite
     let idx = (this.ringWrite - n + this.ring.length) % this.ring.length;
