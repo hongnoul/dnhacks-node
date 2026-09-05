@@ -24,10 +24,11 @@ proof — kill the network and the node keeps working.
   n_fft=512, hop=160, 50–5500 Hz, (dB+40)/40) → drone_crnn.onnx via
   onnxruntime-web (wasm) → sigmoid → confidence`, scored every 500 ms
   on 1 s windows — the same window/hop contract as the Python reference.
-- **Dual pre-gate meters** (band RMS > `0.25`, harmonic peakiness > `10`)
-  are shown for explainability, but the CRNN always has final say.
-- UI: big confidence percentage, DRONE DETECTED banner ≥ 0.5, detection
-  counter, on-device inference latency (~30–60 ms), vibration on detection.
+- UI (dead simple, white): big confidence percentage, clear / red
+  DRONE DETECTED pill ≥ 0.5, infinite scrolling canvas graph of the last
+  60 s with a dashed 50% threshold line — segments above turn red with
+  light-red fill plus top-edge crossing ticks. Detection counter appears
+  after the first detection. Vibration on detection.
 - Only permission requested: **microphone**. Audio never leaves the phone.
 - Offline: page + 6 MB model cache after first load; works in airplane mode.
 
@@ -86,7 +87,8 @@ Judges scan a QR, tap once, allow mic — that's the whole setup.
 No drone handy: open `/tone` on a MacBook, hit **Play drone audio**
 (`public/drone-demo.wav` — real DADS `l1` clips looped to 10 s, 48 kHz
 mono), volume to max, hold the iPhone 10–30 cm from the speaker. The node
-confidence slams to ~100% within a second. The sine-stack button only moves
-the gate meters — the CRNN scores pure tones ~0.001, which is the
-gate-vs-classifier split working as designed. Drone audio: DADS (MIT;
+confidence slams to ~100% within a second, the graph line crosses above
+the dashed 50% threshold, and the red DRONE DETECTED pill appears. The
+sine-stack button leaves the graph flat near 0 — the CRNN scores pure
+tones ~0.001. Drone audio: DADS (MIT;
 aggregates CC-BY sources, see the dataset card).

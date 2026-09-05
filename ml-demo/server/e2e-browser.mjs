@@ -104,33 +104,34 @@ page.on("console", (m) => {
 console.log("→ open", PAGE_URL);
 await page.goto(PAGE_URL, { waitUntil: "networkidle" });
 
-const nodeLine = await page.locator("code").first().textContent();
-console.log("→ node id:", nodeLine);
+const headerLine = await page.getByText(/SkyMesh Node/).first().textContent();
+console.log("→ header:", headerLine?.trim());
 
 console.log("→ tap Start listening");
 await page.getByRole("button", { name: /start listening/i }).click();
 
-// Model load (6 MB) + mic start
-await page.waitForSelector("text=drone confidence", { timeout: 60000 });
+// Model load (6 MB) + mic start → listening state shows the Stop button
+await page.getByRole("button", { name: /^stop$/i }).waitFor({ timeout: 60000 });
 console.log("→ listening state reached (model loaded, mic live)");
 
-// Poll the confidence readout: real drone audio must push the CRNN to ~1.0.
+// Poll the big confidence readout: real drone audio must push the CRNN to ~1.0.
 // (Threshold 0.80: l1 clips score 1.0000 in Python; the looped fixture is the
-// same bytes, so anything much lower means the browser pipeline diverged.)
+// same bytes, so anything much lower means the browser pipeline diverged.
+// The readout is the 76px number; the canvas aria-label mirrors it for a11y.)
 const deadline = Date.now() + 20000;
 let best = 0;
 while (Date.now() < deadline) {
   await page.waitForTimeout(500);
-  const txt = await page.locator("text=peak confidence").locator("xpath=..").textContent();
-  const m = txt?.match(/(\d+)%/);
+  const label = await page.locator("canvas[role='img']").getAttribute("aria-label");
+  const m = label?.match(/current (\d+) percent/);
   if (m) best = Math.max(best, parseInt(m[1], 10) / 100);
   if (best >= 0.8) break;
 }
 console.log("→ peak on-device confidence:", best.toFixed(2));
 
-// Inference latency shown = proof it actually ran locally
-const inferRow = await page.locator("text=inference").locator("xpath=..").textContent();
-console.log("→", inferRow?.replace(/\s+/g, " ").trim());
+// DRONE DETECTED pill = proof the threshold UI fired
+const pill = await page.getByText("DRONE DETECTED", { exact: true }).count();
+console.log("→ detection pill visible:", pill > 0 ? "yes" : "no");
 
 await browser.close();
 
@@ -142,8 +143,8 @@ if (best < 0.8) {
   console.error(`FAIL: confidence never rose above 0.80 (best ${best.toFixed(2)})`);
   process.exit(1);
 }
-if (!/\d+ ms on-device/.test(inferRow ?? "")) {
-  console.error("FAIL: no on-device inference latency shown");
+if (pill === 0) {
+  console.error("FAIL: DRONE DETECTED pill never appeared above threshold");
   process.exit(1);
 }
 console.log(`\nBROWSER E2E OK — on-device CRNN detected the drone audio (peak ${best.toFixed(2)}), zero server, zero location`);
