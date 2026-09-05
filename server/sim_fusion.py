@@ -68,6 +68,7 @@ def main():
 
     print(f"drone truth: {DRONE}")
     errors = []
+    est_errs = []
     for i, node in enumerate(NODES):
         nid, lat, lon = node
         loud = loudness_at(node)
@@ -82,6 +83,7 @@ def main():
         assert tr is not None, f"{nid}: expected a track"
         err_true = dist_m((tr["lat"], tr["lon"]), DRONE)
         errors.append(err_true)
+        est_errs.append(tr["err_m"])
         print(f"  +{nid} loud={loud:.2f} conf={sc:.3f} → track ({tr['lat']}, {tr['lon']}) "
               f"n={tr['n_nodes']} err_est={tr['err_m']}m err_true={err_true:.0f}m")
 
@@ -96,6 +98,13 @@ def main():
     final_err = errors[-1]
     assert final_err < 60, f"final fused error {final_err:.0f}m too large"
     assert errors[-1] <= errors[0] + 1, "error should not grow as nodes join"
+
+    # demo money shot: reported uncertainty must tighten as nodes join
+    assert est_errs[-1] < est_errs[0], (
+        f"err_m should shrink as nodes join: {est_errs}"
+    )
+    print(f"  err_m sequence (1→{len(NODES)} nodes): "
+          + " → ".join(f"{e:.0f}m" for e in est_errs))
     print(f"\nFUSION SIM OK — final error {final_err:.0f}m with {len(NODES)} nodes "
           f"(single-node error was {errors[0]:.0f}m)")
 

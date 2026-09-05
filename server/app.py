@@ -133,15 +133,16 @@ def fuse(ev: dict):
     lat = sum(w * x for w, x in zip(ws, lats)) / W
     lon = sum(w * x for w, x in zip(ws, lons)) / W
 
-    # crude error radius: weighted std of node offsets (meters), floored by
-    # single-node case at 150m (audible range, no geometry)
+    # Error radius = standard error of the weighted centroid: spread/√n.
+    # This is what makes the demo ellipse visibly tighten as nodes join.
+    # Floor 12m (GPS accuracy); single node gets 150m (audible range, no geometry).
     if len(dets) >= 2:
         var = sum(
             w * ((111_320 * (la - lat)) ** 2 +
                  (111_320 * math.cos(math.radians(lat)) * (lo - lon)) ** 2)
             for w, la, lo in zip(ws, lats, lons)
         ) / W
-        err_m = max(math.sqrt(var), 15.0)
+        err_m = max(math.sqrt(var) / math.sqrt(len(dets)), 12.0)
     else:
         err_m = 150.0
 

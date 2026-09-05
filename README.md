@@ -91,12 +91,26 @@ server/                # fusion server (FastAPI + WebSocket) — see server/READ
 ## Fusion server details
 
 - **Stack:** FastAPI + WebSocket, single box. Ingest all events → append to JSONL log.
-- **Always on:** loudness-weighted centroid + covariance ellipse.
+- **CRNN judge (built):** every uploaded clip is scored by the pretrained CRNN ([AntoineNaccache/drone-audio-detector](https://huggingface.co/AntoineNaccache/drone-audio-detector), aug_mixed) → `server_conf`. Validated: DADS drone clips score 1.000, negatives ≤0.002. Note: checkpoint keys need remapping (`encoder.*`/`classifier.fc.*`) — `server/model.py` does this with `strict=True`.
+- **Always on (built):** loudness×confidence weighted centroid; `err_m` = standard error (spread/√n), so the circle visibly tightens as nodes join (sim: 150→71→55→51 m).
+- **Live C2 map (built):** `/map` — nodes, fused track, error circle, contribution lines, alert feed with CRNN verdicts + clip playback. Polls `/state` at 1 Hz.
+- **`/replay` (built):** `POST /replay/save?session=X` snapshots the log; `POST /replay/start?session=X&speed=2` re-emits with rebased timing so the map reanimates. Demo insurance.
 - **Stretch:** when ≥4 concurrent clips, GCC-PHAT cross-correlation for pairwise delays → least-squares multilateration. Coarse 500 ms trigger alignment only — precise delay comes from correlation, so no clock-sync rabbit hole.
-- **`/replay` endpoint** re-emits a recorded session. Demo insurance.
 - **RemoteID sidecar (bonus node type):** one Android phone running the open-source OpenDroneID app, or a laptop + BT dongle, feeds drone ID + broadcast GPS into the same track. Never the critical path.
 
+### Test suite (all runnable without hardware)
+
+| Test | What it proves |
+|---|---|
+| `server/fake_node.py [url]` | transport: heartbeat + clip round-trip byte-identical |
+| `server/sim_fusion.py` | CRNN separation on real DADS audio, fusion accuracy vs known truth, ellipse tightening, noise rejection |
+| `server/e2e-browser.mjs` | deployed Vercel page in real Chromium: mic → gate → 2s clips reach server intact |
+| `server/e2e-map.mjs` | map renders nodes/track/alerts with zero JS errors |
+| `server/e2e-map-tunnel.mjs` | same through the public tunnel (judge's-eye view) |
+
 ## Quickstart
+
+**One command:** `./demo.sh` starts the server + public tunnel and prints all URLs (add `--replay demo1` to animate the recorded session). Manual steps below.
 
 ### Fusion server (run first)
 
