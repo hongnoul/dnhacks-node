@@ -35,6 +35,7 @@
     <p class="sub">distributed sensing · centralized fusion</p>
     <div id="status">connecting…</div>
     <div id="trackinfo"></div>
+    <div id="remoteid"></div>
     <div class="stat"><span>live nodes</span><b id="n-nodes">0</b></div>
     <div class="stat"><span>CRNN model</span><b id="model">—</b></div>
     <div class="stat"><span>last update</span><b id="updated">—</b></div>
@@ -115,6 +116,19 @@ async function poll() {
       if (droneMarker) { map.removeLayer(droneMarker); droneMarker=null; }
       if (errCircle) { map.removeLayer(errCircle); errCircle=null; }
       document.getElementById('trackinfo').innerHTML = '';
+    }
+
+    // RemoteID identity (bonus node type) — or the acoustic punchline
+    if (s.remoteid) {
+      const r = s.remoteid;
+      document.getElementById('remoteid').innerHTML =
+        `<div class="track-badge" style="border-color:#58a6ff;background:#58a6ff22">🛰️ RemoteID: <b>${r.drone_id}</b><br>
+         <small>broadcast GPS ${r.lat?.toFixed(5)}, ${r.lon?.toFixed(5)}${r.alt_m != null ? ` · alt ${r.alt_m}m` : ''}</small></div>`;
+    } else if (s.track) {
+      document.getElementById('remoteid').innerHTML =
+        `<div class="alert">🔇 no RemoteID broadcast — sub-250g class. We hear it anyway.</div>`;
+    } else {
+      document.getElementById('remoteid').innerHTML = '';
     }
 
     // alerts

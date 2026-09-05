@@ -64,6 +64,26 @@ async def ingest_heartbeat(body: dict):
     return {"ok": True}
 
 
+@app.post("/ingest/remoteid")
+async def ingest_remoteid(body: dict):
+    """RemoteID sidecar (bonus node type): an Android phone running OpenDroneID
+    or a laptop + BT dongle POSTs drone ID + broadcast GPS here. Fused into
+    /state as identity alongside the acoustic track. Never the critical path:
+    sub-250g drones broadcast nothing — that's why acoustic matters."""
+    ev = {
+        "type": "remoteid",
+        "node_id": str(body.get("node_id", "remoteid-1"))[:32],
+        "t": body.get("t", time.time()),
+        "drone_id": str(body.get("drone_id", "unknown"))[:64],
+        "lat": body.get("lat"),
+        "lon": body.get("lon"),
+        "alt_m": body.get("alt_m"),
+        "speed_mps": body.get("speed_mps"),
+    }
+    log_event(ev)
+    return {"ok": True}
+
+
 @app.post("/ingest/clip")
 async def ingest_clip(file: UploadFile = File(...), meta: str = Form(...)):
     ev = json.loads(meta)
@@ -237,7 +257,7 @@ def get_nodes():
 def get_state():
     """Everything the map needs in one poll: live nodes, latest track, recent alerts."""
     now = time.time()
-    nodes, tracks, alerts = {}, [], []
+    nodes, tracks, alerts, rid = {}, [], [], []
     if EVENTS.exists():
         for line in EVENTS.read_text().strip().splitlines():
             ev = json.loads(line)
@@ -248,6 +268,8 @@ def get_state():
                 tracks.append(ev)
             elif typ == "detection":
                 alerts.append(ev)
+            elif typ == "remoteid":
+                rid.append(ev)
     live_nodes = {
         nid: {
             "lat": ev.get("lat"), "lon": ev.get("lon"),
@@ -263,6 +285,7 @@ def get_state():
         "nodes": live_nodes,
         "track": tracks[-1] if tracks and now - tracks[-1]["t"] < 15 else None,
         "track_history": tracks[-50:],
+        "remoteid": rid[-1] if rid and now - rid[-1].get("server_t", 0) < 30 else None,
         "alerts": [
             {
                 "node_id": a.get("node_id"), "t": a.get("server_t"),
