@@ -34,7 +34,10 @@ export default function NodePage() {
   const [detections, setDetections] = useState<number>(0);
   const [lastDetectAt, setLastDetectAt] = useState<string>("never");
   const [inferMs, setInferMs] = useState<number | null>(null);
-  const [nodeId] = useState(randomNodeId);
+  const [nodeId, setNodeId] = useState<string>("");
+
+  // nodeId is random — assign client-side only to avoid SSR hydration mismatch
+  useEffect(() => setNodeId(randomNodeId()), []);
 
   const micRef = useRef<MicCapture | null>(null);
   const detectorRef = useRef<DroneDetector | null>(null);
