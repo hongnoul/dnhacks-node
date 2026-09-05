@@ -58,6 +58,9 @@ and `hf_hub_download(AntoineNaccache/drone-audio-detector)`.
 
 ## Quickstart
 
+**One command:** `./demo.sh` starts local dev; `./demo.sh --qr` prints the
+prod QR for judges; `./demo.sh --test` runs parity + browser e2e.
+
 ```bash
 npm install     # vendors ORT wasm into public/ort/
 npm run dev     # mic works on http://localhost — open :3000, allow mic
