@@ -183,5 +183,51 @@ def get_nodes():
     }
 
 
+@app.get("/state")
+def get_state():
+    """Everything the map needs in one poll: live nodes, latest track, recent alerts."""
+    now = time.time()
+    nodes, tracks, alerts = {}, [], []
+    if EVENTS.exists():
+        for line in EVENTS.read_text().strip().splitlines():
+            ev = json.loads(line)
+            typ = ev.get("type")
+            if typ == "heartbeat":
+                nodes[ev.get("node_id")] = ev
+            elif typ == "track":
+                tracks.append(ev)
+            elif typ == "detection":
+                alerts.append(ev)
+    live_nodes = {
+        nid: {
+            "lat": ev.get("lat"), "lon": ev.get("lon"),
+            "loudness": ev.get("loudness", 0),
+            "age_s": round(now - ev.get("server_t", now), 1),
+        }
+        for nid, ev in nodes.items()
+        if ev.get("lat") is not None and now - ev.get("server_t", 0) < 30
+    }
+    return {
+        "t": now,
+        "nodes": live_nodes,
+        "track": tracks[-1] if tracks and now - tracks[-1]["t"] < 15 else None,
+        "track_history": tracks[-50:],
+        "alerts": [
+            {
+                "node_id": a.get("node_id"), "t": a.get("server_t"),
+                "server_conf": a.get("server_conf"), "loudness": a.get("loudness"),
+                "clip_ref": a.get("clip_ref"),
+            }
+            for a in alerts[-12:]
+        ][::-1],
+        "model_loaded": HAVE_MODEL,
+    }
+
+
+@app.get("/map")
+def map_page():
+    return FileResponse(ROOT / "map.html")
+
+
 # Serve stored clips so you can listen to them in a browser
 app.mount("/clips", StaticFiles(directory=CLIPS), name="clips")

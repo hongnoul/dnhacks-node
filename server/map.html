@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SkyMesh — Live Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  body { margin:0; background:#0a0f1a; color:#e6edf3;
+         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+  #wrap { display:flex; height:100vh; }
+  #map { flex:1; background:#0a0f1a; }
+  #side { width:320px; padding:14px; overflow-y:auto; border-left:1px solid #21262d; }
+  h1 { font-size:16px; margin:0 0 2px; } .sub { color:#8b949e; font-size:12px; margin:0 0 12px; }
+  .stat { display:flex; justify-content:space-between; font-size:13px; padding:3px 0; }
+  .stat span:first-child { color:#8b949e; }
+  .alert { font-size:12px; padding:6px 8px; margin:4px 0; border-radius:6px;
+           background:#161b22; border-left:3px solid #30363d; }
+  .alert.confirmed { border-left-color:#f85149; }
+  .alert.rejected  { border-left-color:#3fb950; opacity:.6; }
+  .alert a { color:#58a6ff; text-decoration:none; }
+  #status { font-size:12px; padding:4px 8px; border-radius:6px; margin-bottom:10px;
+            background:#161b22; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .track-badge { background:#f8514922; border:1px solid #f85149; border-radius:8px;
+                 padding:8px 10px; margin:10px 0; font-size:13px; }
+  .dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(0.7) contrast(1.1); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="map"></div>
+  <div id="side">
+    <h1>SkyMesh C2</h1>
+    <p class="sub">distributed sensing · centralized fusion</p>
+    <div id="status">connecting…</div>
+    <div id="trackinfo"></div>
+    <div class="stat"><span>live nodes</span><b id="n-nodes">0</b></div>
+    <div class="stat"><span>CRNN model</span><b id="model">—</b></div>
+    <div class="stat"><span>last update</span><b id="updated">—</b></div>
+    <h1 style="margin-top:14px">Alert feed</h1>
+    <div id="alerts"></div>
+  </div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([38.9012, -77.0402], 15);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  { attribution:'© OpenStreetMap', maxZoom:19, className:'dark-tiles' }).addTo(map);
+
+const nodeMarkers = {};        // node_id → circleMarker
+let droneMarker = null, errCircle = null, trail = null, contribLines = [];
+let fitted = false;
+
+function upsertNode(id, n) {
+  const style = { radius:7, color:'#2ea043', fillColor:'#2ea043',
+                  fillOpacity:0.4 + Math.min(n.loudness,1)*0.6, weight:2 };
+  if (nodeMarkers[id]) nodeMarkers[id].setLatLng([n.lat,n.lon]).setStyle(style);
+  else nodeMarkers[id] = L.circleMarker([n.lat,n.lon], style)
+      .bindTooltip(`${id} · loud ${(n.loudness*100)|0}%`).addTo(map);
+}
+
+async function poll() {
+  try {
+    const s = await (await fetch('/state')).json();
+    document.getElementById('status').innerHTML =
+      `<span class="dot" style="background:#3fb950"></span>server live`;
+    document.getElementById('n-nodes').textContent = Object.keys(s.nodes).length;
+    document.getElementById('model').textContent = s.model_loaded ? 'loaded' : 'OFF';
+    document.getElementById('updated').textContent = new Date(s.t*1000).toLocaleTimeString();
+
+    // nodes
+    const liveIds = new Set(Object.keys(s.nodes));
+    for (const [id,n] of Object.entries(s.nodes)) upsertNode(id,n);
+    for (const id of Object.keys(nodeMarkers))
+      if (!liveIds.has(id)) { map.removeLayer(nodeMarkers[id]); delete nodeMarkers[id]; }
+
+    // track
+    contribLines.forEach(l => map.removeLayer(l)); contribLines = [];
+    if (s.track) {
+      const p = [s.track.lat, s.track.lon];
+      if (!droneMarker) {
+        droneMarker = L.circleMarker(p, { radius:10, color:'#f85149',
+          fillColor:'#f85149', fillOpacity:0.9, weight:3 }).addTo(map);
+        errCircle = L.circle(p, { radius:s.track.err_m, color:'#f85149',
+          weight:1, fillOpacity:0.08 }).addTo(map);
+      } else { droneMarker.setLatLng(p); errCircle.setLatLng(p).setRadius(s.track.err_m); }
+      for (const n of Object.values(s.nodes))
+        contribLines.push(L.polyline([[n.lat,n.lon],p],
+          { color:'#f85149', weight:1, opacity:0.35, dashArray:'4 6' }).addTo(map));
+      const hist = s.track_history.slice(-20).map(t=>[t.lat,t.lon]);
+      if (trail) trail.setLatLngs(hist);
+      else trail = L.polyline(hist,{color:'#f85149',weight:2,opacity:0.5}).addTo(map);
+      document.getElementById('trackinfo').innerHTML =
+        `<div class="track-badge">🔴 <b>DRONE TRACK</b><br>
+         ±${s.track.err_m} m · ${s.track.n_nodes} node(s) · conf ${s.track.confidence}</div>`;
+      if (!fitted) { map.fitBounds(errCircle.getBounds().pad(0.5)); fitted = true; }
+    } else {
+      if (droneMarker) { map.removeLayer(droneMarker); droneMarker=null; }
+      if (errCircle) { map.removeLayer(errCircle); errCircle=null; }
+      document.getElementById('trackinfo').innerHTML = '';
+    }
+
+    // alerts
+    document.getElementById('alerts').innerHTML = s.alerts.map(a => {
+      const conf = a.server_conf;
+      const cls = conf == null ? '' : (conf >= 0.5 ? 'confirmed' : 'rejected');
+      const verdict = conf == null ? 'unscored' :
+        (conf >= 0.5 ? `CONFIRMED ${conf.toFixed(2)}` : `rejected ${conf.toFixed(2)}`);
+      return `<div class="alert ${cls}"><b>${a.node_id}</b> · ${verdict}
+        · <a href="${a.clip_ref}" target="_blank">clip</a><br>
+        <small>${new Date(a.t*1000).toLocaleTimeString()} · loud ${(a.loudness*100|0)}%</small></div>`;
+    }).join('');
+
+    // auto-fit to nodes if no track yet
+    if (!fitted && liveIds.size) {
+      const pts = Object.values(s.nodes).map(n=>[n.lat,n.lon]);
+      map.fitBounds(L.latLngBounds(pts).pad(0.4)); fitted = true;
+    }
+  } catch (e) {
+    document.getElementById('status').innerHTML =
+      `<span class="dot" style="background:#f85149"></span>server unreachable`;
+  }
+}
+poll(); setInterval(poll, 1000);
+</script>
+</body>
+</html>

@@ -9,3 +9,4 @@ server/models/
 server/testdata/
 server/uvicorn.log
 server/drone_tone.wav
+server/map-screenshot.png
