@@ -15,11 +15,14 @@
     "next": "^15.4.6",
     "onnxruntime-web": "^1.29.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-qr-code": "^2.2.0",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/node": "^22",
     "@types/react": "^19",
+    "@types/three": "^0.185.4",
     "playwright": "^1.63.0",
     "typescript": "^5"
   }
