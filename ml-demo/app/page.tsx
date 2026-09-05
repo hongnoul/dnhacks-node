@@ -94,7 +94,14 @@ function drawGraph(canvas: HTMLCanvasElement, history: Point[], now: number) {
     }
   }
   vis.reverse();
-  if (vis.length === 0) return;
+  if (vis.length === 0) {
+    // Empty state: hint so the axes + threshold read as "ready", not broken
+    ctx.fillStyle = MUTED;
+    ctx.font = "13px -apple-system, sans-serif";
+    const hint = "press Start — live confidence appears here";
+    ctx.fillText(hint, padL + (iw - ctx.measureText(hint).width) / 2, padT + ih / 2);
+    return;
+  }
 
   // Red fill wherever the line is above threshold
   ctx.beginPath();
@@ -286,7 +293,10 @@ export default function NodePage() {
 
   const stop = useCallback(() => {
     micRef.current?.stop();
+    micRef.current = null;
     void wakeLockRef.current?.release();
+    wakeLockRef.current = null;
+    scoringRef.current = false;
     setPhase("idle");
     setConf(null);
     wasDetectingRef.current = false;
@@ -351,7 +361,18 @@ export default function NodePage() {
           overflow: "hidden",
         }}
       >
-        <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: 260 }} />
+        <canvas
+          ref={canvasRef}
+          role="img"
+          aria-label={
+            conf == null
+              ? "Drone confidence history, no data yet"
+              : `Drone confidence history, current ${Math.round(conf * 100)} percent${
+                  detecting ? ", above threshold, drone detected" : ", below threshold, clear"
+                }`
+          }
+          style={{ display: "block", width: "100%", height: 260 }}
+        />
       </div>
       {phase === "listening" && detections > 0 && (
         <div style={{ fontSize: 12, color: MUTED, marginTop: 6, textAlign: "center" }}>
