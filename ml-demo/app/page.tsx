@@ -3,37 +3,170 @@
 // SkyMesh sensor node — fully self-contained drone detection.
 // The phone IS the node: mic → mel-spectrogram → on-device CRNN → confidence.
 // No server, no location, no network after first load. Airplane mode works.
-// This is the Demo 1 showcase: confidence in the existence of a drone.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MicCapture, type AudioFrame } from "./lib/audio";
+import { MicCapture } from "./lib/audio";
 import { DroneDetector } from "./lib/detector";
 
-// On-device dual pre-gate (cheap, runs at 4 Hz): drone-band RMS + harmonic
-// peakiness. Purely a power saver — the CRNN always has final say and runs
-// continuously at 2 Hz regardless.
-const GATE_THRESHOLD = 0.25;
-const PEAKINESS_THRESHOLD = 10;
-
-// CRNN verdict: score the last 1s window every 500 ms (same hop as model.py).
 const SCORE_INTERVAL_MS = 500;
 const DETECT_THRESHOLD = 0.5;
 
+// Graph: show the last 60 s, keep the whole session (2 Hz → 7200 pts/hour).
+const WINDOW_MS = 60_000;
+const MAX_POINTS = 28_800; // ~4 h cap to bound memory
+
 type Phase = "idle" | "loading" | "starting" | "listening" | "error";
+type Point = { t: number; p: number };
 
 function randomNodeId(): string {
   return Math.random().toString(36).slice(2, 8);
 }
 
+const GREEN = "#16a34a";
+const RED = "#dc2626";
+const RED_FILL = "rgba(220,38,38,0.12)";
+const GRID = "#e5e7eb";
+const MUTED = "#6b7280";
+
+function drawGraph(canvas: HTMLCanvasElement, history: Point[], now: number) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  if (!w || !h) return;
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+  }
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const padL = 30;
+  const padR = 8;
+  const padT = 14;
+  const padB = 18;
+  const iw = w - padL - padR;
+  const ih = h - padT - padB;
+  const t0 = now - WINDOW_MS;
+  const x = (t: number) => padL + ((t - t0) / WINDOW_MS) * iw;
+  const y = (p: number) => padT + (1 - Math.min(1, Math.max(0, p))) * ih;
+
+  // Gridlines at 0 / 50 / 100
+  ctx.font = "10px -apple-system, sans-serif";
+  ctx.fillStyle = MUTED;
+  ctx.strokeStyle = GRID;
+  ctx.lineWidth = 1;
+  for (const g of [0, 0.5, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(padL, y(g));
+    ctx.lineTo(w - padR, y(g));
+    ctx.stroke();
+    ctx.fillText(`${Math.round(g * 100)}`, 4, y(g) + 3);
+  }
+
+  // X labels
+  ctx.fillText("-60s", padL, h - 5);
+  const midLabel = "-30s";
+  ctx.fillText(midLabel, padL + iw / 2 - ctx.measureText(midLabel).width / 2, h - 5);
+  ctx.fillText("now", w - padR - ctx.measureText("now").width, h - 5);
+
+  // Threshold line (dashed) + label
+  ctx.save();
+  ctx.strokeStyle = MUTED;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath();
+  ctx.moveTo(padL, y(DETECT_THRESHOLD));
+  ctx.lineTo(w - padR, y(DETECT_THRESHOLD));
+  ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = MUTED;
+  const tLabel = "threshold 50%";
+  ctx.fillText(tLabel, w - padR - ctx.measureText(tLabel).width, y(DETECT_THRESHOLD) - 4);
+
+  // Visible points (+ one before the window so the line enters from the edge)
+  const vis: Point[] = [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].t >= t0) vis.push(history[i]);
+    else {
+      vis.push(history[i]);
+      break;
+    }
+  }
+  vis.reverse();
+  if (vis.length === 0) return;
+
+  // Red fill wherever the line is above threshold
+  ctx.beginPath();
+  let filling = false;
+  for (let i = 0; i < vis.length; i++) {
+    const px = Math.max(padL, x(vis[i].t));
+    const py = y(vis[i].p);
+    if (vis[i].p >= DETECT_THRESHOLD) {
+      if (!filling) {
+        ctx.moveTo(px, y(DETECT_THRESHOLD));
+        ctx.lineTo(px, py);
+        filling = true;
+      } else {
+        ctx.lineTo(px, py);
+      }
+    } else if (filling) {
+      ctx.lineTo(px, y(DETECT_THRESHOLD));
+      ctx.closePath();
+      filling = false;
+    }
+  }
+  if (filling) {
+    const lastX = Math.max(padL, x(vis[vis.length - 1].t));
+    ctx.lineTo(lastX, y(DETECT_THRESHOLD));
+    ctx.closePath();
+  }
+  ctx.fillStyle = RED_FILL;
+  ctx.fill();
+
+  // Confidence polyline, colored per segment (green below, red above)
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  for (let i = 1; i < vis.length; i++) {
+    const a = vis[i - 1];
+    const b = vis[i];
+    ctx.strokeStyle = (b.p >= DETECT_THRESHOLD || a.p >= DETECT_THRESHOLD) ? RED : GREEN;
+    ctx.beginPath();
+    ctx.moveTo(Math.max(padL, x(a.t)), y(a.p));
+    ctx.lineTo(Math.max(padL, x(b.t)), y(b.p));
+    ctx.stroke();
+  }
+
+  // Red ticks along the top edge for each rising-edge crossing in view
+  ctx.fillStyle = RED;
+  for (let i = 1; i < vis.length; i++) {
+    if (vis[i - 1].p < DETECT_THRESHOLD && vis[i].p >= DETECT_THRESHOLD) {
+      const px = Math.max(padL, x(vis[i].t));
+      ctx.fillRect(px - 1, 0, 2, 6);
+    }
+  }
+
+  // Head dot at the newest point
+  const last = vis[vis.length - 1];
+  if (now - last.t < WINDOW_MS) {
+    ctx.beginPath();
+    ctx.arc(Math.max(padL, x(last.t)), y(last.p), 4, 0, Math.PI * 2);
+    ctx.fillStyle = last.p >= DETECT_THRESHOLD ? RED : GREEN;
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+}
+
 export default function NodePage() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [err, setErr] = useState<string>("");
-  const [frame, setFrame] = useState<AudioFrame>({ loudness: 0, bandLoudness: 0, peakiness: 0 });
   const [conf, setConf] = useState<number | null>(null);
-  const [peakConf, setPeakConf] = useState<number>(0);
+  const [history, setHistory] = useState<Point[]>([]);
   const [detections, setDetections] = useState<number>(0);
   const [lastDetectAt, setLastDetectAt] = useState<string>("never");
-  const [inferMs, setInferMs] = useState<number | null>(null);
   const [nodeId, setNodeId] = useState<string>("");
 
   // nodeId is random — assign client-side only to avoid SSR hydration mismatch
@@ -44,6 +177,8 @@ export default function NodePage() {
   const scoringRef = useRef(false); // skip ticks while an inference is in flight
   const wasDetectingRef = useRef(false);
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [nowTick, setNowTick] = useState<number>(Date.now());
 
   const start = useCallback(async () => {
     setErr("");
@@ -70,6 +205,8 @@ export default function NodePage() {
         /* ignore */
       }
 
+      setHistory([]);
+      wasDetectingRef.current = false;
       setPhase("listening");
     } catch (e) {
       setErr(String(e));
@@ -77,14 +214,9 @@ export default function NodePage() {
     }
   }, []);
 
-  // Meters at 4 Hz + CRNN scoring at 2 Hz — all on this phone.
+  // CRNN scoring at 2 Hz — all on this phone.
   useEffect(() => {
     if (phase !== "listening") return;
-
-    const meter = setInterval(() => {
-      const mic = micRef.current;
-      if (mic) setFrame(mic.frame());
-    }, 250);
 
     const scorer = setInterval(() => {
       const mic = micRef.current;
@@ -93,13 +225,15 @@ export default function NodePage() {
       const samples = mic.samples(1.0);
       if (!samples) return;
       scoringRef.current = true;
-      const t0 = performance.now();
       det
         .score(samples, mic.sampleRate)
         .then((p) => {
-          setInferMs(performance.now() - t0);
+          const t = Date.now();
           setConf(p);
-          setPeakConf((prev) => Math.max(prev, p));
+          setHistory((prev) => {
+            const next = [...prev, { t, p }];
+            return next.length > MAX_POINTS ? next.slice(next.length - MAX_POINTS) : next;
+          });
           const detecting = p >= DETECT_THRESHOLD;
           if (detecting && !wasDetectingRef.current) {
             setDetections((n) => n + 1);
@@ -120,11 +254,33 @@ export default function NodePage() {
         });
     }, SCORE_INTERVAL_MS);
 
+    // Re-render clock so the graph scrolls even between scores
+    const clock = setInterval(() => setNowTick(Date.now()), 500);
+
     return () => {
-      clearInterval(meter);
       clearInterval(scorer);
+      clearInterval(clock);
     };
   }, [phase]);
+
+  // Redraw the graph on new data, clock ticks, and resize
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    drawGraph(canvas, history, nowTick);
+  }, [history, nowTick]);
+
+  useEffect(() => {
+    const onResize = () => {
+      if (canvasRef.current) drawGraph(canvasRef.current, history, Date.now());
+    };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+    };
+  }, [history]);
 
   const stop = useCallback(() => {
     micRef.current?.stop();
@@ -134,164 +290,127 @@ export default function NodePage() {
     wasDetectingRef.current = false;
   }, []);
 
-  const gateHit = frame.bandLoudness > GATE_THRESHOLD && frame.peakiness > PEAKINESS_THRESHOLD;
   const detecting = (conf ?? 0) >= DETECT_THRESHOLD;
   const confPct = conf == null ? null : Math.round(conf * 100);
+  const busy = phase === "loading" || phase === "starting";
 
   return (
-    <main style={{ padding: 24, maxWidth: 480, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 22, marginBottom: 4 }}>SkyMesh Node</h1>
-      <p style={{ color: "#8b949e", marginTop: 0, fontSize: 13 }}>
-        node <code>{nodeId}</code> · CRNN runs on this phone — no server, no
-        location, works offline
-      </p>
+    <main style={{ padding: 20, maxWidth: 560, margin: "0 auto" }}>
+      <div style={{ fontSize: 13, color: MUTED, marginBottom: 8 }}>
+        SkyMesh Node · {nodeId || "…"}
+      </div>
 
-      {phase === "idle" && (
-        <button
-          onClick={start}
+      {/* Big readout */}
+      <div style={{ textAlign: "center", margin: "8px 0 4px" }}>
+        <div
           style={{
-            width: "100%",
-            padding: "20px 0",
-            fontSize: 20,
-            borderRadius: 12,
-            border: "none",
-            background: "#2ea043",
-            color: "white",
-            fontWeight: 700,
+            fontSize: 76,
+            fontWeight: 800,
+            lineHeight: 1,
+            color: detecting ? RED : "#111",
+            fontVariantNumeric: "tabular-nums",
           }}
         >
-          Start listening
-        </button>
-      )}
-      {phase === "loading" && <p>Loading drone detector (6 MB, one-time)…</p>}
-      {phase === "starting" && <p>Requesting microphone…</p>}
-      {phase === "error" && (
-        <div>
-          <p style={{ color: "#f85149" }}>{err}</p>
-          <p style={{ fontSize: 13, color: "#8b949e" }}>
-            Mic needs HTTPS (or localhost) and permission. Check Settings →
-            Safari → Microphone.
-          </p>
-          <button onClick={start}>Retry</button>
+          {confPct == null ? "—" : `${confPct}%`}
+        </div>
+        <div style={{ marginTop: 8, minHeight: 32 }}>
+          {phase === "listening" ? (
+            detecting ? (
+              <span
+                style={{
+                  display: "inline-block",
+                  background: RED,
+                  color: "#fff",
+                  fontWeight: 800,
+                  fontSize: 16,
+                  padding: "6px 16px",
+                  borderRadius: 999,
+                }}
+              >
+                DRONE DETECTED
+              </span>
+            ) : (
+              <span style={{ color: MUTED, fontWeight: 600, fontSize: 16 }}>clear</span>
+            )
+          ) : (
+            <span style={{ color: MUTED, fontSize: 14 }}>
+              {phase === "idle" ? "press Start to listen" : "\u00a0"}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Infinite confidence graph */}
+      <div
+        style={{
+          border: "1px solid #e5e7eb",
+          borderRadius: 12,
+          marginTop: 8,
+          overflow: "hidden",
+        }}
+      >
+        <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: 260 }} />
+      </div>
+      {phase === "listening" && detections > 0 && (
+        <div style={{ fontSize: 12, color: MUTED, marginTop: 6, textAlign: "center" }}>
+          {detections} detection{detections === 1 ? "" : "s"} · last {lastDetectAt}
         </div>
       )}
 
-      {phase === "listening" && (
-        <>
-          {/* Big verdict: THE demo readout */}
-          <div
+      {/* One big button */}
+      <div style={{ marginTop: 16 }}>
+        {(phase === "idle" || phase === "error") && (
+          <button
+            onClick={start}
             style={{
-              textAlign: "center",
-              margin: "20px 0 4px",
-              padding: "16px 0",
+              width: "100%",
+              padding: "20px 0",
+              fontSize: 20,
               borderRadius: 12,
-              background: detecting ? "#f8514922" : "transparent",
-              border: detecting ? "2px solid #f85149" : "2px solid transparent",
-              transition: "all 200ms",
+              border: "none",
+              background: "#16a34a",
+              color: "white",
+              fontWeight: 700,
             }}
           >
-            <div style={{ fontSize: 13, color: "#8b949e" }}>drone confidence</div>
-            <div
-              style={{
-                fontSize: 56,
-                fontWeight: 800,
-                lineHeight: 1.1,
-                color: detecting ? "#f85149" : "#3fb950",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {confPct == null ? "—" : `${confPct}%`}
-            </div>
-            <div
-              style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: detecting ? "#f85149" : "#8b949e",
-                minHeight: 24,
-              }}
-            >
-              {detecting ? "🚨 DRONE DETECTED" : "clear"}
-            </div>
-          </div>
-
-          {/* pulsing listening indicator */}
-          <div
-            style={{
-              height: 100,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "8px 0",
-            }}
-          >
-            <div
-              style={{
-                width: 50 + frame.bandLoudness * 120,
-                height: 50 + frame.bandLoudness * 120,
-                borderRadius: "50%",
-                background: detecting ? "#f8514966" : "#2ea04333",
-                border: `3px solid ${detecting ? "#f85149" : "#2ea043"}`,
-                transition: "all 120ms",
-              }}
-            />
-          </div>
-
-          <table style={{ width: "100%", fontSize: 14, borderSpacing: "0 6px" }}>
-            <tbody>
-              <tr>
-                <td style={{ color: "#8b949e" }}>drone-band level</td>
-                <td style={{ textAlign: "right" }}>
-                  {Math.round(frame.bandLoudness * 100)}% {gateHit ? "🔴" : ""}
-                </td>
-              </tr>
-              <tr>
-                <td style={{ color: "#8b949e" }}>harmonics</td>
-                <td style={{ textAlign: "right", fontSize: 12 }}>
-                  {frame.peakiness.toFixed(1)}×{" "}
-                  {frame.peakiness > PEAKINESS_THRESHOLD ? "🟢 prop-like" : "flat"}
-                </td>
-              </tr>
-              <tr>
-                <td style={{ color: "#8b949e" }}>peak confidence</td>
-                <td style={{ textAlign: "right" }}>{Math.round(peakConf * 100)}%</td>
-              </tr>
-              <tr>
-                <td style={{ color: "#8b949e" }}>detections</td>
-                <td style={{ textAlign: "right" }}>{detections}</td>
-              </tr>
-              <tr>
-                <td style={{ color: "#8b949e" }}>last detection</td>
-                <td style={{ textAlign: "right" }}>{lastDetectAt}</td>
-              </tr>
-              <tr>
-                <td style={{ color: "#8b949e" }}>inference</td>
-                <td style={{ textAlign: "right", fontSize: 12 }}>
-                  {inferMs == null ? "—" : `${inferMs.toFixed(0)} ms on-device`}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
+            Start listening
+          </button>
+        )}
+        {busy && (
+          <p style={{ textAlign: "center", color: MUTED }}>
+            {phase === "loading" ? "Loading drone detector (6 MB, one-time)…" : "Requesting microphone…"}
+          </p>
+        )}
+        {phase === "listening" && (
           <button
             onClick={stop}
             style={{
               width: "100%",
-              padding: "12px 0",
-              marginTop: 16,
-              borderRadius: 8,
-              border: "1px solid #f85149",
-              background: "transparent",
-              color: "#f85149",
+              padding: "14px 0",
+              fontSize: 17,
+              borderRadius: 12,
+              border: "2px solid #111",
+              background: "#fff",
+              color: "#111",
+              fontWeight: 700,
             }}
           >
             Stop
           </button>
-          <p style={{ fontSize: 12, color: "#8b949e" }}>
-            All processing stays on this phone. The neural net scores the mic
-            every 500 ms — audio never leaves the device.
-          </p>
-        </>
-      )}
+        )}
+        {phase === "error" && (
+          <div>
+            <p style={{ color: RED }}>{err}</p>
+            <p style={{ fontSize: 13, color: MUTED }}>
+              Mic needs HTTPS (or localhost) and permission. Check Settings → Safari → Microphone.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <p style={{ fontSize: 12, color: MUTED, textAlign: "center", marginTop: 12 }}>
+        All on-device · audio never leaves this phone
+      </p>
     </main>
   );
 }
