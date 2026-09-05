@@ -180,7 +180,7 @@ export default function TonePage() {
       }}
     >
       <h1 style={{ fontSize: 22 }}>Drone verification sound + 3D picker</h1>
-      <p style={{ color: "#8b949e", fontSize: 13 }}>
+      <p style={{ color: "#6b7280", fontSize: 13 }}>
         Compare the 5 vendored GLB drones below (drag to orbit, scroll to
         zoom). Click a card to feature it, then tell me which one to keep.
       </p>
@@ -205,7 +205,7 @@ export default function TonePage() {
         />
         <div style={{ padding: "12px 16px" }}>
           <div style={{ fontWeight: 700 }}>{selected.name}</div>
-          <div style={{ fontSize: 12, color: "#8b949e", marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
             {selected.size} · {selected.tris} tris · by {selected.author} ·
             CC-BY 3.0 via{" "}
             <a
@@ -218,7 +218,7 @@ export default function TonePage() {
             </a>{" "}
             · <code>{selected.src}</code>
           </div>
-          <div style={{ fontSize: 12, color: "#8b949e" }}>{selected.note}</div>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>{selected.note}</div>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <button
               onClick={() => {
@@ -233,7 +233,7 @@ export default function TonePage() {
                 padding: "8px 14px",
                 borderRadius: 8,
                 border: "none",
-                background: "#2ea043",
+                background: "#16a34a",
                 color: "white",
                 fontWeight: 700,
                 fontSize: 13,
@@ -255,9 +255,9 @@ export default function TonePage() {
               style={{
                 padding: "8px 14px",
                 borderRadius: 8,
-                border: "1px solid #30363d",
-                background: "transparent",
-                color: "#e6edf3",
+                border: "1px solid #d1d5db",
+                background: "#fff",
+                color: "#111",
                 fontSize: 13,
                 cursor: "pointer",
               }}
@@ -312,7 +312,7 @@ export default function TonePage() {
                   {active ? "● " : "○ "}
                   {d.name}
                 </div>
-                <div style={{ fontSize: 11, color: "#8b949e", marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
                   {d.size} · {d.tris} tris
                 </div>
               </div>
@@ -320,7 +320,7 @@ export default function TonePage() {
           );
         })}
       </div>
-      <p style={{ fontSize: 11, color: "#6e7681" }}>
+      <p style={{ fontSize: 11, color: "#9ca3af" }}>
         3D credit: all models CC-BY 3.0 via Poly Pizza — NateGazzard, Silly
         Fear, Adam Marc Williams, Nick Olson, Aaron Clifford.
       </p>
@@ -328,7 +328,7 @@ export default function TonePage() {
       {/* Audio section (unchanged logic, constrained width) */}
       <div style={{ maxWidth: 480, margin: "24px auto 0" }}>
         <h2 style={{ fontSize: 18 }}>Drone verification sound</h2>
-        <p style={{ color: "#8b949e", fontSize: 13 }}>
+        <p style={{ color: "#6b7280", fontSize: 13 }}>
           Real drone audio — drives the on-device CRNN to ~100%. MacBook volume
           to MAX, speaker near the iPhone mic.
         </p>
@@ -357,7 +357,7 @@ export default function TonePage() {
                 padding: "12px 0",
                 marginTop: 12,
                 borderRadius: 8,
-                border: "1px solid #8b949e",
+                border: "1px solid #d1d5db",
                 background: "transparent",
                 color: "inherit",
               }}
@@ -392,7 +392,7 @@ export default function TonePage() {
           style={{ width: "100%", marginTop: 16 }}
         />
 
-        <ol style={{ fontSize: 13, color: "#8b949e", lineHeight: 1.7 }}>
+        <ol style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.7 }}>
           <li>MacBook: open this page, hit Play, volume 100%.</li>
           <li>
             iPhone: open the node page, Start listening, hold it 10–30 cm from
@@ -408,12 +408,12 @@ export default function TonePage() {
             prop noise is what drives the classifier.
           </li>
         </ol>
-        <p style={{ fontSize: 12, color: "#8b949e" }}>
+        <p style={{ fontSize: 12, color: "#6b7280" }}>
           Direct file links (play natively on macOS):{" "}
           <code>/drone-demo.wav</code> (real drone audio, verifies detection) ·{" "}
           <code>/drone-tone.wav</code> (sine stack, gate meters only)
         </p>
-        <p style={{ fontSize: 11, color: "#6e7681" }}>
+        <p style={{ fontSize: 11, color: "#9ca3af" }}>
           Drone audio: DADS (MIT), geronimobasso/drone-audio-detection-samples —
           aggregates CC-BY sources, see dataset card.
         </p>
