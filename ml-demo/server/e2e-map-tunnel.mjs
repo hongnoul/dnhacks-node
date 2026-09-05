@@ -16,6 +16,18 @@ function liveTunnel() {
 }
 
 const TUNNEL = liveTunnel();
+
+// Self-seed a fresh track: the map only badges tracks <15 s old, so replay
+// the demo session first (falls back to sim_fusion if no session saved).
+async function ensureFreshTrack() {
+  try {
+    const r = await fetch("http://localhost:8000/replay/start?session=demo1&speed=8", { method: "POST" });
+    if (r.ok) { await new Promise((res) => setTimeout(res, 5000)); return; }
+  } catch { /* fall through to sim seed */ }
+  const { execSync: ex } = await import("child_process");
+  ex(".venv/bin/python sim_fusion.py > /dev/null 2>&1", { timeout: 120000 });
+}
+await ensureFreshTrack();
 const browser = await chromium.launch();
 const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
 const errors = [];
