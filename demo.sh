@@ -5,6 +5,29 @@
 set -euo pipefail
 cd "$(dirname "$0")/server"
 
+# QR mode: ./demo.sh --qr lat,lon [lat,lon ...] — prints terminal QR codes
+# (pip install qrcode) plus the plain URLs, one per pinned anchor spot.
+if [ "${1:-}" = "--qr" ]; then
+  shift
+  TUNNEL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' tunnel.log 2>/dev/null | head -1 || true)
+  [ -z "${TUNNEL:-}" ] && { echo "no tunnel running; run ./demo.sh first"; exit 1; }
+  if ! python3 -c "import qrcode" 2>/dev/null && ! .venv/bin/python -c "import qrcode" 2>/dev/null; then
+    echo "(install once: pip install qrcode — printing URLs only)"
+  fi
+  i=0
+  for spot in "$@"; do
+    i=$((i + 1))
+    lat=$(echo "$spot" | cut -d, -f1); lon=$(echo "$spot" | cut -d, -f2)
+    URL="https://dnhacks-node.vercel.app?server=$TUNNEL&lat=$lat&lon=$lon&acc=3"
+    echo ""
+    echo "── anchor $i ($lat, $lon) ──"
+    echo "$URL"
+    (python3 -c "import qrcode, sys; q=qrcode.QRCode(border=1); q.add_data(sys.argv[1]); q.print_ascii()" "$URL" 2>/dev/null || \
+     .venv/bin/python -c "import qrcode, sys; q=qrcode.QRCode(border=1); q.add_data(sys.argv[1]); q.print_ascii()" "$URL" 2>/dev/null || true)
+  done
+  exit 0
+fi
+
 if [ ! -d .venv ]; then
   echo "→ creating venv + installing deps (first run only)"
   python3 -m venv .venv
@@ -47,6 +70,7 @@ cat <<EOF
                     (do this — indoor phone GPS is ±30m+; see README)
   Event stream:     tail -f server/events.jsonl
   Save a session:   curl -X POST 'localhost:8000/replay/save?session=demo1'
+  QR codes:         ./demo.sh --qr 38.90120,-77.04020 38.90030,-77.04020 [...]
 ──────────────────────────────────────────────────
 NOTE: if the tunnel URL changed since the last Vercel deploy, either use the
 ?server= link above (works immediately) or redeploy:

@@ -5,3 +5,4 @@ torch>=2.2
 torchaudio>=2.2
 numpy>=1.24
 huggingface_hub>=0.20
+qrcode>=7.4
