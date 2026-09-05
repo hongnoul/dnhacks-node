@@ -17,6 +17,12 @@ SR = 16_000
 WINDOW = SR  # 1 s
 HOP = SR // 2  # 500 ms
 
+# Scoring gain normalization: peak-normalize each 1s window to NORM_PEAK.
+# Real noise clips have peak >= 0.19; only digital silence falls below
+# PEAK_FLOOR, and those windows score 0 without amplification.
+NORM_PEAK = 0.9
+PEAK_FLOOR = 0.005
+
 
 def _conv_block(in_ch, out_ch):
     return nn.Sequential(
@@ -76,7 +82,15 @@ def get_model() -> DroneClassifier:
 
 @torch.no_grad()
 def score_waveform(wave: torch.Tensor, sr: int) -> float:
-    """wave: (channels, samples). Returns max drone prob over 1s windows."""
+    """wave: (channels, samples). Returns max drone prob over 1s windows.
+
+    Each window is peak-normalized to NORM_PEAK before the mel front end:
+    room playback lands 20-30 dB below file level, and the fixed
+    (dB+40)/40 normalization shifts quiet audio into a range the CRNN
+    never saw in training (1.0 at full level → 0.06 at -30 dB).
+    Windows below PEAK_FLOOR are near-digital-silence — return 0 rather
+    than amplifying noise into a false verdict.
+    """
     if sr != SR:
         wave = torchaudio.functional.resample(wave, sr, SR)
     wave = wave.mean(0, keepdim=True)  # mono
@@ -88,6 +102,11 @@ def score_waveform(wave: torch.Tensor, sr: int) -> float:
     probs = []
     for start in range(0, n - WINDOW + 1, HOP):
         chunk = wave[:, start:start + WINDOW]
+        peak = chunk.abs().max().item()
+        if peak < PEAK_FLOOR:
+            probs.append(0.0)
+            continue
+        chunk = chunk * (NORM_PEAK / peak)
         log_mel = (_to_db(_mel(chunk)) + 40) / 40
         probs.append(torch.sigmoid(model(log_mel.unsqueeze(0))).item())
     return max(probs)

@@ -50,7 +50,16 @@ export class DroneDetector {
     }
     let best = 0;
     for (let start = 0; start + WINDOW_SAMPLES <= wave.length; start += WINDOW_HOP) {
-      const chunk = wave.subarray(start, start + WINDOW_SAMPLES);
+      const raw = wave.subarray(start, start + WINDOW_SAMPLES);
+      let peak = 0;
+      for (let i = 0; i < raw.length; i++) {
+        const a = Math.abs(raw[i]);
+        if (a > peak) peak = a;
+      }
+      if (peak < PEAK_FLOOR) continue; // digital silence — don't amplify noise
+      const g = NORM_PEAK / peak;
+      const chunk = new Float32Array(raw.length);
+      for (let i = 0; i < raw.length; i++) chunk[i] = raw[i] * g;
       const { data, frames } = logMelSpectrogram(chunk);
       const tensor = new ort.Tensor("float32", data, [1, 1, N_MELS, frames]);
       const out = await this.session.run({ log_mel: tensor });
@@ -61,6 +70,13 @@ export class DroneDetector {
     return best;
   }
 }
+
+// Scoring gain normalization (mirrors model.py): peak-normalize each 1s
+// window before the mel front end. Room playback lands 20-30 dB below file
+// level and the fixed (dB+40)/40 norm shifts quiet audio out of the CRNN's
+// training range. Windows below PEAK_FLOOR are digital silence — score 0.
+export const NORM_PEAK = 0.9;
+export const PEAK_FLOOR = 0.005;
 
 // Expected mel frame count for a 1 s window: center padding adds n_fft, so
 // frames = 1 + ((SR + N_FFT) - N_FFT) / HOP = 1 + SR/HOP = 101

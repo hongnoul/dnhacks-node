@@ -65,7 +65,17 @@ async function scoreJs(samples, sampleRate) {
   }
   let best = 0;
   for (let s = 0; s + W <= wave.length; s += H) {
-    const { data, frames } = logMelSpectrogram(wave.subarray(s, s + W));
+    const raw = wave.subarray(s, s + W);
+    let peak = 0;
+    for (let i = 0; i < raw.length; i++) {
+      const a = Math.abs(raw[i]);
+      if (a > peak) peak = a;
+    }
+    if (peak < 0.005) continue;
+    const g = 0.9 / peak;
+    const chunk = new Float32Array(raw.length);
+    for (let i = 0; i < raw.length; i++) chunk[i] = raw[i] * g;
+    const { data, frames } = logMelSpectrogram(chunk);
     const t = new ort.Tensor("float32", data, [1, 1, N_MELS, frames]);
     const out = await session.run({ log_mel: t });
     const prob = 1 / (1 + Math.exp(-out.logit.data[0]));
