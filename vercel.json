@@ -3,5 +3,6 @@
   "buildCommand": "cd ml-demo && npm run build",
   "devCommand": "cd ml-demo && npm run dev",
   "installCommand": "cd ml-demo && npm install",
+  "outputDirectory": "ml-demo/.next",
   "framework": "nextjs"
 }
