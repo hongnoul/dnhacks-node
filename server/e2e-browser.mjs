@@ -1,10 +1,31 @@
 // e2e-browser.mjs — validate prod URL in real Chromium with fake mic + GPS.
 // Loads https://dnhacks-node.vercel.app, grants permissions, taps "Join the mesh",
 // then polls the fusion server for heartbeats (and a clip if the gate trips).
+import { execSync } from "child_process";
 import { chromium } from "playwright";
 
-const PAGE_URL = process.env.PAGE_URL ?? "https://dnhacks-node.vercel.app";
-const SERVER = process.env.SERVER ?? "http://localhost:8000";
+// Resolve the server under test: env SERVER, else the live tunnel from
+// tunnel.log (written by demo.sh), else localhost. The node page gets
+// ?server=<SERVER> appended so it talks to THIS server — not whatever
+// stale tunnel URL was baked into the Vercel build.
+function liveServer() {
+  if (process.env.SERVER) return process.env.SERVER.replace(/\/$/, "");
+  try {
+    const out = execSync(
+      "grep -o 'https://[a-z0-9-]*\\.trycloudflare\\.com' tunnel.log | head -1",
+      { encoding: "utf8" }
+    ).trim();
+    if (out) return out;
+  } catch { /* fall through */ }
+  return "http://localhost:8000";
+}
+
+const SERVER = liveServer();
+const RAW_PAGE_URL = process.env.PAGE_URL ?? "https://dnhacks-node.vercel.app";
+const PAGE_URL = RAW_PAGE_URL.includes("server=")
+  ? RAW_PAGE_URL
+  : RAW_PAGE_URL + (RAW_PAGE_URL.includes("?") ? "&" : "?") + `server=${encodeURIComponent(SERVER)}`;
+console.log("→ server under test:", SERVER);
 
 const browser = await chromium.launch({
   args: [

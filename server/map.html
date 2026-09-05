@@ -39,6 +39,10 @@
     <div class="stat"><span>live nodes</span><b id="n-nodes">0</b></div>
     <div class="stat"><span>CRNN model</span><b id="model">—</b></div>
     <div class="stat"><span>last update</span><b id="updated">—</b></div>
+    <h1 style="margin-top:14px">Nodes</h1>
+    <div id="nodehealth" style="font-size:12px"></div>
+    <h1 style="margin-top:14px">Track history</h1>
+    <div id="trackhist" style="font-size:12px"></div>
     <h1 style="margin-top:14px">Alert feed</h1>
     <div id="alerts"></div>
   </div>
@@ -130,6 +134,19 @@ async function poll() {
     } else {
       document.getElementById('remoteid').innerHTML = '';
     }
+
+    // per-node health table: id, GPS accuracy, loudness, staleness
+    document.getElementById('nodehealth').innerHTML = Object.entries(s.nodes).map(([id, n]) => {
+      const acc = n.gps_accuracy_m != null ? `±${Math.round(n.gps_accuracy_m)}m` : 'no fix';
+      const stale = n.age_s > 5 ? ` · <span style="color:#d29922">stale ${n.age_s}s</span>` : '';
+      const dot = n.gps_accuracy_m != null && n.gps_accuracy_m > 20 ? '#f85149' : '#3fb950';
+      return `<div class="stat"><span><span class="dot" style="background:${dot}"></span>${id} · ${acc} · ${(n.loudness*100|0)}%</span><b>${n.age_s}s</b></div>${stale}`;
+    }).join('') || '<div class="sub">no live nodes</div>';
+
+    // track history: last 8 fused positions with error + node count
+    document.getElementById('trackhist').innerHTML = s.track_history.slice(-8).reverse().map(t =>
+      `<div class="stat"><span>${new Date(t.t*1000).toLocaleTimeString()} · ±${t.err_m}m · ${t.n_nodes}n</span><b>${t.confidence?.toFixed(2) ?? ''}</b></div>`
+    ).join('') || '<div class="sub">no tracks yet</div>';
 
     // alerts
     document.getElementById('alerts').innerHTML = s.alerts.map(a => {
