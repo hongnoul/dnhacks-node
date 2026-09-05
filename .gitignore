@@ -14,3 +14,4 @@ server/sessions/
 server/events.backup.jsonl
 map-tunnel.png
 server/tunnel.log
+*.tsbuildinfo

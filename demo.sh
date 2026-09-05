@@ -42,6 +42,9 @@ cat <<EOF
   C2 map (public):  $TUNNEL/map
   Node page:        https://dnhacks-node.vercel.app?server=$TUNNEL
                     (QR-encode that URL for judges)
+  Pinned anchors:   append &lat=..&lon=..&acc=3 per surveyed spot, e.g.
+                    https://dnhacks-node.vercel.app?server=$TUNNEL&lat=38.90120&lon=-77.04020&acc=3
+                    (do this — indoor phone GPS is ±30m+; see README)
   Event stream:     tail -f server/events.jsonl
   Save a session:   curl -X POST 'localhost:8000/replay/save?session=demo1'
 ──────────────────────────────────────────────────
