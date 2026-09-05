@@ -2,6 +2,7 @@
 // Loads https://dnhacks-node.vercel.app, grants permissions, taps "Join the mesh",
 // then polls the fusion server for heartbeats (and a clip if the gate trips).
 import { execSync } from "child_process";
+import { existsSync, writeFileSync } from "fs";
 import { chromium } from "playwright";
 
 // Resolve the server under test: env SERVER, else the live tunnel from
@@ -27,11 +28,37 @@ const PAGE_URL = RAW_PAGE_URL.includes("server=")
   : RAW_PAGE_URL + (RAW_PAGE_URL.includes("?") ? "&" : "?") + `server=${encodeURIComponent(SERVER)}`;
 console.log("→ server under test:", SERVER);
 
+// Fake-mic fixture: 10 s propeller-ish harmonic stack (150 Hz ×5 harmonics
+// at 0.35 gain, 48 kHz — matches the original fixture synthesis exactly).
+// Generated on first run so the .wav never needs to be committed
+// (gitignored test fixture).
+const TONE_PATH = new URL("./drone_tone.wav", import.meta.url).pathname;
+function ensureTone() {
+  if (existsSync(TONE_PATH)) return;
+  const rate = 48000, n = rate * 10, gain = 0.35;
+  const data = Buffer.alloc(44 + n * 2);
+  data.write("RIFF", 0); data.writeUInt32LE(36 + n * 2, 4); data.write("WAVE", 8);
+  data.write("fmt ", 12); data.writeUInt32LE(16, 16); data.writeUInt16LE(1, 20);
+  data.writeUInt16LE(1, 22); data.writeUInt32LE(rate, 24); data.writeUInt32LE(rate * 2, 28);
+  data.writeUInt16LE(2, 32); data.writeUInt16LE(16, 34); data.write("data", 36);
+  data.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) {
+    const t = i / rate;
+    let s = 0;
+    for (let h = 1; h <= 5; h++) s += Math.sin(2 * Math.PI * 150 * h * t) / h;
+    s = Math.max(-1, Math.min(1, s * gain));
+    data.writeInt16LE(Math.round(s < 0 ? s * 0x8000 : s * 0x7fff), 44 + i * 2);
+  }
+  writeFileSync(TONE_PATH, data);
+  console.log("→ generated fake-mic fixture drone_tone.wav");
+}
+ensureTone();
+
 const browser = await chromium.launch({
   args: [
     "--use-fake-ui-for-media-stream",
     "--use-fake-device-for-media-stream", // synthetic mic producing a tone
-    `--use-file-for-fake-audio-capture=${new URL("./drone_tone.wav", import.meta.url).pathname}`,
+    `--use-file-for-fake-audio-capture=${TONE_PATH}`,
     "--autoplay-policy=no-user-gesture-required",
   ],
 });
