@@ -1,7 +1,7 @@
 {
   "name": "SkyMesh Node",
   "short_name": "SkyMesh",
-  "description": "Crowd-sourced drone detection sensor node",
+  "description": "Self-contained drone detection node — on-device neural net",
   "start_url": "/",
   "display": "browser",
   "background_color": "#0a0f1a",

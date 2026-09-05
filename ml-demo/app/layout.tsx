@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: "SkyMesh Node",
-  description: "Crowd-sourced drone detection sensor node",
+  description: "Self-contained drone detection node — on-device neural net",
   manifest: "/manifest.webmanifest",
 };
 
