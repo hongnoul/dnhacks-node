@@ -1,143 +1,109 @@
-# SkyMesh — Crowd-Sourced Drone Detection Net
+# SkyMesh — Distributed Drone Detection Net
 
-> Every phone and laptop in a crowd becomes a drone-detection sensor. Open a URL, and your mic + GPS join a mesh that detects, identifies, and triangulates nearby drones on a live map.
+> Acoustic drone detection at the edge, and a resilient mesh of military sensor nodes that share what they hear. Two demos, one story: hear the drone, spread the word, no single point of failure.
 
 **DNHacks 2026 — Defense track (Second Front Systems).** Counter-UAS, drone detection, edge compute, distributed sensing, command and control.
 
-Dedicated counter-UAS radar costs $100k+ per site and doesn't scale to every school, base gate, or public event. SkyMesh's marginal sensor cost is **$0** — the sensors are already in everyone's pocket. Coverage scales with the number of people present. Accuracy improves with every node that joins.
+Dedicated counter-UAS radar costs $100k+ per site and creates a single point of failure. SkyMesh takes the opposite bet: many cheap, identical acoustic sensor nodes that each detect locally and propagate contacts to their neighbors. Kill any node and the mesh keeps tracking.
 
-## The 3-minute demo
+## Two demos
 
-1. Judge scans a **QR code** → their phone joins as a node, appears on the live map. No install.
-2. Drone spins up → phones light up with detections → fused track appears with an error ellipse.
-3. A 5th and 6th node join → ellipse visibly tightens: *"4 nodes, ±25 m. 6 nodes, ±9 m."*
-4. Operator page shows track history, alert log, and RemoteID identity when captured — including the punchline: *"This one is under 250 g and broadcasts nothing — we hear it anyway."*
-5. Close: attritable, massively distributed sensing with zero marginal hardware cost. Roadmap: hardened fixed nodes for base perimeters, integration into existing C2.
+### Demo 1 — ML: hearing the drone (live mic)
 
-Fallbacks: flying banned → phone speaker playing recorded drone audio at a known position (stated honestly, sensing math is identical). Venue too loud → pre-recorded live-run video + replay dataset animating the real map UI.
+A live microphone feeds a CRNN drone-audio classifier in real time. Ported from the `justin-draft` branch and polished from there:
 
-## How it works
+- **Classifier:** CRNN (conv blocks + BiGRU head) scoring 1 s windows at 500 ms hop. Front end: 16 kHz mono, 64-mel spectrogram, 50–5500 Hz.
+- **Localization:** GCC-PHAT cross-correlation between node pairs → time-difference-of-arrival → least-squares multilateration. In physical sim: **8.7 m error vs 51 m** for the loudness centroid.
+- **Fusion:** loudness/GPS-weighted centroid + error ellipse that visibly tightens as nodes join.
 
-**Topology: distributed sensing, centralized fusion.** Edge detection on-device, centralized fusion server. No P2P mesh, no consensus — all nodes are trusted volunteers contributing *measurements*, not conflicting state, so there is nothing to vote on. GCC-PHAT fusion needs all clips in one place anyway. Bad-mic outliers are handled statistically at fusion time. This mirrors real C2 doctrine: distributed sensing, centralized fusion.
+The demo: play (or fly) a drone near live mics, watch detections fire and a fused track appear.
+
+### Demo 2 — Full-stack: the world simulation
+
+A full-stack web application:
+
+- **Frontend:** a map dashboard showing nodes placed on real-world terrain, drone tracks, and alert propagation. *(Stack decided by Avery.)*
+- **Backend:** a world simulation emulating a distributed system. Each node represents a piece of military hardware that communicates **only with adjacent nodes** about drone presence. *(Communication model decided by Mark.)*
+
+The demo: place nodes on the map, spawn a drone, and watch contact reports ripple node-to-node across the mesh — then kill nodes and watch the network route around the loss.
+
+## Node model
+
+**All nodes are identical.** Every simulated node is a self-contained hardened acoustic sensor unit with the full feature set:
+
+- **Detect** — on-board acoustic classification (the Demo 1 pipeline is what each node "runs").
+- **Relay** — exchange contact reports with adjacent nodes; no central server required.
+- **C2-capable** — any node can aggregate the local picture and serve it to an operator.
+
+This is deliberate: a flat mesh of peers has no privileged node to destroy. Heterogeneous archetypes (dedicated relays, C2 stations) and real-hardware flavor (radar pickets, RF sniffers as distinct node types) are roadmap, not v1. *(Mark may revise the node model alongside the communication design.)*
 
 ```mermaid
 flowchart LR
-    subgraph Nodes["Sensor nodes (PWA, zero-install)"]
-        P1["Phone mic + GPS\non-device CNN"]
-        P2["Phone mic + GPS\non-device CNN"]
-        L1["Laptop + USB mic\nanchor node"]
-        R1["RemoteID sidecar\nAndroid / BT dongle"]
+    subgraph Demo1["Demo 1 — ML (live)"]
+        MIC["Live mic"] --> MEL["Mel-spectrogram"] --> CRNN["CRNN classifier"]
+        CRNN --> DET["Detection + confidence"]
+        DET --> TDOA["GCC-PHAT TDOA\nmultilateration"]
     end
-    subgraph Server["Fusion server (FastAPI + WebSocket)"]
-        ING["Ingest → JSONL event log"]
-        CENT["Loudness-weighted centroid\n+ covariance ellipse (always)"]
-        TDOA["GCC-PHAT + multilateration\n(≥4 concurrent clips)"]
+    subgraph Demo2["Demo 2 — World sim"]
+        SIM["World simulation backend\n(comms model: Mark)"] --> N1["Node"] & N2["Node"] & N3["Node"]
+        N1 <-->|contact reports| N2 <-->|contact reports| N3
+        SIM --> DASH["Map dashboard frontend\n(stack: Avery)"]
     end
-    subgraph UI["Consumers of the event stream"]
-        MAP["Live Leaflet map"]
-        OPS["Operator C2 page"]
-        REP["/replay endpoint"]
-    end
-    P1 -->|heartbeat 1Hz, detection + 2s clip| ING
-    P2 -->|heartbeat 1Hz, detection + 2s clip| ING
-    L1 -->|heartbeat, detection + clip| ING
-    R1 -->|drone ID + broadcast GPS| ING
-    ING --> CENT --> UI
-    ING --> TDOA --> UI
+    Demo1 -.->|"same detection model,\nsimulated per node"| Demo2
 ```
 
-**Event-stream schema first.** Everything is a producer/consumer of three JSONL event types:
-
-```jsonc
-// heartbeat (1 Hz when no detection)
-{"type":"heartbeat","node_id":"abc123","t":1725550000.0,"lat":38.9,"lon":-77.04,"loudness":0.12}
-// detection (threshold > 0.7)
-{"type":"detection","node_id":"abc123","t":1725550001.5,"conf":0.91,"clip_ref":"/clips/abc123_1725550001.wav","lat":38.9,"lon":-77.04,"loudness":0.83}
-// fused track (server output)
-{"type":"track","t":1725550002.0,"lat":38.9001,"lon":-77.0401,"err_m":9.2,"n_nodes":6}
-```
-
-Log view, replay, and any later UI are interchangeable frontends over this stream. Early in the build the primary interface is the terminal (`tail -f` on the event stream); the Leaflet map + operator page are late-stage consumers built only after fusion works end-to-end.
-
-## Repo layout
-
-This repo is the **sensor node PWA**. The fusion server lives alongside it (same repo under `server/`, or a sibling repo — decided at kickoff).
+## Repo layout (monorepo)
 
 ```
-dnhacks-node/          # this repo: sensor node PWA (Next.js, deploy to Vercel)
-  app/
-    page.tsx           # join screen: one tap → listening
-    listen/            # mic loop, classifier, heartbeat/detection sender
-    lib/
-      audio.ts         # getUserMedia → WebAudio → mel-spectrogram
-      model.ts         # TF.js classifier (YAMNet embeddings + head, or compact CNN)
-      geo.ts           # geolocation + loudness
-  public/
-    manifest.webmanifest
-server/                # fusion server (FastAPI + WebSocket) — see server/README
-  app.py               # ingest, centroid + ellipse, GCC-PHAT multilateration, /replay
-  events.jsonl         # append-only event log
+dnhacks-node/
+  ml-demo/             # Demo 1: live-mic drone audio detection
+    server/            # ingest, CRNN scoring (model.py), TDOA (tdoa.py), fusion
+    app/               # node client (mic capture, heartbeat/detection sender)
+  sim-demo/            # Demo 2: full-stack world simulation
+    frontend/          # map dashboard — stack TBD (Avery)
+    backend/           # distributed node sim — comms model TBD (Mark)
+  README.md
 ```
 
-## Node details (iPhone-first, zero-install)
+`ml-demo/` is a port of the working `justin-draft` branch (CRNN + fusion + TDOA + Leaflet map, all e2e-tested). `sim-demo/` is greenfield.
 
-- Runs as a **plain Safari tab** (not Add-to-Home-Screen — standalone-mode mic is flaky on iOS).
-- Request mic with `echoCancellation: false, noiseSuppression: false, autoGainControl: false` — iOS voice processing mangles drone audio.
-- Acquire **Screen Wake Lock** (iOS 16.4+) and show a visible "listening" animation so nodes stay foregrounded — screen lock/backgrounding kills the mic.
-- Pipeline: `getUserMedia → WebAudio → mel-spectrogram → tiny in-browser classifier (TF.js)`.
-- On detection with confidence > 0.7: send 2 s WAV chunk + coarse timestamp + GPS + loudness to server. Otherwise send 1 Hz heartbeat (loudness + position).
-- Privacy: inference is on-device; raw audio leaves the phone only as 2 s detection clips, opt-in. No continuous streaming.
+## Demo 1 details
 
-## Fusion server details
+- Live mic → mel-spectrogram → CRNN → drone probability per 1 s window.
+- Detections above threshold ship a 2 s WAV clip + timestamp + position + loudness.
+- ≥4 concurrent clips trigger GCC-PHAT multilateration; otherwise weighted centroid + ellipse.
+- No clock sync needed: PHAT correlation aligns clip content, coarse timestamps only bound the search window.
+- Replay endpoints re-emit recorded sessions — demo insurance if live audio fails.
 
-- **Stack:** FastAPI + WebSocket, single box. Ingest all events → append to JSONL log.
-- **Always on:** loudness-weighted centroid + covariance ellipse.
-- **Stretch:** when ≥4 concurrent clips, GCC-PHAT cross-correlation for pairwise delays → least-squares multilateration. Coarse 500 ms trigger alignment only — precise delay comes from correlation, so no clock-sync rabbit hole.
-- **`/replay` endpoint** re-emits a recorded session. Demo insurance.
-- **RemoteID sidecar (bonus node type):** one Android phone running the open-source OpenDroneID app, or a laptop + BT dongle, feeds drone ID + broadcast GPS into the same track. Never the critical path.
+## Demo 2 details
+
+- Backend simulates a world: node positions, drone flight paths, acoustic detection ranges, and node-to-node message passing between adjacent nodes only.
+- Frontend renders the live picture: node health, contact reports propagating, fused drone tracks.
+- Design authority: **Avery** owns the frontend stack, **Mark** owns the distributed communication model (propagation, adjacency, failure handling).
 
 ## Quickstart
 
-### Node PWA
+### Demo 1 (ml-demo)
 
 ```bash
-npm install
-npm run dev
-# open http://localhost:3000 on your phone (same Wi-Fi), tap Join, allow mic + location
-```
-
-Deploy: push to Vercel, print the URL as a QR code for judges.
-
-### Fusion server
-
-```bash
-cd server
+cd ml-demo/server
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app:app --reload --port 8000
-# node PWA points at wss://<server>/ws
-# watch the stream: tail -f events.jsonl
-# replay a recorded session: curl http://localhost:8000/replay?session=demo1
+# open the node client, allow mic; watch: tail -f events.jsonl
 ```
 
-### Anchor nodes (recommended)
+### Demo 2 (sim-demo)
 
-2× laptops with cheap USB mics (~$20 ea) beat phone AGC and carry detection while phones contribute geometry. Bring battery packs and charge everything beforehand.
-
-## Training data
-
-Prepared in advance (data prep, no code): HuggingFace `geronimobasso/drone-audio-detection-samples` (DADS, largest public drone-audio set) + ESC-50 negatives. Pretrained compact CNN / YAMNet-head is data prep but verified against the event AI policy at kickoff; fallback is training from DADS on Colab at the event (~20 min).
-
-## Operator (C2) view
-
-One-page operator view: track history, per-node health, alert log, RemoteID identity when captured. This is what makes it command and control, not a demo toy.
+Quickstart lands once Avery (frontend stack) and Mark (sim/comms model) commit their designs.
 
 ## Roadmap
 
-- Hardened fixed nodes for base perimeters and critical infrastructure.
-- Same fusion bus accepts new modalities: camera bearing nodes, RF sniffers.
-- Any node promotable to fusion server (stateless over the event stream) — Byzantine-tolerant sensing is the adversary-resistance roadmap, not a weekend build.
+- Node archetypes: dedicated relays, C2 stations, mixed-modality sensors (RF, radar picket, EO/IR).
+- Real-hardware flavor: model nodes on actual counter-UAS equipment classes with realistic ranges.
+- Demo convergence: run the Demo 1 classifier inside each Demo 2 simulated node.
+- Byzantine-tolerant contact reports for adversarial-node resistance.
 
 ## Built at DNHacks 2026
 
-Defense track presented by Second Front Systems. Team roles: ML/audio (browser classifier, threshold tuning, GCC-PHAT), frontend (PWA node UX, Leaflet map, ellipse-shrink moment), backend (ingest, fusion, operator page), float/lead (drone ops, RemoteID sidecar, story, video, submission).
+Defense track presented by Second Front Systems. Roles: ML/audio (Demo 1 port + polish), frontend (map dashboard — Avery), distributed sim (comms model — Mark), story/submission.
