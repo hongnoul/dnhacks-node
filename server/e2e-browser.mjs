@@ -40,16 +40,16 @@ await page.waitForTimeout(8000);
 const stats = await page.locator("table").textContent();
 console.log("→ page stats:", stats?.replace(/\s+/g, " ").trim());
 
-// server-side verification
+// server-side verification: assert OUR node id (read off the page) is alive,
+// not just any stale heartbeat from a prior run.
 const nodes = await (await fetch(`${SERVER}/nodes`)).json();
-const phoneNodes = Object.entries(nodes).filter(([id]) => id !== "fake01");
-console.log("→ server /nodes (non-fake):", JSON.stringify(phoneNodes, null, 1).slice(0, 500));
-
-if (phoneNodes.length === 0) {
-  console.error("FAIL: no browser-node heartbeat reached the server");
+const nodeId = (nodeLine ?? "").trim();
+const hb = nodes[nodeId];
+console.log("→ server /nodes keys:", Object.keys(nodes).join(", "));
+if (!hb) {
+  console.error(`FAIL: our node ${nodeId} never reached the server`);
   process.exit(1);
 }
-const [id, hb] = phoneNodes[0];
 if (hb.lat !== 38.9012) console.warn("warn: GPS not the mocked value:", hb.lat);
-console.log(`\nBROWSER E2E OK — node ${id} heartbeats flowing via prod page → tunnel → server`);
+console.log(`\nBROWSER E2E OK — node ${nodeId} heartbeats flowing via prod page → tunnel → server`);
 await browser.close();
