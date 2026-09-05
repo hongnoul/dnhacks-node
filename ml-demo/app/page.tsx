@@ -1,89 +1,63 @@
 "use client";
 
-// SkyMesh sensor node — single page: join → listening.
-// One tap starts mic + GPS + heartbeats; loudness gate sends 2s clips.
+// SkyMesh sensor node — fully self-contained drone detection.
+// The phone IS the node: mic → mel-spectrogram → on-device CRNN → confidence.
+// No server, no location, no network after first load. Airplane mode works.
+// This is the Demo 1 showcase: confidence in the existence of a drone.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MicCapture, type AudioFrame } from "./lib/audio";
-import { GeoWatcher } from "./lib/geo";
-import { ServerLink, randomNodeId, type NetStats } from "./lib/net";
+import { DroneDetector } from "./lib/detector";
 
-// Server base URL: ?server=https://... overrides; default same-origin /api proxy
-// or NEXT_PUBLIC_SERVER_URL baked at build time.
-// Anchor pin for demo: ?lat=38.9&lon=-77.04[&acc=5] locks node position instead
-// of live GPS — essential indoors where phone GPS is ±30m+.
-function resolveServerUrl(): string {
-  if (typeof window === "undefined") return "";
-  const qp = new URLSearchParams(window.location.search).get("server");
-  if (qp) return qp.replace(/\/$/, "");
-  if (process.env.NEXT_PUBLIC_SERVER_URL)
-    return process.env.NEXT_PUBLIC_SERVER_URL.replace(/\/$/, "");
-  return `${window.location.origin}/api`;
-}
-
-function resolveAnchor(): { lat: number; lon: number; acc: number } | null {
-  if (typeof window === "undefined") return null;
-  const qp = new URLSearchParams(window.location.search);
-  const lat = parseFloat(qp.get("lat") ?? "");
-  const lon = parseFloat(qp.get("lon") ?? "");
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  const acc = parseFloat(qp.get("acc") ?? "3");
-  return { lat, lon, acc: Number.isFinite(acc) ? acc : 3 };
-}
-
-function gpsQuality(acc: number | null): { label: string; color: string } {
-  if (acc == null) return { label: "no fix", color: "#8b949e" };
-  if (acc <= 10) return { label: "good", color: "#3fb950" };
-  if (acc <= 20) return { label: "fair", color: "#d29922" };
-  return { label: "poor — pin position for demo", color: "#f85149" };
-}
-
-// Loudness gate + harmonic-peakiness gate: band RMS must exceed
-// GATE_THRESHOLD *and* the spectrum must show prop-harmonic peaks
-// (drone ~30+, voice/noise ~6 on DADS audio). Tune at the venue;
-// deliberately trigger-happy for now — the server CRNN has final say.
+// On-device dual pre-gate (cheap, runs at 4 Hz): drone-band RMS + harmonic
+// peakiness. Purely a power saver — the CRNN always has final say and runs
+// continuously at 2 Hz regardless.
 const GATE_THRESHOLD = 0.25;
 const PEAKINESS_THRESHOLD = 10;
-const REFRACTORY_MS = 3000;
 
-type Phase = "idle" | "starting" | "listening" | "error";
+// CRNN verdict: score the last 1s window every 500 ms (same hop as model.py).
+const SCORE_INTERVAL_MS = 500;
+const DETECT_THRESHOLD = 0.5;
+
+type Phase = "idle" | "loading" | "starting" | "listening" | "error";
+
+function randomNodeId(): string {
+  return Math.random().toString(36).slice(2, 8);
+}
 
 export default function NodePage() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [err, setErr] = useState<string>("");
   const [frame, setFrame] = useState<AudioFrame>({ loudness: 0, bandLoudness: 0, peakiness: 0 });
-  const [gps, setGps] = useState<string>("no fix");
-  const [gpsAcc, setGpsAcc] = useState<number | null>(null);
-  const [anchor, setAnchor] = useState<{ lat: number; lon: number; acc: number } | null>(null);
-  const [stats, setStats] = useState<NetStats | null>(null);
-  const [serverUrl, setServerUrl] = useState<string>("");
+  const [conf, setConf] = useState<number | null>(null);
+  const [peakConf, setPeakConf] = useState<number>(0);
+  const [detections, setDetections] = useState<number>(0);
+  const [lastDetectAt, setLastDetectAt] = useState<string>("never");
+  const [inferMs, setInferMs] = useState<number | null>(null);
   const [nodeId] = useState(randomNodeId);
-  const [lastClipAt, setLastClipAt] = useState<string>("never");
 
   const micRef = useRef<MicCapture | null>(null);
-  const geoRef = useRef<GeoWatcher | null>(null);
-  const linkRef = useRef<ServerLink | null>(null);
-  const lastTriggerRef = useRef<number>(0);
+  const detectorRef = useRef<DroneDetector | null>(null);
+  const scoringRef = useRef(false); // skip ticks while an inference is in flight
+  const wasDetectingRef = useRef(false);
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
 
-  useEffect(() => {
-    setServerUrl(resolveServerUrl());
-    setAnchor(resolveAnchor());
-  }, []);
-
   const start = useCallback(async () => {
-    setPhase("starting");
     setErr("");
     try {
+      // 1. Model first (needs network on first visit; cached after)
+      if (!detectorRef.current?.ready) {
+        setPhase("loading");
+        const d = new DroneDetector();
+        await d.load();
+        detectorRef.current = d;
+      }
+
+      // 2. Mic (must stay within the tap's call stack for iOS)
+      setPhase("starting");
       const mic = new MicCapture();
-      await mic.start(); // must be inside the tap's call stack for iOS
+      await mic.start();
       micRef.current = mic;
-
-      const geo = new GeoWatcher();
-      geo.start();
-      geoRef.current = geo;
-
-      linkRef.current = new ServerLink(resolveServerUrl(), nodeId);
 
       // Screen wake lock (iOS 16.4+); non-fatal if unavailable
       try {
@@ -98,84 +72,75 @@ export default function NodePage() {
       setErr(String(e));
       setPhase("error");
     }
-  }, [nodeId]);
+  }, []);
 
-  // Main loops: 4 Hz meter + gate, 1 Hz heartbeat
+  // Meters at 4 Hz + CRNN scoring at 2 Hz — all on this phone.
   useEffect(() => {
     if (phase !== "listening") return;
+
     const meter = setInterval(() => {
       const mic = micRef.current;
-      const link = linkRef.current;
-      if (!mic || !link) return;
-      const f = mic.frame();
-      setFrame(f);
-      const live = geoRef.current?.last ?? null;
-      const pinned = resolveAnchor();
-      const fix = pinned
-        ? { lat: pinned.lat, lon: pinned.lon, accuracyM: pinned.acc, t: Date.now() / 1000 }
-        : live;
-      setGpsAcc(fix?.accuracyM ?? null);
-      setGps(
-        fix
-          ? `${fix.lat.toFixed(5)}, ${fix.lon.toFixed(5)} (±${Math.round(fix.accuracyM)}m)${pinned ? " 📌" : ""}`
-          : geoRef.current?.error ?? "no fix"
-      );
-
-      // loudness + harmonic gate (server CRNN has final say)
-      const now = Date.now();
-      if (f.bandLoudness > GATE_THRESHOLD && f.peakiness > PEAKINESS_THRESHOLD && now - lastTriggerRef.current > REFRACTORY_MS) {
-        lastTriggerRef.current = now;
-        const clip = mic.clip();
-        if (clip) {
-          void link
-            .sendClip(clip.wav, {
-              t0: clip.t0,
-              sampleRate: clip.sampleRate,
-              durationS: clip.durationS,
-              loudness: f.bandLoudness,
-              fix,
-            })
-            .then((ok) => {
-              if (ok) setLastClipAt(new Date().toLocaleTimeString());
-              setStats({ ...link.stats });
-            });
-        }
-      }
+      if (mic) setFrame(mic.frame());
     }, 250);
 
-    const hb = setInterval(() => {
-      const link = linkRef.current;
-      if (!link) return;
-      const pinned = resolveAnchor();
-      const fix = pinned
-        ? { lat: pinned.lat, lon: pinned.lon, accuracyM: pinned.acc, t: Date.now() / 1000 }
-        : geoRef.current?.last ?? null;
-      void link
-        .heartbeat(fix, micRef.current?.frame().bandLoudness ?? 0)
-        .then(() => setStats({ ...link.stats }));
-    }, 1000);
+    const scorer = setInterval(() => {
+      const mic = micRef.current;
+      const det = detectorRef.current;
+      if (!mic || !det?.ready || scoringRef.current) return;
+      const samples = mic.samples(1.0);
+      if (!samples) return;
+      scoringRef.current = true;
+      const t0 = performance.now();
+      det
+        .score(samples, mic.sampleRate)
+        .then((p) => {
+          setInferMs(performance.now() - t0);
+          setConf(p);
+          setPeakConf((prev) => Math.max(prev, p));
+          const detecting = p >= DETECT_THRESHOLD;
+          if (detecting && !wasDetectingRef.current) {
+            setDetections((n) => n + 1);
+            setLastDetectAt(new Date().toLocaleTimeString());
+            try {
+              navigator.vibrate?.(200);
+            } catch {
+              /* ignore */
+            }
+          }
+          wasDetectingRef.current = detecting;
+        })
+        .catch(() => {
+          /* transient scoring error — next tick retries */
+        })
+        .finally(() => {
+          scoringRef.current = false;
+        });
+    }, SCORE_INTERVAL_MS);
 
     return () => {
       clearInterval(meter);
-      clearInterval(hb);
+      clearInterval(scorer);
     };
   }, [phase]);
 
   const stop = useCallback(() => {
     micRef.current?.stop();
-    geoRef.current?.stop();
     void wakeLockRef.current?.release();
     setPhase("idle");
+    setConf(null);
+    wasDetectingRef.current = false;
   }, []);
 
-  const pct = Math.round(frame.bandLoudness * 100);
   const gateHit = frame.bandLoudness > GATE_THRESHOLD && frame.peakiness > PEAKINESS_THRESHOLD;
+  const detecting = (conf ?? 0) >= DETECT_THRESHOLD;
+  const confPct = conf == null ? null : Math.round(conf * 100);
 
   return (
     <main style={{ padding: 24, maxWidth: 480, margin: "0 auto" }}>
       <h1 style={{ fontSize: 22, marginBottom: 4 }}>SkyMesh Node</h1>
       <p style={{ color: "#8b949e", marginTop: 0, fontSize: 13 }}>
-        node <code>{nodeId}</code> → <code style={{ wordBreak: "break-all" }}>{serverUrl}</code>
+        node <code>{nodeId}</code> · CRNN runs on this phone — no server, no
+        location, works offline
       </p>
 
       {phase === "idle" && (
@@ -192,16 +157,17 @@ export default function NodePage() {
             fontWeight: 700,
           }}
         >
-          Join the mesh
+          Start listening
         </button>
       )}
-      {phase === "starting" && <p>Requesting mic + GPS…</p>}
+      {phase === "loading" && <p>Loading drone detector (6 MB, one-time)…</p>}
+      {phase === "starting" && <p>Requesting microphone…</p>}
       {phase === "error" && (
         <div>
           <p style={{ color: "#f85149" }}>{err}</p>
           <p style={{ fontSize: 13, color: "#8b949e" }}>
-            Mic needs HTTPS (or localhost) and permission. Check Settings → Safari →
-            Microphone.
+            Mic needs HTTPS (or localhost) and permission. Check Settings →
+            Safari → Microphone.
           </p>
           <button onClick={start}>Retry</button>
         </div>
@@ -209,23 +175,59 @@ export default function NodePage() {
 
       {phase === "listening" && (
         <>
+          {/* Big verdict: THE demo readout */}
           <div
             style={{
-              height: 120,
+              textAlign: "center",
+              margin: "20px 0 4px",
+              padding: "16px 0",
+              borderRadius: 12,
+              background: detecting ? "#f8514922" : "transparent",
+              border: detecting ? "2px solid #f85149" : "2px solid transparent",
+              transition: "all 200ms",
+            }}
+          >
+            <div style={{ fontSize: 13, color: "#8b949e" }}>drone confidence</div>
+            <div
+              style={{
+                fontSize: 56,
+                fontWeight: 800,
+                lineHeight: 1.1,
+                color: detecting ? "#f85149" : "#3fb950",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {confPct == null ? "—" : `${confPct}%`}
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: detecting ? "#f85149" : "#8b949e",
+                minHeight: 24,
+              }}
+            >
+              {detecting ? "🚨 DRONE DETECTED" : "clear"}
+            </div>
+          </div>
+
+          {/* pulsing listening indicator */}
+          <div
+            style={{
+              height: 100,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              margin: "16px 0",
+              margin: "8px 0",
             }}
           >
-            {/* pulsing listening indicator; keeps screen "active-looking" */}
             <div
               style={{
-                width: 60 + frame.bandLoudness * 140,
-                height: 60 + frame.bandLoudness * 140,
+                width: 50 + frame.bandLoudness * 120,
+                height: 50 + frame.bandLoudness * 120,
                 borderRadius: "50%",
-                background: gateHit ? "#f8514966" : "#2ea04333",
-                border: `3px solid ${gateHit ? "#f85149" : "#2ea043"}`,
+                background: detecting ? "#f8514966" : "#2ea04333",
+                border: `3px solid ${detecting ? "#f85149" : "#2ea043"}`,
                 transition: "all 120ms",
               }}
             />
@@ -236,53 +238,36 @@ export default function NodePage() {
               <tr>
                 <td style={{ color: "#8b949e" }}>drone-band level</td>
                 <td style={{ textAlign: "right" }}>
-                  {pct}% {gateHit ? "🔴 GATE" : ""}
+                  {Math.round(frame.bandLoudness * 100)}% {gateHit ? "🔴" : ""}
                 </td>
               </tr>
               <tr>
                 <td style={{ color: "#8b949e" }}>harmonics</td>
                 <td style={{ textAlign: "right", fontSize: 12 }}>
-                  {frame.peakiness.toFixed(1)}× {frame.peakiness > PEAKINESS_THRESHOLD ? "🟢 prop-like" : "flat"}
+                  {frame.peakiness.toFixed(1)}×{" "}
+                  {frame.peakiness > PEAKINESS_THRESHOLD ? "🟢 prop-like" : "flat"}
                 </td>
               </tr>
               <tr>
-                <td style={{ color: "#8b949e" }}>GPS</td>
-                <td style={{ textAlign: "right", fontSize: 12 }}>{gps}</td>
-              </tr>
-              {(() => {
-                const q = gpsQuality(anchor ? anchor.acc : gpsAcc);
-                return (
-                  <tr>
-                    <td style={{ color: "#8b949e" }}>GPS quality</td>
-                    <td style={{ textAlign: "right", fontSize: 12, color: q.color }}>
-                      {anchor ? `📌 pinned ±${anchor.acc}m` : q.label}
-                    </td>
-                  </tr>
-                );
-              })()}
-              <tr>
-                <td style={{ color: "#8b949e" }}>heartbeats</td>
-                <td style={{ textAlign: "right" }}>{stats?.heartbeatsSent ?? 0}</td>
+                <td style={{ color: "#8b949e" }}>peak confidence</td>
+                <td style={{ textAlign: "right" }}>{Math.round(peakConf * 100)}%</td>
               </tr>
               <tr>
-                <td style={{ color: "#8b949e" }}>clips sent / failed</td>
-                <td style={{ textAlign: "right" }}>
-                  {stats?.clipsSent ?? 0} / {stats?.clipsFailed ?? 0}
+                <td style={{ color: "#8b949e" }}>detections</td>
+                <td style={{ textAlign: "right" }}>{detections}</td>
+              </tr>
+              <tr>
+                <td style={{ color: "#8b949e" }}>last detection</td>
+                <td style={{ textAlign: "right" }}>{lastDetectAt}</td>
+              </tr>
+              <tr>
+                <td style={{ color: "#8b949e" }}>inference</td>
+                <td style={{ textAlign: "right", fontSize: 12 }}>
+                  {inferMs == null ? "—" : `${inferMs.toFixed(0)} ms on-device`}
                 </td>
-              </tr>
-              <tr>
-                <td style={{ color: "#8b949e" }}>last clip</td>
-                <td style={{ textAlign: "right" }}>{lastClipAt}</td>
-              </tr>
-              <tr>
-                <td style={{ color: "#8b949e" }}>last server ack</td>
-                <td style={{ textAlign: "right" }}>{stats?.lastServerAck ?? "—"}</td>
               </tr>
             </tbody>
           </table>
-          {stats?.lastError && (
-            <p style={{ color: "#f85149", fontSize: 12 }}>{stats.lastError}</p>
-          )}
 
           <button
             onClick={stop}
@@ -296,11 +281,11 @@ export default function NodePage() {
               color: "#f85149",
             }}
           >
-            Leave mesh
+            Stop
           </button>
           <p style={{ fontSize: 12, color: "#8b949e" }}>
-            Keep this tab open and the screen on. Audio leaves this phone only as 2s
-            clips when the loudness gate trips.
+            All processing stays on this phone. The neural net scores the mic
+            every 500 ms — audio never leaves the device.
           </p>
         </>
       )}

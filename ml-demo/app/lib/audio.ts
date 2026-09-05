@@ -106,6 +106,20 @@ export class MicCapture {
     return { loudness, bandLoudness, peakiness };
   }
 
+  /** Last `seconds` of raw mono samples from the ring (for on-device scoring).
+   *  Returns null until enough audio has been captured. */
+  samples(seconds: number): Float32Array | null {
+    const want = Math.floor(seconds * this.sampleRate);
+    if (this.ringFilled < want) return null;
+    const out = new Float32Array(want);
+    let idx = (this.ringWrite - want + this.ring.length) % this.ring.length;
+    for (let i = 0; i < want; i++) {
+      out[i] = this.ring[idx];
+      idx = (idx + 1) % this.ring.length;
+    }
+    return out;
+  }
+
   /** Snapshot the most recent CLIP_SECONDS from the ring buffer as a 16-bit PCM WAV.
    *  Returns null until a full clip's worth of audio has been captured. */
   clip(): ClipResult | null {

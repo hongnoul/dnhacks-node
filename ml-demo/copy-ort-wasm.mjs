@@ -10,8 +10,14 @@ const src = join(root, "node_modules", "onnxruntime-web", "dist");
 const dst = join(root, "public", "ort");
 mkdirSync(dst, { recursive: true });
 
-// Single-threaded SIMD build only — numThreads=1, keeps the payload small.
-const wanted = ["ort-wasm-simd-threaded.wasm", "ort-wasm-simd-threaded.mjs"];
+// Single-threaded SIMD build (+ its JSEP helper, which ORT probes for at
+// runtime — a 404 there is harmless but noisy). numThreads=1 keeps it small.
+const wanted = [
+  "ort-wasm-simd-threaded.wasm",
+  "ort-wasm-simd-threaded.mjs",
+  "ort-wasm-simd-threaded.jsep.wasm",
+  "ort-wasm-simd-threaded.jsep.mjs",
+];
 for (const f of readdirSync(src)) {
   if (wanted.includes(f)) copyFileSync(join(src, f), join(dst, f));
 }
