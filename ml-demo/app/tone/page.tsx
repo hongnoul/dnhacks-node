@@ -97,6 +97,14 @@ export default function TonePage() {
     const saved = window.localStorage.getItem("tone-drone-id");
     return DRONES.find((d) => d.id === saved) ?? DRONES[0];
   });
+
+  // ?m= deep-link overrides saved pick (runs on mount, after SSR hydration).
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("m");
+    if (!q) return;
+    const hit = DRONES.find((d) => d.id === q);
+    if (hit) setSelected(hit);
+  }, []);
   const [copied, setCopied] = useState(false);
   const [kept, setKept] = useState<string | null>(() =>
     typeof window === "undefined"
@@ -107,14 +115,22 @@ export default function TonePage() {
   const nodesRef = useRef<OscillatorNode[]>([]);
   const droneRef = useRef<HTMLAudioElement | null>(null);
 
-  // Load <model-viewer> web component once on the client.
+  // Load <model-viewer> from vendored local copy (offline-safe); fall back
+  // to CDN only if the local file fails.
   useEffect(() => {
     if (document.querySelector('script[data-model-viewer]')) return;
     const s = document.createElement("script");
     s.type = "module";
-    s.src =
-      "https://ajax.googleapis.com/ajax/libs/model-viewer/4.3.1/model-viewer.min.js";
+    s.src = "/model-viewer.min.js";
     s.setAttribute("data-model-viewer", "1");
+    s.onerror = () => {
+      const cdn = document.createElement("script");
+      cdn.type = "module";
+      cdn.src =
+        "https://ajax.googleapis.com/ajax/libs/model-viewer/4.3.1/model-viewer.min.js";
+      cdn.setAttribute("data-model-viewer", "cdn");
+      document.head.appendChild(cdn);
+    };
     document.head.appendChild(s);
   }, []);
 
@@ -263,6 +279,29 @@ export default function TonePage() {
               }}
             >
               {copied ? "Copied!" : "Copy model path"}
+            </button>
+            <button
+              onClick={async () => {
+                const url = `${window.location.origin}${window.location.pathname}?m=${selected.id}`;
+                try {
+                  await navigator.clipboard.writeText(url);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                } catch {
+                  window.prompt("Copy this link:", url);
+                }
+              }}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "1px solid #d1d5db",
+                background: "#fff",
+                color: "#111",
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              🔗 Share this pick
             </button>
           </div>
         </div>
