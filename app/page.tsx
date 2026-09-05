@@ -38,9 +38,12 @@ function gpsQuality(acc: number | null): { label: string; color: string } {
   return { label: "poor — pin position for demo", color: "#f85149" };
 }
 
-// Loudness gate: band RMS must exceed GATE_THRESHOLD, with a refractory period
-// so we don't spam clips. Tune at the venue; deliberately trigger-happy for now.
+// Loudness gate + harmonic-peakiness gate: band RMS must exceed
+// GATE_THRESHOLD *and* the spectrum must show prop-harmonic peaks
+// (drone ~30+, voice/noise ~6 on DADS audio). Tune at the venue;
+// deliberately trigger-happy for now — the server CRNN has final say.
 const GATE_THRESHOLD = 0.25;
+const PEAKINESS_THRESHOLD = 10;
 const REFRACTORY_MS = 3000;
 
 type Phase = "idle" | "starting" | "listening" | "error";
@@ -48,7 +51,7 @@ type Phase = "idle" | "starting" | "listening" | "error";
 export default function NodePage() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [err, setErr] = useState<string>("");
-  const [frame, setFrame] = useState<AudioFrame>({ loudness: 0, bandLoudness: 0 });
+  const [frame, setFrame] = useState<AudioFrame>({ loudness: 0, bandLoudness: 0, peakiness: 0 });
   const [gps, setGps] = useState<string>("no fix");
   const [gpsAcc, setGpsAcc] = useState<number | null>(null);
   const [anchor, setAnchor] = useState<{ lat: number; lon: number; acc: number } | null>(null);
@@ -118,9 +121,9 @@ export default function NodePage() {
           : geoRef.current?.error ?? "no fix"
       );
 
-      // loudness gate
+      // loudness + harmonic gate (server CRNN has final say)
       const now = Date.now();
-      if (f.bandLoudness > GATE_THRESHOLD && now - lastTriggerRef.current > REFRACTORY_MS) {
+      if (f.bandLoudness > GATE_THRESHOLD && f.peakiness > PEAKINESS_THRESHOLD && now - lastTriggerRef.current > REFRACTORY_MS) {
         lastTriggerRef.current = now;
         const clip = mic.clip();
         if (clip) {
@@ -166,7 +169,7 @@ export default function NodePage() {
   }, []);
 
   const pct = Math.round(frame.bandLoudness * 100);
-  const gateHit = frame.bandLoudness > GATE_THRESHOLD;
+  const gateHit = frame.bandLoudness > GATE_THRESHOLD && frame.peakiness > PEAKINESS_THRESHOLD;
 
   return (
     <main style={{ padding: 24, maxWidth: 480, margin: "0 auto" }}>
@@ -234,6 +237,12 @@ export default function NodePage() {
                 <td style={{ color: "#8b949e" }}>drone-band level</td>
                 <td style={{ textAlign: "right" }}>
                   {pct}% {gateHit ? "🔴 GATE" : ""}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ color: "#8b949e" }}>harmonics</td>
+                <td style={{ textAlign: "right", fontSize: 12 }}>
+                  {frame.peakiness.toFixed(1)}× {frame.peakiness > PEAKINESS_THRESHOLD ? "🟢 prop-like" : "flat"}
                 </td>
               </tr>
               <tr>

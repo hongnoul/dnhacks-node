@@ -9,6 +9,11 @@ export interface AudioFrame {
   loudness: number;
   /** RMS restricted to ~80–2000 Hz (drone band) 0..1 */
   bandLoudness: number;
+  /** Harmonic peakiness: max/mean power in the drone band.
+   *  Drone props produce strong harmonic peaks (ratio ~30+ on DADS audio);
+   *  voice/noise is flatter (~6). Cheap on-device pre-filter before the
+   *  server CRNN verdict — cuts voice false alarms without shipping audio. */
+  peakiness: number;
 }
 
 export interface ClipResult {
@@ -76,13 +81,14 @@ export class MicCapture {
 
   /** Current loudness metrics from the analyser (cheap, call at ~4 Hz). */
   frame(): AudioFrame {
-    if (!this.analyser || !this.ctx) return { loudness: 0, bandLoudness: 0 };
+    if (!this.analyser || !this.ctx) return { loudness: 0, bandLoudness: 0, peakiness: 0 };
     this.analyser.getFloatFrequencyData(this.freqBuf);
     const nyquist = this.ctx.sampleRate / 2;
     const binHz = nyquist / this.freqBuf.length;
     let total = 0;
     let band = 0;
     let bandCount = 0;
+    let bandMax = 0;
     for (let i = 0; i < this.freqBuf.length; i++) {
       // dB (-Infinity..0) → linear power
       const p = Math.pow(10, this.freqBuf[i] / 10);
@@ -91,11 +97,13 @@ export class MicCapture {
       if (hz >= 80 && hz <= 2000) {
         band += p;
         bandCount++;
+        if (p > bandMax) bandMax = p;
       }
     }
     const loudness = Math.min(1, Math.sqrt(total / this.freqBuf.length) * 30);
     const bandLoudness = bandCount ? Math.min(1, Math.sqrt(band / bandCount) * 30) : 0;
-    return { loudness, bandLoudness };
+    const peakiness = bandCount && band > 0 ? bandMax / (band / bandCount) : 0;
+    return { loudness, bandLoudness, peakiness };
   }
 
   /** Snapshot the most recent CLIP_SECONDS from the ring buffer as a 16-bit PCM WAV.
