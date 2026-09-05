@@ -178,6 +178,8 @@ export default function NodePage() {
   const wasDetectingRef = useRef(false);
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const historyRef = useRef<Point[]>([]);
+  historyRef.current = history;
   const [nowTick, setNowTick] = useState<number>(Date.now());
 
   const start = useCallback(async () => {
@@ -272,7 +274,7 @@ export default function NodePage() {
 
   useEffect(() => {
     const onResize = () => {
-      if (canvasRef.current) drawGraph(canvasRef.current, history, Date.now());
+      if (canvasRef.current) drawGraph(canvasRef.current, historyRef.current, Date.now());
     };
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);
@@ -280,7 +282,7 @@ export default function NodePage() {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
     };
-  }, [history]);
+  }, []);
 
   const stop = useCallback(() => {
     micRef.current?.stop();

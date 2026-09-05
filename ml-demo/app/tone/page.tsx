@@ -92,7 +92,17 @@ const DRONES: Drone[] = [
 export default function TonePage() {
   const [playing, setPlaying] = useState(false);
   const [mode, setMode] = useState<"drone" | "synth">("drone");
-  const [selected, setSelected] = useState<Drone>(DRONES[0]);
+  const [selected, setSelected] = useState<Drone>(() => {
+    if (typeof window === "undefined") return DRONES[0];
+    const saved = window.localStorage.getItem("tone-drone-id");
+    return DRONES.find((d) => d.id === saved) ?? DRONES[0];
+  });
+  const [copied, setCopied] = useState(false);
+  const [kept, setKept] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : window.localStorage.getItem("tone-drone-id"),
+  );
   const ctxRef = useRef<AudioContext | null>(null);
   const nodesRef = useRef<OscillatorNode[]>([]);
   const droneRef = useRef<HTMLAudioElement | null>(null);
@@ -209,6 +219,52 @@ export default function TonePage() {
             · <code>{selected.src}</code>
           </div>
           <div style={{ fontSize: 12, color: "#8b949e" }}>{selected.note}</div>
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button
+              onClick={() => {
+                try {
+                  window.localStorage.setItem("tone-drone-id", selected.id);
+                } catch {
+                  /* private mode */
+                }
+                setKept(selected.id);
+              }}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "none",
+                background: "#2ea043",
+                color: "white",
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              ✓ {kept === selected.id ? "Kept — reload-safe" : "Keep this one"}
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(selected.src);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                } catch {
+                  /* clipboard unavailable */
+                }
+              }}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "1px solid #30363d",
+                background: "transparent",
+                color: "#e6edf3",
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              {copied ? "Copied!" : "Copy model path"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -343,13 +399,13 @@ export default function TonePage() {
             the MacBook speaker.
           </li>
           <li>
-            Expect: drone confidence slams to ~100% + &quot;🚨 DRONE
-            DETECTED&quot; within a second.
+            Expect: drone confidence slams to ~100% + red &quot;DRONE
+            DETECTED&quot; pill within a second, with the graph line
+            crossing above the dashed 50% threshold.
           </li>
           <li>
-            The sine stack only moves the drone-band/harmonics meters — the CRNN
-            verdict stays near 0%. That split is the gate vs classifier working
-            as designed.
+            The sine stack leaves the confidence graph flat near 0%. Real
+            prop noise is what drives the classifier.
           </li>
         </ol>
         <p style={{ fontSize: 12, color: "#8b949e" }}>

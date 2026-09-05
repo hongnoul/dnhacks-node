@@ -4,7 +4,7 @@
   "description": "Self-contained drone detection node — on-device neural net",
   "start_url": "/",
   "display": "browser",
-  "background_color": "#0a0f1a",
-  "theme_color": "#0a0f1a",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": []
 }
