@@ -49,15 +49,28 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
   { attribution:'© OpenStreetMap', maxZoom:19, className:'dark-tiles' }).addTo(map);
 
 const nodeMarkers = {};        // node_id → circleMarker
+const nodeAccCircles = {};     // node_id → accuracy circle
 let droneMarker = null, errCircle = null, trail = null, contribLines = [];
 let fitted = false;
 
 function upsertNode(id, n) {
-  const style = { radius:7, color:'#2ea043', fillColor:'#2ea043',
+  const acc = n.gps_accuracy_m ?? null;
+  // Red ring for poor GPS (>20m), green otherwise — judges see fix quality
+  const color = acc != null && acc > 20 ? '#f85149' : '#2ea043';
+  const style = { radius:7, color, fillColor: color,
                   fillOpacity:0.4 + Math.min(n.loudness,1)*0.6, weight:2 };
-  if (nodeMarkers[id]) nodeMarkers[id].setLatLng([n.lat,n.lon]).setStyle(style);
+  const tip = acc != null
+    ? `${id} · loud ${(n.loudness*100)|0}% · GPS ±${Math.round(acc)}m`
+    : `${id} · loud ${(n.loudness*100)|0}%`;
+  if (nodeMarkers[id]) nodeMarkers[id].setLatLng([n.lat,n.lon]).setStyle(style).setTooltipContent(tip);
   else nodeMarkers[id] = L.circleMarker([n.lat,n.lon], style)
-      .bindTooltip(`${id} · loud ${(n.loudness*100)|0}%`).addTo(map);
+      .bindTooltip(tip).addTo(map);
+  // accuracy circle: honest error disc around each node
+  if (acc != null && acc > 0) {
+    if (nodeAccCircles[id]) nodeAccCircles[id].setLatLng([n.lat,n.lon]).setRadius(acc);
+    else nodeAccCircles[id] = L.circle([n.lat,n.lon],
+      { radius: acc, color, weight:1, opacity:0.5, fillOpacity:0.05 }).addTo(map);
+  }
 }
 
 async function poll() {
@@ -73,7 +86,10 @@ async function poll() {
     const liveIds = new Set(Object.keys(s.nodes));
     for (const [id,n] of Object.entries(s.nodes)) upsertNode(id,n);
     for (const id of Object.keys(nodeMarkers))
-      if (!liveIds.has(id)) { map.removeLayer(nodeMarkers[id]); delete nodeMarkers[id]; }
+      if (!liveIds.has(id)) {
+        map.removeLayer(nodeMarkers[id]); delete nodeMarkers[id];
+        if (nodeAccCircles[id]) { map.removeLayer(nodeAccCircles[id]); delete nodeAccCircles[id]; }
+      }
 
     // track
     contribLines.forEach(l => map.removeLayer(l)); contribLines = [];

@@ -10,6 +10,8 @@ import { ServerLink, randomNodeId, type NetStats } from "./lib/net";
 
 // Server base URL: ?server=https://... overrides; default same-origin /api proxy
 // or NEXT_PUBLIC_SERVER_URL baked at build time.
+// Anchor pin for demo: ?lat=38.9&lon=-77.04[&acc=5] locks node position instead
+// of live GPS — essential indoors where phone GPS is ±30m+.
 function resolveServerUrl(): string {
   if (typeof window === "undefined") return "";
   const qp = new URLSearchParams(window.location.search).get("server");
@@ -17,6 +19,23 @@ function resolveServerUrl(): string {
   if (process.env.NEXT_PUBLIC_SERVER_URL)
     return process.env.NEXT_PUBLIC_SERVER_URL.replace(/\/$/, "");
   return `${window.location.origin}/api`;
+}
+
+function resolveAnchor(): { lat: number; lon: number; acc: number } | null {
+  if (typeof window === "undefined") return null;
+  const qp = new URLSearchParams(window.location.search);
+  const lat = parseFloat(qp.get("lat") ?? "");
+  const lon = parseFloat(qp.get("lon") ?? "");
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const acc = parseFloat(qp.get("acc") ?? "3");
+  return { lat, lon, acc: Number.isFinite(acc) ? acc : 3 };
+}
+
+function gpsQuality(acc: number | null): { label: string; color: string } {
+  if (acc == null) return { label: "no fix", color: "#8b949e" };
+  if (acc <= 10) return { label: "good", color: "#3fb950" };
+  if (acc <= 20) return { label: "fair", color: "#d29922" };
+  return { label: "poor — pin position for demo", color: "#f85149" };
 }
 
 // Loudness gate: band RMS must exceed GATE_THRESHOLD, with a refractory period
@@ -31,6 +50,8 @@ export default function NodePage() {
   const [err, setErr] = useState<string>("");
   const [frame, setFrame] = useState<AudioFrame>({ loudness: 0, bandLoudness: 0 });
   const [gps, setGps] = useState<string>("no fix");
+  const [gpsAcc, setGpsAcc] = useState<number | null>(null);
+  const [anchor, setAnchor] = useState<{ lat: number; lon: number; acc: number } | null>(null);
   const [stats, setStats] = useState<NetStats | null>(null);
   const [serverUrl, setServerUrl] = useState<string>("");
   const [nodeId] = useState(randomNodeId);
@@ -44,6 +65,7 @@ export default function NodePage() {
 
   useEffect(() => {
     setServerUrl(resolveServerUrl());
+    setAnchor(resolveAnchor());
   }, []);
 
   const start = useCallback(async () => {
@@ -84,10 +106,15 @@ export default function NodePage() {
       if (!mic || !link) return;
       const f = mic.frame();
       setFrame(f);
-      const fix = geoRef.current?.last ?? null;
+      const live = geoRef.current?.last ?? null;
+      const pinned = resolveAnchor();
+      const fix = pinned
+        ? { lat: pinned.lat, lon: pinned.lon, accuracyM: pinned.acc, t: Date.now() / 1000 }
+        : live;
+      setGpsAcc(fix?.accuracyM ?? null);
       setGps(
         fix
-          ? `${fix.lat.toFixed(5)}, ${fix.lon.toFixed(5)} (±${Math.round(fix.accuracyM)}m)`
+          ? `${fix.lat.toFixed(5)}, ${fix.lon.toFixed(5)} (±${Math.round(fix.accuracyM)}m)${pinned ? " 📌" : ""}`
           : geoRef.current?.error ?? "no fix"
       );
 
@@ -116,8 +143,12 @@ export default function NodePage() {
     const hb = setInterval(() => {
       const link = linkRef.current;
       if (!link) return;
+      const pinned = resolveAnchor();
+      const fix = pinned
+        ? { lat: pinned.lat, lon: pinned.lon, accuracyM: pinned.acc, t: Date.now() / 1000 }
+        : geoRef.current?.last ?? null;
       void link
-        .heartbeat(geoRef.current?.last ?? null, micRef.current?.frame().bandLoudness ?? 0)
+        .heartbeat(fix, micRef.current?.frame().bandLoudness ?? 0)
         .then(() => setStats({ ...link.stats }));
     }, 1000);
 
@@ -209,6 +240,17 @@ export default function NodePage() {
                 <td style={{ color: "#8b949e" }}>GPS</td>
                 <td style={{ textAlign: "right", fontSize: 12 }}>{gps}</td>
               </tr>
+              {(() => {
+                const q = gpsQuality(anchor ? anchor.acc : gpsAcc);
+                return (
+                  <tr>
+                    <td style={{ color: "#8b949e" }}>GPS quality</td>
+                    <td style={{ textAlign: "right", fontSize: 12, color: q.color }}>
+                      {anchor ? `📌 pinned ±${anchor.acc}m` : q.label}
+                    </td>
+                  </tr>
+                );
+              })()}
               <tr>
                 <td style={{ color: "#8b949e" }}>heartbeats</td>
                 <td style={{ textAlign: "right" }}>{stats?.heartbeatsSent ?? 0}</td>

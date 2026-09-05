@@ -129,10 +129,14 @@ def fuse(ev: dict):
         return None
 
     # weight = confidence × loudness (loudness ∝ proximity)
+    # × GPS trust: phones reporting ±30m+ indoors get downweighted so one
+    # bad fix can't drag the centroid. Pinned anchors (±3m) dominate.
     ws, lats, lons = [], [], []
     for d in dets:
         c = d.get("server_conf") if d.get("server_conf") is not None else d.get("loudness", 0)
-        w = max(c, 1e-3) * max(d.get("loudness", 0.1), 0.05)
+        acc = d.get("gps_accuracy_m")
+        gps_w = 1.0 if acc is None else max(3.0 / max(float(acc), 3.0), 0.08)
+        w = max(c, 1e-3) * max(d.get("loudness", 0.1), 0.05) * gps_w
         ws.append(w)
         lats.append(d["lat"])
         lons.append(d["lon"])
@@ -142,14 +146,17 @@ def fuse(ev: dict):
 
     # Error radius = standard error of the weighted centroid: spread/√n.
     # This is what makes the demo ellipse visibly tighten as nodes join.
-    # Floor 12m (GPS accuracy); single node gets 150m (audible range, no geometry).
+    # Floor is the mean GPS accuracy (min 12m): bad phone fixes widen the
+    # ellipse honestly instead of pretending TDOA precision we lack.
     if len(dets) >= 2:
         var = sum(
             w * ((111_320 * (la - lat)) ** 2 +
                  (111_320 * math.cos(math.radians(lat)) * (lo - lon)) ** 2)
             for w, la, lo in zip(ws, lats, lons)
         ) / W
-        err_m = max(math.sqrt(var) / math.sqrt(len(dets)), 12.0)
+        accs = [d.get("gps_accuracy_m") for d in dets if d.get("gps_accuracy_m") is not None]
+        gps_floor = max(sum(accs) / len(accs), 12.0) if accs else 12.0
+        err_m = max(math.sqrt(var) / math.sqrt(len(dets)), gps_floor)
     else:
         err_m = 150.0
 
@@ -245,6 +252,7 @@ def get_state():
         nid: {
             "lat": ev.get("lat"), "lon": ev.get("lon"),
             "loudness": ev.get("loudness", 0),
+            "gps_accuracy_m": ev.get("gps_accuracy_m"),
             "age_s": round(now - ev.get("server_t", now), 1),
         }
         for nid, ev in nodes.items()
