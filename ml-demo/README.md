@@ -92,12 +92,12 @@ checkpoint) are gitignored runtime data; refetch via the HF dataset
 
 ## Quickstart
 
-**One command:** `./demo.sh` starts the server + tunnel and prints all URLs
-(`--replay demo1` animates the recorded session;
+**One command:** `./demo.sh` (from this directory) starts the server + tunnel
+and prints all URLs (`--replay demo1` animates the recorded session;
 `--qr lat,lon [...]` prints terminal QR codes per pinned anchor).
 
 ```bash
-cd ml-demo/server
+cd server
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/uvicorn app:app --host 0.0.0.0 --port 8000
 cloudflared tunnel --url http://localhost:8000   # phones need HTTPS
@@ -106,9 +106,8 @@ cloudflared tunnel --url http://localhost:8000   # phones need HTTPS
 ```
 
 ```bash
-cd ml-demo
-npm install && npm run dev   # mic works on http://localhost only
-vercel deploy --prod --yes   # see ../../vercel.json (builds ml-demo/)
+npm install && npm run dev   # mic works on http://localhost only (run here)
+vercel deploy --prod --yes   # see ../vercel.json (builds ml-demo/)
 ```
 
 Live: **https://dnhacks-node.vercel.app** (override per-phone with
