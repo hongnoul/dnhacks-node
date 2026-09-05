@@ -8,15 +8,14 @@ Dedicated counter-UAS radar costs $100k+ per site and creates a single point of 
 
 ## Two demos
 
-### Demo 1 — ML: hearing the drone (live mic)
+### Demo 1 — ML: hearing the drone (live mic, fully on-device)
 
-A live microphone feeds a CRNN drone-audio classifier in real time. Ported from the `justin-draft` branch and polished from there:
+A live microphone feeds a CRNN drone-audio classifier **running entirely on the phone** (ONNX Runtime Web). Demo 1 strictly showcases one thing: confidence in the existence of a drone.
 
-- **Classifier:** CRNN (conv blocks + BiGRU head) scoring 1 s windows at 500 ms hop. Front end: 16 kHz mono, 64-mel spectrogram, 50–5500 Hz.
-- **Localization:** GCC-PHAT cross-correlation between node pairs → time-difference-of-arrival → least-squares multilateration. In physical sim: **8.7 m error vs 51 m** for the loudness centroid.
-- **Fusion:** loudness/GPS-weighted centroid + error ellipse that visibly tightens as nodes join.
+- **Classifier:** CRNN (conv blocks + BiGRU head) scoring 1 s windows at 500 ms hop. Front end: 16 kHz mono, 64-mel spectrogram, 50–5500 Hz — computed in TypeScript, bit-parity with the PyTorch reference (worst diff 5e-8 across the DADS test set).
+- **Edge-native:** no server, no location, no network after first load. Flip the phone to airplane mode — it still detects. Each phone is exactly the self-contained Detect node the product describes.
 
-The demo: play (or fly) a drone near live mics, watch detections fire and a fused track appear.
+The demo: play (or fly) a drone near a phone, watch the on-device confidence slam to ~100% within a second. Localization and the fused track picture belong to Demo 2.
 
 ### Demo 2 — Full-stack: the world simulation
 
@@ -39,10 +38,9 @@ This is deliberate: a flat mesh of peers has no privileged node to destroy. Hete
 
 ```mermaid
 flowchart LR
-    subgraph Demo1["Demo 1 — ML (live)"]
-        MIC["Live mic"] --> MEL["Mel-spectrogram"] --> CRNN["CRNN classifier"]
-        CRNN --> DET["Detection + confidence"]
-        DET --> TDOA["GCC-PHAT TDOA\nmultilateration"]
+    subgraph Demo1["Demo 1 — ML (on-device)"]
+        MIC["Live mic"] --> MEL["Mel-spectrogram (TS)"] --> CRNN["CRNN via ONNX\nRuntime Web (wasm)"]
+        CRNN --> DET["Drone confidence\non-screen"]
     end
     subgraph Demo2["Demo 2 — World sim"]
         SIM["World simulation backend\n(comms model: Mark)"] --> N1["Node"] & N2["Node"] & N3["Node"]
@@ -56,24 +54,26 @@ flowchart LR
 
 ```
 dnhacks-node/
-  ml-demo/             # Demo 1: live-mic drone audio detection
-    server/            # ingest, CRNN scoring (model.py), TDOA (tdoa.py), fusion
-    app/               # node client (mic capture, heartbeat/detection sender)
+  ml-demo/             # Demo 1: on-device drone audio detection
+    app/               # the node: mic capture, TS mel front end, ONNX CRNN
+    public/            # drone_crnn.onnx (exported model) + ORT wasm runtime
+    server/            # dev/test harness: PyTorch reference (model.py),
+                       # ONNX export, parity + e2e tests. Not in the demo path.
   sim-demo/            # Demo 2: full-stack world simulation
     frontend/          # map dashboard — stack TBD (Avery)
     backend/           # distributed node sim — comms model TBD (Mark)
   README.md
 ```
 
-`ml-demo/` is a port of the working `justin-draft` branch (CRNN + fusion + TDOA + Leaflet map, all e2e-tested). `sim-demo/` is greenfield.
+`ml-demo/` runs the CRNN in-browser — verified against the PyTorch reference. `sim-demo/` is greenfield.
 
 ## Demo 1 details
 
-- Live mic → mel-spectrogram → CRNN → drone probability per 1 s window.
-- Detections above threshold ship a 2 s WAV clip + timestamp + position + loudness.
-- ≥4 concurrent clips trigger GCC-PHAT multilateration; otherwise weighted centroid + ellipse.
-- No clock sync needed: PHAT correlation aligns clip content, coarse timestamps only bound the search window.
-- Replay endpoints re-emit recorded sessions — demo insurance if live audio fails.
+- Live mic → TS mel-spectrogram → on-device CRNN (ONNX Runtime Web) → drone probability per 1 s window, scored every 500 ms.
+- Output is exactly one number: drone confidence. Big readout, DRONE DETECTED banner above threshold, detection counter.
+- Only permission asked: microphone. No GPS, no accounts, no server round-trips — audio never leaves the phone.
+- Offline-capable: page + 6 MB model cache on first load; detection keeps working in airplane mode.
+- Multi-node localization (TDOA/fusion) is deliberately out of scope here — that story is Demo 2's, where every simulated node runs this same detector.
 
 ## Demo 2 details
 
@@ -86,11 +86,10 @@ dnhacks-node/
 ### Demo 1 (ml-demo)
 
 ```bash
-cd ml-demo/server
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app:app --reload --port 8000
-# open the node client, allow mic; watch: tail -f events.jsonl
+cd ml-demo
+npm install        # also vendors the ONNX wasm runtime into public/ort/
+npm run dev        # open http://localhost:3000, allow mic, play drone audio
+npm run test:parity  # browser pipeline vs PyTorch reference (needs server/.venv)
 ```
 
 ### Demo 2 (sim-demo)
@@ -102,6 +101,7 @@ Quickstart lands once Avery (frontend stack) and Mark (sim/comms model) commit t
 - Node archetypes: dedicated relays, C2 stations, mixed-modality sensors (RF, radar picket, EO/IR).
 - Real-hardware flavor: model nodes on actual counter-UAS equipment classes with realistic ranges.
 - Demo convergence: run the Demo 1 classifier inside each Demo 2 simulated node.
+- Multi-node localization: GCC-PHAT TDOA multilateration between real phone nodes (prototyped in `ml-demo/server/tdoa.py`: 8.7 m error vs 51 m loudness centroid in physical sim).
 - Byzantine-tolerant contact reports for adversarial-node resistance.
 
 ## Built at DNHacks 2026

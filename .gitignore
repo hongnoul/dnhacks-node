@@ -19,3 +19,4 @@ sim-demo/node_modules/
 sim-demo/.next/
 sim-demo/frontend/node_modules/
 sim-demo/frontend/.next/
+ml-demo/public/ort/
