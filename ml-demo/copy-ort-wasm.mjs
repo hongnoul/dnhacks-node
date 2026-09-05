@@ -10,13 +10,15 @@ const src = join(root, "node_modules", "onnxruntime-web", "dist");
 const dst = join(root, "public", "ort");
 mkdirSync(dst, { recursive: true });
 
-// Single-threaded SIMD build (+ its JSEP helper, which ORT probes for at
-// runtime — a 404 there is harmless but noisy). numThreads=1 keeps it small.
+// ORT 1.18.0 is the last version shipping a SINGLE-THREADED SIMD build.
+// 1.19+ is threaded-only: its wasm pre-allocates a 16 MB SharedArrayBuffer
+// that iOS Safari cannot grow, so model load dies with
+// "no available backend found. ERR: [wasm] RangeError: Out of memory".
+// With numThreads=1 (no COOP/COEP on Vercel) ORT 1.18 loads
+// ort-wasm-simd.wasm — plain (non-shared) memory that Safari can grow.
 const wanted = [
+  "ort-wasm-simd.wasm",
   "ort-wasm-simd-threaded.wasm",
-  "ort-wasm-simd-threaded.mjs",
-  "ort-wasm-simd-threaded.jsep.wasm",
-  "ort-wasm-simd-threaded.jsep.mjs",
 ];
 for (const f of readdirSync(src)) {
   if (wanted.includes(f)) copyFileSync(join(src, f), join(dst, f));

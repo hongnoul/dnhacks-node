@@ -17,6 +17,9 @@ const { logMelSpectrogram, resampleTo16k, N_MELS, SR } = await import(
   "./app/lib/mel.ts"
 );
 const ort = await import("onnxruntime-web");
+// Node has no SharedArrayBuffer-based pthread support in this build — force
+// the single-threaded SIMD backend (same as the browser with numThreads=1).
+ort.env.wasm.numThreads = 1;
 
 // --- load model from disk (no fetch in Node) ---
 const modelBytes = readFileSync(join(root, "public", "drone_crnn.onnx"));

@@ -15,16 +15,20 @@ import {
 } from "./mel";
 
 // Serve the ORT wasm from our own origin so the PWA works offline.
-// copy-ort-wasm.mjs copies dist/*.wasm+mjs into public/ort/ at postinstall.
+// copy-ort-wasm.mjs vendors dist/*.wasm into public/ort/ at postinstall.
+// NOTE: onnxruntime-web is pinned to 1.18.0 — the last version shipping a
+// single-threaded SIMD build. 1.19+ is threaded-only and its wasm dies on
+// iOS Safari with "no available backend found / RangeError: Out of memory".
 if (typeof window !== "undefined") {
   ort.env.wasm.wasmPaths = "/ort/";
   ort.env.wasm.numThreads = 1; // no cross-origin-isolation on Vercel by default
+  ort.env.wasm.proxy = false; // run on the main thread, no proxy worker
 }
 
 export class DroneDetector {
   private session: ort.InferenceSession | null = null;
 
-  /** Fetch + compile the model. ~6 MB, cached by the browser after first load. */
+  /** Fetch + compile the model. ~10 MB wasm + 6 MB model, cached after first load. */
   async load(): Promise<void> {
     if (this.session) return;
     this.session = await ort.InferenceSession.create("/drone_crnn.onnx", {
@@ -34,6 +38,19 @@ export class DroneDetector {
 
   get ready(): boolean {
     return this.session !== null;
+  }
+
+  /** Release the wasm session (e.g. on Stop) so a restart starts clean. */
+  async dispose(): Promise<void> {
+    const s = this.session;
+    this.session = null;
+    if (s) {
+      try {
+        await s.release();
+      } catch {
+        /* already released */
+      }
+    }
   }
 
   /**

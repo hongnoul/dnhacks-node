@@ -218,7 +218,7 @@ export default function NodePage() {
       wasDetectingRef.current = false;
       setPhase("listening");
     } catch (e) {
-      setErr(String(e));
+      setErr(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
   }, []);
@@ -294,6 +294,11 @@ export default function NodePage() {
   const stop = useCallback(() => {
     micRef.current?.stop();
     micRef.current = null;
+    // Release the wasm session so a later Start re-inits from a clean slate
+    // (stale sessions pin wasm memory and can OOM mobile Safari on restart).
+    const det = detectorRef.current;
+    detectorRef.current = null;
+    if (det) void det.dispose().catch(() => {});
     void wakeLockRef.current?.release();
     wakeLockRef.current = null;
     scoringRef.current = false;
