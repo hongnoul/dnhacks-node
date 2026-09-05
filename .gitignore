@@ -1,0 +1,6 @@
+node_modules/
+.next/
+server/.venv/
+server/clips/
+server/events.jsonl
+.vercel/

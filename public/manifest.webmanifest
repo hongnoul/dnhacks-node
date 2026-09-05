@@ -1,0 +1,10 @@
+{
+  "name": "SkyMesh Node",
+  "short_name": "SkyMesh",
+  "description": "Crowd-sourced drone detection sensor node",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#0a0f1a",
+  "theme_color": "#0a0f1a",
+  "icons": []
+}
