@@ -6,3 +6,7 @@ torchaudio>=2.2
 numpy>=1.24
 huggingface_hub>=0.20
 qrcode>=7.4
+# for export_onnx.py (regenerating public/drone_crnn.onnx)
+onnx>=1.16
+onnxscript>=0.1
+onnxruntime>=1.18
