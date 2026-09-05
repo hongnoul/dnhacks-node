@@ -98,27 +98,32 @@ server/                # fusion server (FastAPI + WebSocket) — see server/READ
 
 ## Quickstart
 
+### Fusion server (run first)
+
+```bash
+cd server
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8000
+# expose publicly (phones need HTTPS):
+cloudflared tunnel --url http://localhost:8000   # prints https://<random>.trycloudflare.com
+# verify the whole pipe with zero phones:
+.venv/bin/python fake_node.py https://<tunnel>.trycloudflare.com
+# watch events: tail -f server/events.jsonl · listen to clips: open https://<tunnel>/clips/<name>.wav
+```
+
 ### Node PWA
 
 ```bash
 npm install
-npm run dev
-# open http://localhost:3000 on your phone (same Wi-Fi), tap Join, allow mic + location
+npm run dev   # local dev; mic works on http://localhost only
+# prod deploy with the server URL baked in:
+vercel deploy --prod --yes --team <team> \
+  --build-env NEXT_PUBLIC_SERVER_URL=https://<tunnel>.trycloudflare.com
 ```
 
-Deploy: push to Vercel, print the URL as a QR code for judges.
+Live now: **https://dnhacks-node.vercel.app** (points at the current tunnel; redeploy with a new `--build-env` when the tunnel URL changes, or override per-phone with `?server=https://...`).
 
-### Fusion server
-
-```bash
-cd server
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app:app --reload --port 8000
-# node PWA points at wss://<server>/ws
-# watch the stream: tail -f events.jsonl
-# replay a recorded session: curl http://localhost:8000/replay?session=demo1
-```
+Open the URL on a phone, tap **Join the mesh**, allow mic + location. The page shows a live drone-band meter; when the loudness gate trips it uploads a 2 s WAV, check `server/clips/`.
 
 ### Anchor nodes (recommended)
 
