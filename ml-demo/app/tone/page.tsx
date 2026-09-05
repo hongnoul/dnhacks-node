@@ -188,10 +188,10 @@ export default function TonePage() {
       {/* Featured viewer */}
       <div
         style={{
-          border: "1px solid #30363d",
+          border: "1px solid #e5e7eb",
           borderRadius: 12,
           overflow: "hidden",
-          background: "#0d1117",
+          background: "#f9fafb",
         }}
       >
         <MV
@@ -201,7 +201,7 @@ export default function TonePage() {
           auto-rotate
           shadow-intensity="1"
           interaction-prompt="auto"
-          style={{ width: "100%", height: 380, background: "#11161d" }}
+          style={{ width: "100%", height: 380, background: "#f3f4f6" }}
         />
         <div style={{ padding: "12px 16px" }}>
           <div style={{ fontWeight: 700 }}>{selected.name}</div>
@@ -212,7 +212,7 @@ export default function TonePage() {
               href={selected.page}
               target="_blank"
               rel="noreferrer"
-              style={{ color: "#58a6ff" }}
+              style={{ color: "#2563eb" }}
             >
               Poly Pizza
             </a>{" "}
@@ -288,9 +288,9 @@ export default function TonePage() {
                 borderRadius: 12,
                 overflow: "hidden",
                 cursor: "pointer",
-                background: "#0d1117",
-                color: "#e6edf3",
-                border: active ? "2px solid #2ea043" : "1px solid #30363d",
+                background: "#fff",
+                color: "#111",
+                border: active ? "2px solid #16a34a" : "1px solid #e5e7eb",
                 padding: 0,
               }}
             >
@@ -303,7 +303,7 @@ export default function TonePage() {
                 style={{
                   width: "100%",
                   height: 140,
-                  background: "#11161d",
+                  background: "#f3f4f6",
                   pointerEvents: "none",
                 }}
               />
@@ -343,7 +343,7 @@ export default function TonePage() {
                 fontSize: 20,
                 borderRadius: 12,
                 border: "none",
-                background: "#2ea043",
+                background: "#16a34a",
                 color: "white",
                 fontWeight: 700,
               }}
@@ -374,7 +374,7 @@ export default function TonePage() {
               fontSize: 20,
               borderRadius: 12,
               border: "none",
-              background: "#f85149",
+              background: "#dc2626",
               color: "white",
               fontWeight: 700,
             }}
