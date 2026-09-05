@@ -41,6 +41,9 @@ function readMono16(path) {
   return { samples: out, sampleRate: sr };
 }
 function ensureTone() {
+  // NOTE: regenerates only when missing. A stale sine-stack fixture from an
+  // older run scores ~0.001 on the CRNN and fails the ≥0.80 assert — delete
+  // server/drone_tone.wav and re-run if the e2e suddenly stops detecting.
   if (existsSync(TONE_PATH)) return;
   const dir = new URL("./testdata/", import.meta.url).pathname;
   const files = readdirSync(dir).filter((f) => f.startsWith("l1_") && f.endsWith(".wav")).sort();

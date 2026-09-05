@@ -77,3 +77,13 @@ node server/e2e-browser.mjs
 
 Deploy: `vercel deploy --prod --yes` → **https://dnhacks-node.vercel.app**.
 Judges scan a QR, tap once, allow mic — that's the whole setup.
+
+## Verifying with a MacBook speaker (`/tone`)
+
+No drone handy: open `/tone` on a MacBook, hit **Play drone audio**
+(`public/drone-demo.wav` — real DADS `l1` clips looped to 10 s, 48 kHz
+mono), volume to max, hold the iPhone 10–30 cm from the speaker. The node
+confidence slams to ~100% within a second. The sine-stack button only moves
+the gate meters — the CRNN scores pure tones ~0.001, which is the
+gate-vs-classifier split working as designed. Drone audio: DADS (MIT;
+aggregates CC-BY sources, see the dataset card).
