@@ -233,7 +233,7 @@ export default function TonePage() {
                 overflow: "hidden",
                 cursor: "pointer",
                 background: "#0d1117",
-                color: "inherit",
+                color: "#e6edf3",
                 border: active ? "2px solid #2ea043" : "1px solid #30363d",
                 padding: 0,
               }}
