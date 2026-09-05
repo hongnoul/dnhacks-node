@@ -6,10 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "node copy-ort-wasm.mjs",
+    "prebuild": "node copy-ort-wasm.mjs",
+    "test:parity": "node test-parity.mjs"
   },
   "dependencies": {
     "next": "^15.4.6",
+    "onnxruntime-web": "^1.29.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
