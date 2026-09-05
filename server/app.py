@@ -24,6 +24,13 @@ except Exception as _e:  # torch not installed → ingest still works
     HAVE_MODEL = False
     _model_err = str(_e)
 
+try:
+    from tdoa import TdoaClip, multilaterate
+    import numpy as _np
+    HAVE_TDOA = True
+except Exception:
+    HAVE_TDOA = False
+
 ROOT = Path(__file__).parent
 CLIPS = ROOT / "clips"
 CLIPS.mkdir(exist_ok=True)
@@ -156,7 +163,42 @@ def fuse(ev: dict):
         "confidence": round(max(
             (d.get("server_conf") or d.get("loudness", 0)) for d in dets
         ), 3),
+        **_tdoa_refine(dets, lat, lon),
     }
+
+
+def _tdoa_refine(dets: list, seed_lat: float, seed_lon: float) -> dict:
+    """Stretch goal: with >=4 concurrent confirmed clips, GCC-PHAT
+    multilateration refines the centroid. Returns extra track fields."""
+    if not HAVE_TDOA or len(dets) < 4:
+        return {}
+    try:
+        import wave as wave_mod
+
+        clips = []
+        for d in dets:
+            ref = d.get("clip_ref")
+            if not ref:
+                continue
+            path = CLIPS / ref.split("/")[-1]
+            if not path.exists():
+                continue
+            with wave_mod.open(str(path), "rb") as w:
+                rate = w.getframerate()
+                raw = w.readframes(w.getnframes())
+            samples = _np.frombuffer(raw, dtype=_np.int16).astype(_np.float32) / 32768.0
+            clips.append(TdoaClip(
+                node_id=d["node_id"], lat=d["lat"], lon=d["lon"],
+                t0=d.get("t", 0.0), samples=samples, rate=rate,
+            ))
+        if len(clips) < 4 or len({c.rate for c in clips}) != 1:
+            return {}
+        r = multilaterate(clips, seed_lat, seed_lon)
+        if r is None:
+            return {}
+        return {"tdoa": r}
+    except Exception:
+        return {}
 
 
 @app.get("/events")
