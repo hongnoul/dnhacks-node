@@ -6,13 +6,23 @@
 # Watch: tail -f events.jsonl
 
 import json
+import math
 import time
+from collections import deque
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+try:
+    from model import score_wav  # CRNN drone classifier (optional heavy dep)
+    HAVE_MODEL = True
+except Exception as _e:  # torch not installed → ingest still works
+    HAVE_MODEL = False
+    _model_err = str(_e)
 
 ROOT = Path(__file__).parent
 CLIPS = ROOT / "clips"
@@ -58,9 +68,94 @@ async def ingest_clip(file: UploadFile = File(...), meta: str = Form(...)):
     clip_path.write_bytes(data)
     ev["clip_ref"] = f"/clips/{clip_name}"
     ev["clip_bytes"] = len(data)
+
+    # CRNN verdict: replaces node-side gate confidence for fusion
+    if HAVE_MODEL:
+        try:
+            ev["server_conf"] = round(
+                await run_in_threadpool(score_wav, clip_path), 4
+            )
+        except Exception as e:
+            ev["server_conf_error"] = str(e)
+
     log_event(ev)
-    # TODO: score with CRNN here → ev["server_conf"], then feed fusion
-    return {"ok": True, "clip_ref": ev["clip_ref"], "bytes": len(data)}
+    track = fuse(ev)
+    if track:
+        log_event(track)
+    return {
+        "ok": True,
+        "clip_ref": ev["clip_ref"],
+        "bytes": len(data),
+        "server_conf": ev.get("server_conf"),
+        "track": track,
+    }
+
+
+# ── Fusion: loudness×confidence weighted centroid over a sliding window ──────
+
+FUSE_WINDOW_S = 4.0      # detections within this window fuse into one estimate
+CONF_THRESHOLD = 0.5     # CRNN verdict below this → not a drone, don't fuse
+recent_detections: deque = deque(maxlen=64)
+
+
+def fuse(ev: dict):
+    """Called per confirmed detection. Returns a track event or None."""
+    conf = ev.get("server_conf")
+    if conf is None:  # model unavailable → fall back to node loudness gate
+        conf = ev.get("loudness", 0)
+    if conf < CONF_THRESHOLD or ev.get("lat") is None:
+        return None
+    recent_detections.append(ev)
+
+    now = time.time()
+    window = [
+        d for d in recent_detections
+        if now - d.get("server_t", d.get("t", 0)) <= FUSE_WINDOW_S
+        and d.get("lat") is not None
+    ]
+    # one detection per node (latest wins)
+    by_node = {}
+    for d in window:
+        by_node[d["node_id"]] = d
+    dets = list(by_node.values())
+    if not dets:
+        return None
+
+    # weight = confidence × loudness (loudness ∝ proximity)
+    ws, lats, lons = [], [], []
+    for d in dets:
+        c = d.get("server_conf") if d.get("server_conf") is not None else d.get("loudness", 0)
+        w = max(c, 1e-3) * max(d.get("loudness", 0.1), 0.05)
+        ws.append(w)
+        lats.append(d["lat"])
+        lons.append(d["lon"])
+    W = sum(ws)
+    lat = sum(w * x for w, x in zip(ws, lats)) / W
+    lon = sum(w * x for w, x in zip(ws, lons)) / W
+
+    # crude error radius: weighted std of node offsets (meters), floored by
+    # single-node case at 150m (audible range, no geometry)
+    if len(dets) >= 2:
+        var = sum(
+            w * ((111_320 * (la - lat)) ** 2 +
+                 (111_320 * math.cos(math.radians(lat)) * (lo - lon)) ** 2)
+            for w, la, lo in zip(ws, lats, lons)
+        ) / W
+        err_m = max(math.sqrt(var), 15.0)
+    else:
+        err_m = 150.0
+
+    return {
+        "type": "track",
+        "t": now,
+        "lat": round(lat, 6),
+        "lon": round(lon, 6),
+        "err_m": round(err_m, 1),
+        "n_nodes": len(dets),
+        "confidence": round(max(
+            (d.get("server_conf") or d.get("loudness", 0)) for d in dets
+        ), 3),
+    }
 
 
 @app.get("/events")

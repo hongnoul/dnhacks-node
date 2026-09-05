@@ -5,3 +5,7 @@ server/clips/
 server/events.jsonl
 .vercel/
 .vercel
+server/models/
+server/testdata/
+server/uvicorn.log
+server/drone_tone.wav
