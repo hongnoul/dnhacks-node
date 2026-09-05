@@ -100,33 +100,8 @@ export default function TonePage() {
       },
     );
 
-    // Click (not drag): raycast against the drone group.
-    const ray = new THREE.Raycaster();
-    const ptr = new THREE.Vector2();
-    let downAt = 0;
-    let downXY: [number, number] = [0, 0];
-    const onDown = (e: PointerEvent) => {
-      downAt = performance.now();
-      downXY = [e.clientX, e.clientY];
-    };
-    const onUp = (e: PointerEvent) => {
-      if (performance.now() - downAt > 300) return; // was a drag
-      const dx = e.clientX - downXY[0];
-      const dy = e.clientY - downXY[1];
-      if (dx * dx + dy * dy > 36) return; // moved too far
-      const r = renderer.domElement.getBoundingClientRect();
-      ptr.set(
-        ((e.clientX - r.left) / r.width) * 2 - 1,
-        -((e.clientY - r.top) / r.height) * 2 + 1,
-      );
-      ray.setFromCamera(ptr, camera);
-      if (ray.intersectObject(drone, true).length > 0) {
-        // Custom event picked up by the React click handler below.
-        mount.dispatchEvent(new CustomEvent("drone-click"));
-      }
-    };
-    renderer.domElement.addEventListener("pointerdown", onDown);
-    renderer.domElement.addEventListener("pointerup", onUp);
+    // Whole canvas is clickable via the container's onClick — no raycast
+    // needed for the simplified UI.
 
     const tick = () => {
       raf = requestAnimationFrame(tick);
@@ -154,8 +129,6 @@ export default function TonePage() {
       disposed = true;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
-      renderer.domElement.removeEventListener("pointerdown", onDown);
-      renderer.domElement.removeEventListener("pointerup", onUp);
       controls.dispose();
       renderer.dispose();
       mount.removeChild(renderer.domElement);
@@ -190,229 +163,95 @@ export default function TonePage() {
     setPlaying(true);
   };
 
-  // Bridge canvas clicks into the React handler.
-  useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return;
-    const h = () => void toggleDrone();
-    mount.addEventListener("drone-click", h);
-    return () => mount.removeEventListener("drone-click", h);
-  }, []);
 
   return (
     <main
       style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 32,
         padding: 24,
-        maxWidth: 1100,
-        margin: "0 auto",
+        flexWrap: "wrap",
         fontFamily: "-apple-system, sans-serif",
       }}
     >
-      <h1 style={{ fontSize: 22 }}>SkyMesh demo station</h1>
-      <p style={{ color: "#6b7280", fontSize: 13 }}>
-        Phone scans the QR to open the apex node page. Click the drone to spin
-        its propellers and play real drone audio at the phone mic.
-      </p>
-
-      <div
+      {/* LEFT: QR */}
+      <section
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-          gap: 16,
-          alignItems: "stretch",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 12,
         }}
       >
-        {/* LEFT: QR to apex */}
-        <section
-          style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 12,
-            padding: 24,
-            background: "#fff",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 12,
-          }}
-        >
-          <div style={{ background: "#fff", padding: 12 }}>
-            <QRCode value={APEX_URL} size={220} data-testid="apex-qr" />
-          </div>
-          <div style={{ fontWeight: 700 }}>1. Scan with the iPhone</div>
-          <div
-            style={{ fontSize: 12, color: "#6b7280", textAlign: "center" }}
-          >
-            Opens the apex node page:
-            <br />
-            <a
-              href={APEX_URL}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: "#2563eb", wordBreak: "break-all" }}
-            >
-              {APEX_URL}
-            </a>
-            <br />
-            Then tap <b>Start listening</b> on the phone.
-          </div>
-        </section>
+        <QRCode value={APEX_URL} size={260} data-testid="apex-qr" />
+        <div style={{ fontSize: 14, color: "#6b7280" }}>Scan to open node</div>
+      </section>
 
-        {/* RIGHT: clickable drone */}
-        <section
+      {/* RIGHT: clickable drone */}
+      <section
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div
+          ref={mountRef}
+          data-testid="drone-canvas"
+          onClick={() => void toggleDrone()}
           style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 12,
-            overflow: "hidden",
-            background: "#f9fafb",
-            display: "flex",
-            flexDirection: "column",
+            width: 420,
+            maxWidth: "90vw",
+            height: 340,
+            cursor: "pointer",
+            position: "relative",
           }}
+          title={spin ? "Click to stop" : "Click to play"}
         >
-          <div
-            ref={mountRef}
-            data-testid="drone-canvas"
-            onClick={() => void toggleDrone()}
-            style={{
-              width: "100%",
-              height: 380,
-              cursor: "pointer",
-              background: "#f3f4f6",
-              position: "relative",
-            }}
-            title={spin ? "Click to stop" : "Click to spin + play sound"}
-          >
-            {!ready && !loadError && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#6b7280",
-                  fontSize: 13,
-                }}
-              >
-                Loading drone…
-              </div>
-            )}
-            {loadError && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#dc2626",
-                  fontSize: 13,
-                  padding: 16,
-                  textAlign: "center",
-                }}
-              >
-                3D failed: {loadError} — the audio button below still works.
-              </div>
-            )}
+          {!ready && !loadError && (
             <div
               style={{
                 position: "absolute",
-                left: 12,
-                top: 10,
-                fontSize: 12,
-                fontWeight: 700,
-                color: spin ? "#16a34a" : "#6b7280",
-                background: "rgba(255,255,255,0.85)",
-                padding: "4px 10px",
-                borderRadius: 999,
-                pointerEvents: "none",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#9ca3af",
+                fontSize: 13,
               }}
-              data-testid="spin-state"
             >
-              {spin ? "● spinning + playing" : "○ click the drone"}
+              Loading…
             </div>
-          </div>
-          <div style={{ padding: "12px 16px" }}>
-            <div style={{ fontWeight: 700 }}>
-              2. Click the drone — props spin + real audio plays
+          )}
+          {loadError && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#dc2626",
+                fontSize: 13,
+              }}
+            >
+              3D failed to load
             </div>
-            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-              Quad rotor + underside camera · 260 KB · 4564 tris · “Drone” by
-              NateGazzard, CC-BY 3.0 via{" "}
-              <a
-                href="https://poly.pizza/m/DNbUoMtG3H"
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: "#2563eb" }}
-              >
-                Poly Pizza
-              </a>
-              . Drag to orbit, scroll to zoom.
-            </div>
-            {playing ? (
-              <button
-                onClick={stop}
-                style={{
-                  marginTop: 10,
-                  width: "100%",
-                  padding: "14px 0",
-                  fontSize: 16,
-                  borderRadius: 10,
-                  border: "none",
-                  background: "#dc2626",
-                  color: "white",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                ■ Stop (props + audio)
-              </button>
-            ) : (
-              <button
-                onClick={() => void toggleDrone()}
-                style={{
-                  marginTop: 10,
-                  width: "100%",
-                  padding: "14px 0",
-                  fontSize: 16,
-                  borderRadius: 10,
-                  border: "none",
-                  background: "#16a34a",
-                  color: "white",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                ▶ Spin + play drone audio
-              </button>
-            )}
-          </div>
-        </section>
-      </div>
+          )}
+        </div>
+        <div
+          data-testid="spin-state"
+          style={{ fontSize: 14, color: spin ? "#16a34a" : "#6b7280" }}
+        >
+          {spin ? "● playing — click to stop" : "Click drone to play sound"}
+        </div>
+      </section>
 
-      <audio
-        ref={droneRef}
-        src="/drone-demo.wav"
-        loop
-        controls
-        preload="auto"
-        style={{ width: "100%", maxWidth: 480, marginTop: 16 }}
-      />
-
-      <ol style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.7 }}>
-        <li>iPhone: scan the QR, open the apex page, Start listening.</li>
-        <li>
-          MacBook: click the drone (or ▶ button), volume 100%, hold the
-          speaker 10–30 cm from the iPhone mic.
-        </li>
-        <li>
-          Expect: drone confidence slams to ~100% + “🚨 DRONE DETECTED” within
-          a second.
-        </li>
-      </ol>
-      <p style={{ fontSize: 11, color: "#9ca3af" }}>
-        Drone audio: DADS (MIT), geronimobasso/drone-audio-detection-samples.
-      </p>
+      <audio ref={droneRef} src="/drone-demo.wav" loop preload="auto" />
     </main>
   );
 }
