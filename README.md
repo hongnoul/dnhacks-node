@@ -143,6 +143,24 @@ Open the URL on a phone, tap **Join the mesh**, allow mic + location. The page s
 
 2× laptops with cheap USB mics (~$20 ea) beat phone AGC and carry detection while phones contribute geometry. Bring battery packs and charge everything beforehand.
 
+### Pinned positions for the demo (do this — phone GPS indoors is ±30m+)
+
+Live phone GPS is fine outdoors, but indoors it reports ±20-35m and that error
+feeds straight into the centroid and TDOA. For the judged demo, pin node
+positions instead:
+
+1. Survey 4–6 outdoor spots (corners of the flight area). Record lat/lon from
+   the map or a handheld GPS.
+2. Print one QR code per spot. Each QR is the node URL with pinned coords:
+   `https://dnhacks-node.vercel.app/?server=https://<tunnel>&lat=38.90120&lon=-77.04020&acc=3`
+3. Place one phone/laptop per spot, scan its QR, tap Join. The node page shows
+   `📌 pinned ±3m` and sends the pinned fix on every heartbeat and clip.
+4. Fusion weights by `gps_accuracy_m`: pinned anchors (±3m) dominate, stray
+   live-GPS phones (±30m+) are downweighted to ~8% so they add geometry
+   without dragging the centroid. The track ellipse floor is the mean GPS
+   accuracy, and the map draws a red accuracy disc around any node worse
+   than ±20m — judges see fix quality honestly.
+
 ## Training data
 
 Prepared in advance (data prep, no code): HuggingFace `geronimobasso/drone-audio-detection-samples` (DADS, largest public drone-audio set) + ESC-50 negatives. Pretrained compact CNN / YAMNet-head is data prep but verified against the event AI policy at kickoff; fallback is training from DADS on Colab at the event (~20 min).
