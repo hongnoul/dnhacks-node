@@ -229,5 +229,79 @@ def map_page():
     return FileResponse(ROOT / "map.html")
 
 
+# ── Replay: demo insurance ───────────────────────────────────────────────────
+# POST /replay/save?session=demo1   snapshot current events.jsonl
+# POST /replay/start?session=demo1&speed=2   re-emit into the live log with
+#   original relative timing (rebased to now), so the map animates it again.
+# GET  /replay/sessions              list saved snapshots
+
+SESSIONS = ROOT / "sessions"
+SESSIONS.mkdir(exist_ok=True)
+_replay_state = {"running": False, "session": None, "progress": 0}
+
+
+@app.post("/replay/save")
+def replay_save(session: str = "demo1"):
+    if not EVENTS.exists():
+        return JSONResponse({"ok": False, "error": "no events yet"}, status_code=400)
+    dst = SESSIONS / f"{session}.jsonl"
+    dst.write_text(EVENTS.read_text())
+    n = len(dst.read_text().strip().splitlines())
+    return {"ok": True, "session": session, "events": n}
+
+
+@app.get("/replay/sessions")
+def replay_sessions():
+    return {
+        p.stem: len(p.read_text().strip().splitlines())
+        for p in SESSIONS.glob("*.jsonl")
+    }
+
+
+@app.post("/replay/start")
+async def replay_start(session: str = "demo1", speed: float = 1.0):
+    import asyncio
+
+    src = SESSIONS / f"{session}.jsonl"
+    if not src.exists():
+        return JSONResponse({"ok": False, "error": f"no session {session}"}, status_code=404)
+    if _replay_state["running"]:
+        return JSONResponse({"ok": False, "error": "replay already running"}, status_code=409)
+
+    events = [json.loads(l) for l in src.read_text().strip().splitlines()]
+    if not events:
+        return JSONResponse({"ok": False, "error": "empty session"}, status_code=400)
+
+    async def run():
+        _replay_state.update(running=True, session=session, progress=0)
+        try:
+            t_base = events[0].get("server_t", 0)
+            start = time.time()
+            for i, ev in enumerate(events):
+                delay = (ev.get("server_t", t_base) - t_base) / max(speed, 0.1)
+                sleep_for = start + delay - time.time()
+                if sleep_for > 0:
+                    await asyncio.sleep(sleep_for)
+                ev = dict(ev)
+                ev["replayed"] = True
+                # rebase timestamps so the map's freshness windows accept them
+                ev["server_t"] = time.time()
+                if "t" in ev:
+                    ev["t"] = time.time()
+                with EVENTS.open("a") as f:
+                    f.write(json.dumps(ev) + "\n")
+                _replay_state["progress"] = i + 1
+        finally:
+            _replay_state["running"] = False
+
+    asyncio.get_event_loop().create_task(run())
+    return {"ok": True, "session": session, "events": len(events), "speed": speed}
+
+
+@app.get("/replay/status")
+def replay_status():
+    return _replay_state
+
+
 # Serve stored clips so you can listen to them in a browser
 app.mount("/clips", StaticFiles(directory=CLIPS), name="clips")

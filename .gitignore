@@ -10,3 +10,6 @@ server/testdata/
 server/uvicorn.log
 server/drone_tone.wav
 server/map-screenshot.png
+server/sessions/
+server/events.backup.jsonl
+map-tunnel.png

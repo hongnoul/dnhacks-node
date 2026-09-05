@@ -1,0 +1,15 @@
+import { chromium } from "playwright";
+const browser = await chromium.launch();
+const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
+const errors = [];
+page.on("pageerror", (e) => errors.push(String(e)));
+await page.goto("https://ecology-modelling-baker-metabolism.trycloudflare.com/map", { waitUntil: "networkidle", timeout: 60000 });
+await page.waitForTimeout(2500);
+const nNodes = await page.textContent("#n-nodes");
+const track = await page.locator(".track-badge").count();
+console.log(`tunnel map: nodes=${nNodes} trackBadge=${track} jsErrors=${errors.length}`);
+await page.screenshot({ path: "map-tunnel.png" });
+const ok = Number(nNodes) >= 4 && track === 1 && errors.length === 0;
+console.log(ok ? "TUNNEL MAP OK" : "TUNNEL MAP FAIL");
+await browser.close();
+process.exit(ok ? 0 : 1);
