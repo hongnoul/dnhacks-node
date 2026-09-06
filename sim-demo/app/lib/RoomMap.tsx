@@ -8,6 +8,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Estimate, Placed, Room } from "./fusion.ts";
+import {
+  MAX_LINK_DISTANCE_M,
+  MIN_NODE_DISTANCE_M,
+  type PlacementCandidate,
+  type PlacementStatus,
+} from "./scenario.ts";
 
 export interface RoomMapProps {
   room: Room;
@@ -25,6 +31,19 @@ export interface RoomMapProps {
   /** Active hops, for the ripple animation. */
   ripples?: { from: string; to: string; at: number }[];
   width?: number;
+  /** Hover preview while placing (Avery's PlacementPreview, room-scale). */
+  placement?: { candidate: PlacementCandidate; status: PlacementStatus } | null;
+  /** Simulated drone marker + detection halo. Visual hint only — never a record. */
+  drone?: { x: number; y: number; radiusM: number; dest?: { x: number; y: number } | null } | null;
+  /** BFS alert path to highlight, and the edge currently relaying. */
+  alertPath?: string[] | null;
+  alertEdge?: string | null;
+  /** Impact blast circle for the simulated-outage demo. */
+  impact?: { x: number; y: number; radiusM: number } | null;
+  /** Map clicks in placement/drone/impact modes. Room metres. */
+  onMapClick?: (x: number, y: number) => void;
+  /** Hover position while placing. Room metres. */
+  onMapHover?: (x: number, y: number) => void;
 }
 
 const PX_PER_M = 56;
@@ -83,7 +102,7 @@ export function RoomMap(props: RoomMapProps) {
     ctx.drawImage(off, 0, 0, cv.width, cv.height);
   }, [estimate, w, h]);
 
-  function pointFromEvent(e: React.PointerEvent): { x: number; y: number } | null {
+  function pointFromEvent(e: { clientX: number; clientY: number }): { x: number; y: number } | null {
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect) return null;
     return {
@@ -125,6 +144,12 @@ export function RoomMap(props: RoomMapProps) {
         height={h}
         style={{ position: "absolute", inset: 0, touchAction: "none" }}
         onPointerMove={(e) => {
+          // Hover preview while placing needs pointer position even when no
+          // drag is in flight.
+          if (!dragging.current && props.onMapHover) {
+            const pt = pointFromEvent(e);
+            if (pt) props.onMapHover(pt.x, pt.y);
+          }
           if (!dragging.current || !props.onMove) return;
           const pt = pointFromEvent(e);
           if (!pt) return;
@@ -148,6 +173,14 @@ export function RoomMap(props: RoomMapProps) {
           }
           moved.current = false;
           setPreview(null);
+        }}
+        onClick={(e) => {
+          // Background clicks (not on a node) drive scenario modes: placing,
+          // drone start/destination, impact. Node clicks arrive via onPick.
+          if ((e.target as Element).closest("g")) return;
+          if (!props.onMapClick) return;
+          const pt = pointFromEvent(e);
+          if (pt) props.onMapClick(pt.x, pt.y);
         }}
         onPointerLeave={() => {
           dragging.current = null;
@@ -220,6 +253,109 @@ export function RoomMap(props: RoomMapProps) {
             />
           </>
         )}
+
+        {/* alert path: highlight each hop, emphasise the edge now relaying */}
+        {props.alertPath?.slice(0, -1).map((id, i) => {
+          const next = props.alertPath![i + 1];
+          const pa = positions.get(id);
+          const pb = positions.get(next);
+          // The command post (admin observer) has no position — skip that leg's
+          // line but keep the hop count honest in the status text.
+          if (!pa || !pb) return null;
+          const [x1, y1] = toPx(pa.x, pa.y);
+          const [x2, y2] = toPx(pb.x, pb.y);
+          const active = props.alertEdge === `${id}->${next}`;
+          return (
+            <line
+              key={`alert-${id}-${next}`}
+              x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={active ? "#ffd166" : "var(--warn)"}
+              strokeWidth={active ? 4 : 2}
+              strokeDasharray="6 4"
+              opacity={active ? 1 : 0.45}
+            />
+          );
+        })}
+
+        {/* impact blast */}
+        {props.impact && (
+          <circle
+            cx={toPx(props.impact.x, props.impact.y)[0]}
+            cy={toPx(props.impact.x, props.impact.y)[1]}
+            r={(props.impact.radiusM / room.w) * w}
+            fill="#f07b62"
+            fillOpacity={0.1}
+            stroke="#f07b62"
+            strokeWidth={2}
+            strokeDasharray="7 8"
+          />
+        )}
+
+        {/* placement preview: min-distance ring + links it would add */}
+        {props.placement && (() => {
+          const { candidate, status } = props.placement;
+          const color = status === "valid" ? "var(--ok)" : status === "warning" ? "var(--warn)" : "var(--hot)";
+          const [cx, cy] = toPx(candidate.x, candidate.y);
+          return (
+            <g style={{ pointerEvents: "none" }}>
+              <circle
+                cx={cx} cy={cy}
+                r={(MIN_NODE_DISTANCE_M / room.w) * w}
+                fill="none" stroke={color} strokeWidth={1} strokeDasharray="4 6" opacity={0.8}
+              />
+              <circle
+                cx={cx} cy={cy} r={9}
+                fill="none" stroke={color} strokeWidth={2} strokeDasharray="5 5" opacity={0.9}
+              />
+              {candidate.distances
+                .filter(({ d }) => d <= MAX_LINK_DISTANCE_M * 1.35)
+                .map(({ node, d }) => {
+                  const p = positions.get(node);
+                  if (!p) return null;
+                  const [x2, y2] = toPx(p.x, p.y);
+                  return (
+                    <line
+                      key={`place-${node}`}
+                      x1={cx} y1={cy} x2={x2} y2={y2}
+                      stroke={d <= MAX_LINK_DISTANCE_M ? color : "#65778a"}
+                      strokeWidth={1} strokeDasharray="3 6" opacity={0.65}
+                    />
+                  );
+                })}
+            </g>
+          );
+        })()}
+
+        {/* simulated drone: flight path, halo, marker. Never a record. */}
+        {props.drone && (() => {
+          const [dx, dy] = toPx(props.drone.x, props.drone.y);
+          const dest = props.drone.dest;
+          return (
+            <g style={{ pointerEvents: "none" }}>
+              {dest && (
+                <line
+                  x1={dx} y1={dy}
+                  x2={toPx(dest.x, dest.y)[0]} y2={toPx(dest.x, dest.y)[1]}
+                  stroke="var(--warn)" strokeWidth={2} strokeDasharray="8 8" opacity={0.85}
+                />
+              )}
+              {dest && (
+                <circle
+                  cx={toPx(dest.x, dest.y)[0]} cy={toPx(dest.x, dest.y)[1]} r={7}
+                  fill="none" stroke="var(--warn)" strokeWidth={2} strokeDasharray="4 4"
+                />
+              )}
+              <circle
+                cx={dx} cy={dy}
+                r={(props.drone.radiusM / room.w) * w}
+                fill="#f4c95d" fillOpacity={0.06}
+                stroke="#f4c95d" strokeWidth={1} strokeDasharray="4 7"
+              />
+              <text x={dx} y={dy + 1} fontSize={18} textAnchor="middle" dominantBaseline="central">✦</text>
+              <text x={dx} y={dy + 18} fill="var(--warn)" fontSize={10} textAnchor="middle">sim drone</text>
+            </g>
+          );
+        })()}
 
         {[...positions.values()].map((placed) => {
           const p = preview && preview.node === placed.node ? preview : placed;
