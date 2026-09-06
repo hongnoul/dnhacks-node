@@ -136,14 +136,27 @@ function hannWindow(): Float64Array {
  * Normalized log-mel spectrogram of a 16 kHz mono signal.
  * Returns { data, frames }: data is Float32Array [N_MELS * frames] laid out
  * row-major (mel × time) — matches the ONNX input [1, 1, 64, T].
+ *
+ * Scratch buffers (padded/re/im/power/out) are module-level and reused
+ * across ticks: a 1 s window allocated ~5 throwaway buffers per call
+ * (~130 KB at 4 Hz = ~0.5 MB/s of GC churn). Reuse is safe because the
+ * caller consumes `data` synchronously into an ORT tensor before the next
+ * call overwrites it. Variable-length inputs grow the scratch once.
  */
+let _pad: Float64Array = new Float64Array(0);
+let _re: Float64Array = new Float64Array(0);
+let _im: Float64Array = new Float64Array(0);
+let _power: Float64Array = new Float64Array(0);
+let _out: Float32Array = new Float32Array(0);
 export function logMelSpectrogram(samples: Float32Array): {
   data: Float32Array;
   frames: number;
 } {
   const pad = N_FFT / 2; // center=true reflect padding
   const n = samples.length;
-  const padded = new Float64Array(n + 2 * pad);
+  const needPad = n + 2 * pad;
+  if (_pad.length < needPad) _pad = new Float64Array(needPad);
+  const padded = _pad.subarray(0, needPad);
   for (let i = 0; i < n; i++) padded[pad + i] = samples[i];
   for (let i = 0; i < pad; i++) {
     padded[pad - 1 - i] = samples[Math.min(i + 1, n - 1)]; // reflect left
@@ -154,10 +167,17 @@ export function logMelSpectrogram(samples: Float32Array): {
   const nFreqs = N_FFT / 2 + 1;
   const win = hannWindow();
   const fb = melFilterbank();
-  const power = new Float64Array(nFreqs);
-  const re = new Float64Array(N_FFT);
-  const im = new Float64Array(N_FFT);
-  const out = new Float32Array(N_MELS * frames);
+  if (_re.length < N_FFT) {
+    _re = new Float64Array(N_FFT);
+    _im = new Float64Array(N_FFT);
+    _power = new Float64Array(nFreqs);
+  }
+  const needOut = N_MELS * frames;
+  if (_out.length < needOut) _out = new Float32Array(needOut);
+  const power = _power;
+  const re = _re;
+  const im = _im;
+  const out = _out.subarray(0, needOut);
 
   for (let t = 0; t < frames; t++) {
     const off = t * HOP;

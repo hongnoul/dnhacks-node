@@ -253,7 +253,7 @@ export default function NodePage() {
   useEffect(() => {
     if (phase !== "listening") return;
 
-    const scorer = setInterval(() => {
+    const tick = () => {
       const mic = micRef.current;
       const det = detectorRef.current;
       if (!mic || !det?.ready || scoringRef.current) return;
@@ -307,7 +307,11 @@ export default function NodePage() {
         .finally(() => {
           scoringRef.current = false;
         });
-    }, SCORE_INTERVAL_MS);
+    };
+    // Fire immediately on Start (1 s of ring audio is usually already
+    // buffered) instead of waiting a full 250 ms for the first verdict.
+    tick();
+    const scorer = setInterval(tick, SCORE_INTERVAL_MS);
 
     // Re-render clock so the graph scrolls even between scores
     const clock = setInterval(() => setNowTick(Date.now()), 500);

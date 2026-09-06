@@ -1,9 +1,10 @@
-// audio.ts — mic capture, loudness gate, 2s WAV clip encoding.
+// audio.ts — mic capture + 2s WAV clip encoding.
 // iOS Safari notes:
 //  - getUserMedia requires HTTPS and a user gesture.
 //  - Actual sample rate is whatever the hardware gives (typically 48 kHz); we report it, server resamples.
 //  - Disable voice processing or iOS mangles drone audio.
 
+/** Legacy loudness-gate metrics (analyser removed — kept for type compat). */
 export interface AudioFrame {
   /** RMS loudness 0..1 over the last analysis window */
   loudness: number;
@@ -30,12 +31,10 @@ const RING_SECONDS = 4.0; // keep 4s so a clip can include 1s of pre-trigger aud
 export class MicCapture {
   private ctx: AudioContext | null = null;
   private stream: MediaStream | null = null;
-  private analyser: AnalyserNode | null = null;
   private proc: ScriptProcessorNode | null = null;
   private ring: Float32Array<ArrayBuffer> = new Float32Array(0);
   private ringWrite = 0;
   private ringFilled = 0;
-  private freqBuf: Float32Array<ArrayBuffer> = new Float32Array(0);
   // Scratch snapshot reused by samplesInto() so the 4 Hz tick allocates
   // nothing in steady state (same sample rate → same buffer, zero GC churn).
   private scratch: Float32Array<ArrayBuffer> = new Float32Array(0);
@@ -50,17 +49,20 @@ export class MicCapture {
         channelCount: 1,
       },
     });
-    this.ctx = new AudioContext();
+    this.ctx = new AudioContext({ latencyHint: "interactive" });
+    // latencyHint interactive asks the OS for the smallest mic→callback
+    // path (often 128-256 frames vs 512+ balanced). Falls back harmlessly
+    // where unsupported (older Safari ignores the hint).
     // iOS starts AudioContext suspended until a gesture-driven resume
     if (this.ctx.state === "suspended") await this.ctx.resume();
     this.sampleRate = this.ctx.sampleRate;
     this.ring = new Float32Array(Math.ceil(RING_SECONDS * this.sampleRate));
 
     const src = this.ctx.createMediaStreamSource(this.stream);
-    this.analyser = this.ctx.createAnalyser();
-    this.analyser.fftSize = 2048;
-    this.freqBuf = new Float32Array(this.analyser.frequencyBinCount);
-    src.connect(this.analyser);
+
+    // No AnalyserNode: the old loudness-gate FFT ran a 2048-point FFT on
+    // every capture with zero consumers (the scan loop scores raw 1 s
+    // snapshots via the CRNN). Skipping it removes per-callback FFT work.
 
     // ScriptProcessor is deprecated but still the most reliable cross-Safari way
     // to get raw samples without an AudioWorklet module fetch (which needs same-origin HTTPS anyway).
@@ -87,33 +89,6 @@ export class MicCapture {
       this.ringWrite = (this.ringWrite + input.length) % this.ring.length;
       this.ringFilled = Math.min(this.ringFilled + input.length, this.ring.length);
     };
-  }
-
-  /** Current loudness metrics from the analyser (cheap, call at ~4 Hz). */
-  frame(): AudioFrame {
-    if (!this.analyser || !this.ctx) return { loudness: 0, bandLoudness: 0, peakiness: 0 };
-    this.analyser.getFloatFrequencyData(this.freqBuf);
-    const nyquist = this.ctx.sampleRate / 2;
-    const binHz = nyquist / this.freqBuf.length;
-    let total = 0;
-    let band = 0;
-    let bandCount = 0;
-    let bandMax = 0;
-    for (let i = 0; i < this.freqBuf.length; i++) {
-      // dB (-Infinity..0) → linear power
-      const p = Math.pow(10, this.freqBuf[i] / 10);
-      total += p;
-      const hz = i * binHz;
-      if (hz >= 80 && hz <= 2000) {
-        band += p;
-        bandCount++;
-        if (p > bandMax) bandMax = p;
-      }
-    }
-    const loudness = Math.min(1, Math.sqrt(total / this.freqBuf.length) * 30);
-    const bandLoudness = bandCount ? Math.min(1, Math.sqrt(band / bandCount) * 30) : 0;
-    const peakiness = bandCount && band > 0 ? bandMax / (band / bandCount) : 0;
-    return { loudness, bandLoudness, peakiness };
   }
 
   /** Last `seconds` of raw mono samples from the ring (for on-device scoring).
@@ -168,7 +143,6 @@ export class MicCapture {
 
   stop(): void {
     this.proc?.disconnect();
-    this.analyser?.disconnect();
     this.stream?.getTracks().forEach((t) => t.stop());
     this.ctx?.close();
     this.ctx = null;
