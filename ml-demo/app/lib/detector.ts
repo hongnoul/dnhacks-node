@@ -69,6 +69,20 @@ export class DroneDetector {
    */
   async score(samples: Float32Array, sampleRate: number): Promise<number> {
     if (!this.session) throw new Error("model not loaded");
+    // Fast silence gate BEFORE resample+mel: scan every 4th sample for any
+    // peak above the floor. Digital silence skips ~9 ms of frontend work and
+    // returns 0 in microseconds — quiet rooms cost nothing. Any real audio
+    // (peak >> floor even at -60 dBFS) falls through to the exact path.
+    // Stride 4 cannot miss: a peak above floor spans many samples.
+    let gate = 0;
+    for (let i = 0; i < samples.length; i += 4) {
+      const a = Math.abs(samples[i]);
+      if (a > gate) {
+        gate = a;
+        if (gate >= PEAK_FLOOR) break;
+      }
+    }
+    if (gate < PEAK_FLOOR) return 0;
     let wave = resampleTo16k(samples, sampleRate);
     if (wave.length < WINDOW_SAMPLES) {
       const padded = new Float32Array(WINDOW_SAMPLES);

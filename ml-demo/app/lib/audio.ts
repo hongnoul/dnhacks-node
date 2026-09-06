@@ -109,16 +109,21 @@ export class MicCapture {
 
   /** Zero-alloc snapshot: copies the last `seconds` into a reused scratch
    *  buffer and returns a view. The view is only valid until the next call —
-   *  the scorer must consume it synchronously (resample/score do). */
+   *  the scorer must consume it synchronously (resample/score do).
+   *  Returns whatever is buffered when warm (< `seconds` right after Start)
+   *  so the first verdict lands in ~0.5 s instead of a full second; the
+   *  scorer pads short input to one window. Null only when the ring
+   *  is completely empty. */
   samplesInto(seconds: number): Float32Array | null {
     const want = Math.floor(seconds * this.sampleRate);
-    if (this.ringFilled < want) return null;
+    const have = Math.min(this.ringFilled, want);
+    if (have === 0) return null;
     if (this.scratch.length !== want) this.scratch = new Float32Array(want);
-    const start = (this.ringWrite - want + this.ring.length) % this.ring.length;
-    const first = Math.min(want, this.ring.length - start);
+    const start = (this.ringWrite - have + this.ring.length) % this.ring.length;
+    const first = Math.min(have, this.ring.length - start);
     this.scratch.set(this.ring.subarray(start, start + first), 0);
-    if (first < want) this.scratch.set(this.ring.subarray(0, want - first), first);
-    return this.scratch;
+    if (first < have) this.scratch.set(this.ring.subarray(0, have - first), first);
+    return this.scratch.subarray(0, have);
   }
 
   /** Snapshot the most recent CLIP_SECONDS from the ring buffer as a 16-bit PCM WAV.
