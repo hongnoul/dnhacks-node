@@ -169,7 +169,7 @@ export function SensorDesktop({ mesh, view, score, detections, micError }: {
           <div key={tab} role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} tabIndex={0} className={styles.tabPanel}>
             {tab === "Monitor" && <>
               <div className={styles.readout}><h2>{micError ? "Detector unavailable" : score.detecting ? "DRONE DETECTED" : "Drone confidence"}</h2><strong data-detecting={score.detecting}>{micError ? "N/A" : `${(score.display * 100).toFixed(0)}%`}</strong></div>
-              <div className={styles.instrument}><ConfidenceGraph history={mesh?.history(view?.nodeId ?? "") ?? []} monochrome width={Math.max(1, width - 28)} height={200} now={Date.now()} /></div>
+              <fieldset className={styles.terminalInstrument}><legend>Confidence</legend><ConfidenceGraph history={mesh?.history(view?.nodeId ?? "") ?? []} terminal width={Math.max(1, width - 28)} height={240} now={Date.now()} /></fieldset>
               <dl className={styles.metrics}><div><dt>Detector</dt><dd>{micError ? "Unavailable" : "On-device CRNN"}</dd></div><div><dt>Detections</dt><dd>{detections}</dd></div><div><dt>Signal / noise</dt><dd>{score.snrDb === null ? "—" : `${score.snrDb.toFixed(1)} dB`}</dd></div></dl>
               <p className={styles.note}>Audio stays on this phone. Only detection scores are shared.</p>
             </>}

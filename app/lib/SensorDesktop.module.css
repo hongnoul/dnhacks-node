@@ -167,3 +167,7 @@
   .stationFile { top: 234px; right: 12px; gap: 6px; font-size: 12px; }
   .stationImage { width: 120px; height: 120px; }
 }
+
+/* bottom-style terminal panel: title interrupts a single-cell border. */
+.terminalInstrument { min-width: 0; margin: 0; padding: 0 13px 10px; border: 1px solid #dedee3; background: #101216; box-shadow: 0 0 0 6px #101216; color: #dedee3; }
+.terminalInstrument legend { padding: 0 7px; background: #101216; font: 12px/1.5 Menlo, Consolas, monospace; }

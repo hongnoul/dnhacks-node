@@ -35,7 +35,7 @@ try {
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   assert((await video.boundingBox()).y >= (await page.getByRole('button', { name: 'Open skymesh-join.svg' }).boundingBox()).y);
   assert.equal(await page.getByText('SKYMESH / SENSOR WORKSTATION').count(), 0);
-  assert(await page.getByRole('img', { name: 'Drone confidence over the last 60 seconds' }).evaluate(c => { const p = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 0; i < p.length; i += 4) if (p[i] !== p[i+1] || p[i+1] !== p[i+2]) return false; return true; }));
+  assert.deepEqual(await page.getByRole('img', { name: 'Drone confidence over the last 60 seconds' }).evaluate(c => Array.from(c.getContext('2d').getImageData(0, 0, 1, 1).data)), [16, 18, 22, 255], 'High-contrast terminal background');
   assert.equal(await page.getByRole('button', { name: 'Stop sensor', exact: true }).count(), 0);
   assert(await page.getByRole('img', { name: 'SkyMesh robot logo in ASCII art' }).isVisible());
   await page.getByRole('button', { name: 'Open skymesh-join.svg' }).click();

@@ -11,6 +11,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { drawBottomGraph } from "./bottomGraph.ts";
 import {
   DETECT_THRESHOLD,
   GRAPH_WINDOW_MS,
@@ -31,6 +32,7 @@ export function ConfidenceGraph({
   height = 90,
   compact = false,
   monochrome = false,
+  terminal = false,
   now,
 }: {
   history: Point[];
@@ -38,6 +40,7 @@ export function ConfidenceGraph({
   height?: number;
   compact?: boolean;
   monochrome?: boolean;
+  terminal?: boolean;
   now: number;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -57,6 +60,10 @@ export function ConfidenceGraph({
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
+    if (terminal) {
+      drawBottomGraph(ctx, history, now, width, height);
+      return;
+    }
 
     const padL = compact ? 2 : 26;
     const padR = 4;
@@ -160,7 +167,7 @@ export function ConfidenceGraph({
       ctx.fillText("-60s", padL, height - 3);
       ctx.fillText("now", width - padR - 22, height - 3);
     }
-  }, [history, width, height, compact, now, monochrome]);
+  }, [history, width, height, compact, now, monochrome, terminal]);
 
   return <canvas ref={ref} aria-label="Drone confidence over the last 60 seconds" role="img" style={{ width, maxWidth: "100%", height: "auto", aspectRatio: `${width} / ${height}`, display: "block" }} />;
 }
