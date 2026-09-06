@@ -112,11 +112,12 @@ export class MicCapture {
     const want = Math.floor(seconds * this.sampleRate);
     if (this.ringFilled < want) return null;
     const out = new Float32Array(want);
-    let idx = (this.ringWrite - want + this.ring.length) % this.ring.length;
-    for (let i = 0; i < want; i++) {
-      out[i] = this.ring[idx];
-      idx = (idx + 1) % this.ring.length;
-    }
+    // Two contiguous block copies instead of a per-sample modulo loop —
+    // the snapshot wraps the ring boundary at most once.
+    const start = (this.ringWrite - want + this.ring.length) % this.ring.length;
+    const first = Math.min(want, this.ring.length - start);
+    out.set(this.ring.subarray(start, start + first), 0);
+    if (first < want) out.set(this.ring.subarray(0, want - first), first);
     return out;
   }
 
@@ -127,12 +128,11 @@ export class MicCapture {
     if (this.ringFilled < want) return null; // don't ship short first clips
     const n = want;
     const out = new Float32Array(n);
-    // last n samples ending at ringWrite
-    let idx = (this.ringWrite - n + this.ring.length) % this.ring.length;
-    for (let i = 0; i < n; i++) {
-      out[i] = this.ring[idx];
-      idx = (idx + 1) % this.ring.length;
-    }
+    // last n samples ending at ringWrite (wraps at most once)
+    const start = (this.ringWrite - n + this.ring.length) % this.ring.length;
+    const first = Math.min(n, this.ring.length - start);
+    out.set(this.ring.subarray(start, start + first), 0);
+    if (first < n) out.set(this.ring.subarray(0, n - first), first);
     return {
       wav: encodeWav(out, this.sampleRate),
       t0: Date.now() / 1000 - n / this.sampleRate,
