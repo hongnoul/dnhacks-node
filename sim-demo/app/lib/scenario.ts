@@ -59,6 +59,9 @@ export function buildPlacementCandidate(
 export function placementStatus(c: PlacementCandidate | null): PlacementStatus {
   if (!c) return "invalid";
   if (c.distances.some(({ d }) => d < MIN_NODE_DISTANCE_M)) return "invalid";
+  // Empty room: the first node goes anywhere — there is nothing to crowd or
+  // to link to yet.
+  if (c.distances.length === 0) return "valid";
   const neighbours = c.distances.filter(({ d }) => d <= MAX_LINK_DISTANCE_M).length;
   return neighbours < MIN_CONNECTIONS ? "warning" : "valid";
 }

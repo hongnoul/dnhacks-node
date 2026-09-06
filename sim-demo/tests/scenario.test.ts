@@ -66,6 +66,17 @@ describe("placement", () => {
       assert.ok(c.distances[i - 1].d <= c.distances[i].d);
     }
   });
+
+  test("first node in an empty room goes anywhere", () => {
+    const c = buildPlacementCandidate(6.0, 4.0, new Map());
+    assert.equal(placementStatus(c), "valid");
+  });
+
+  test("second node warns — one neighbour is not a mesh yet", () => {
+    const one = new Map([at("n01", 6.0, 4.0)]);
+    const c = buildPlacementCandidate(8.0, 4.0, one);
+    assert.equal(placementStatus(c), "warning");
+  });
 });
 
 describe("alert routing", () => {
