@@ -9,6 +9,7 @@ import { RoomMap } from "./RoomMap";
 import { TrajectoryHero } from "./TrajectoryHero";
 import QRCode from "react-qr-code";
 import { AsciiLogo } from "./AsciiLogo";
+import { useDesktopDrag } from "./useDesktopDrag";
 import styles from "./SensorDesktop.module.css";
 
 const tabs = ["Monitor", "Mesh", "Diagnostics"] as const;
@@ -20,16 +21,23 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
   detections: number; micError: string | null; onStop: () => void;
 }) {
   const [joinUrl, setJoinUrl] = useState("");
-  const [qrOpen, setQrOpen] = useState(false);
-  const qrDialog = useRef<HTMLDialogElement>(null);
-  const qrFile = useRef<HTMLButtonElement>(null);
+  const [qrOpen, setQrOpen] = useState<false | "qr" | "video">(false);
+  const sensorDrag = useDesktopDrag<HTMLElement>(true);
+  const viewerDrag = useDesktopDrag<HTMLDialogElement>(true);
+  const qrDrag = useDesktopDrag<HTMLButtonElement>();
+  const videoDrag = useDesktopDrag<HTMLButtonElement>();
+  const qrDialog = viewerDrag.ref;
+  const qrFile = qrDrag.ref;
+  const launchIcon = useRef<HTMLElement | null>(null);
+  const viewerAnimation = useRef<Animation | null>(null);
+  const viewerClosing = useRef(false);
   const [tab, setTab] = useState<Tab>("Monitor");
   const [minimized, setMinimized] = useState(false);
   const [closing, setClosing] = useState(false);
   const [ready, setReady] = useState(false);
   const [width, setWidth] = useState(300);
   const viewport = useRef<HTMLDivElement>(null);
-  const windowRef = useRef<HTMLElement>(null);
+  const windowRef = sensorDrag.ref;
   const taskButton = useRef<HTMLButtonElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -62,10 +70,40 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
     else windowRef.current?.focus();
   }, [minimized, ready]);
 
+  function viewerFrames() {
+    const icon = launchIcon.current?.getBoundingClientRect();
+    const box = qrDialog.current?.getBoundingClientRect();
+    if (!icon || !box) return [{ opacity: 0 }, { opacity: 1 }];
+    return [
+      { transform: `translate(${icon.x + icon.width / 2 - box.x - box.width / 2}px, ${icon.y + icon.height / 2 - box.y - box.height / 2}px) scale(${icon.width / box.width}, ${icon.height / box.height})`, opacity: 0.25 },
+      { transform: "translate(0, 0) scale(1)", opacity: 1 },
+    ];
+  }
   useEffect(() => {
-    if (qrOpen) qrDialog.current?.showModal();
-    else qrDialog.current?.close();
+    if (!qrOpen) { qrDialog.current?.close(); return; }
+    qrDialog.current?.showModal();
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      viewerAnimation.current = qrDialog.current!.animate(viewerFrames(), { duration: 220, easing: "steps(5, end)" });
+    }
+    return () => viewerAnimation.current?.cancel();
   }, [qrOpen]);
+
+  function openViewer(kind: "qr" | "video") {
+    viewerDrag.reset();
+    launchIcon.current = kind === "qr" ? qrFile.current : videoDrag.ref.current;
+    setQrOpen(kind);
+  }
+  async function closeViewer() {
+    if (viewerClosing.current) return;
+    viewerClosing.current = true;
+    viewerAnimation.current?.cancel();
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && qrDialog.current) {
+      viewerAnimation.current = qrDialog.current.animate(viewerFrames().reverse(), { duration: 160, easing: "steps(4, end)", fill: "forwards" });
+      await viewerAnimation.current.finished.catch(() => {});
+    }
+    setQrOpen(false);
+    viewerClosing.current = false;
+  }
 
   function closeSensor() {
     if (closing) return;
@@ -87,21 +125,26 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
   if (!ready) return <main className={styles.desktop}><TrajectoryHero /></main>;
   return <main className={styles.desktop}>
     <TrajectoryHero />
-    <button ref={qrFile} className={styles.qrFile} type="button" onClick={() => setQrOpen(true)} aria-label="Open skymesh-join.svg">
+    <button ref={qrFile} style={qrDrag.style} {...qrDrag.handlers} className={styles.qrFile} type="button" onClick={() => openViewer("qr")} aria-label="Open skymesh-join.svg">
       <span className={styles.fileImage}><QRCode value={joinUrl} size={72} /></span>
       <span className={styles.fileName}>skymesh-join.svg</span>
     </button>
-    <a className={styles.videoFile} href="https://youtu.be/DUTQkbuzxtk?is=_DargxbSpjJiuzxG" target="_blank" rel="noopener noreferrer" aria-label="Open drone-demo.mp4 on YouTube (new tab)" title="YouTube video shortcut">
+    <button ref={videoDrag.ref} style={videoDrag.style} {...videoDrag.handlers} className={styles.videoFile} type="button" onClick={() => openViewer("video")} aria-label="Open drone-demo.mp4" title="Open video viewer">
       <span className={styles.videoImage} aria-hidden="true"><span>▶</span><small>MP4</small></span>
       <span className={styles.fileName}>drone-demo.mp4</span>
-    </a>
-    <dialog ref={qrDialog} className={styles.qrViewer} aria-labelledby="qr-title" onCancel={() => setQrOpen(false)} onClose={() => { setQrOpen(false); qrFile.current?.focus(); }}>
-      <header className={styles.titlebar}><span id="qr-title">skymesh-join.svg</span><button type="button" aria-label="Close QR image" onClick={() => setQrOpen(false)}>×</button></header>
-      <div className={styles.qrImage}><QRCode value={joinUrl} size={256} title="Scan to join this SkyMesh session" /></div>
-      <p>Scan to join this mesh.</p><a href={joinUrl}>{joinUrl}</a>
+    </button>
+    <dialog ref={qrDialog} style={viewerDrag.style} className={`${styles.qrViewer} ${qrOpen === "video" ? styles.videoViewer : ""}`} aria-labelledby="qr-title" onCancel={event => { event.preventDefault(); void closeViewer(); }} onClose={() => { setQrOpen(false); launchIcon.current?.focus(); }}>
+      <header {...viewerDrag.handlers} className={styles.titlebar}><span id="qr-title">{qrOpen === "video" ? "drone-demo.mp4" : "skymesh-join.svg"}</span><button type="button" aria-label={qrOpen === "video" ? "Close video viewer" : "Close QR image"} onClick={() => void closeViewer()}>×</button></header>
+      {qrOpen === "video" ? <>
+        <iframe className={styles.videoPlayer} src="https://www.youtube-nocookie.com/embed/DUTQkbuzxtk" title="Drone demo video" allow="encrypted-media; picture-in-picture; fullscreen" allowFullScreen />
+        <p>drone-demo.mp4 · YouTube video</p><a href="https://youtu.be/DUTQkbuzxtk?is=_DargxbSpjJiuzxG" target="_blank" rel="noopener noreferrer">Watch on YouTube ↗</a>
+      </> : <>
+        <div className={styles.qrImage}><QRCode value={joinUrl} size={256} title="Scan to join this SkyMesh session" /></div>
+        <p>Scan to join this mesh.</p><a href={joinUrl}>{joinUrl}</a>
+      </>}
     </dialog>
-    {!minimized && <section ref={windowRef} tabIndex={-1} aria-label="SkyMesh sensor window" className={`${styles.window} ${closing ? styles.closing : ""}`}>
-      <header className={styles.titlebar}>
+    {!minimized && <section ref={windowRef} style={sensorDrag.style} tabIndex={-1} aria-label="SkyMesh sensor window" className={`${styles.window} ${closing ? styles.closing : ""}`}>
+      <header {...sensorDrag.handlers} className={styles.titlebar}>
         <span>▧ SkyMesh · Sensor</span>
         <div className={styles.windowControls}><button type="button" aria-label="Minimize sensor window" title="Minimize. Sensor keeps running." onClick={minimize}>_</button><button type="button" aria-label="Close sensor and return to welcome" title="Close sensor and return to welcome" onClick={closeSensor}>×</button></div>
       </header>

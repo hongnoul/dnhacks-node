@@ -25,9 +25,14 @@ try {
   assert.equal(await page.getByText(/Detector unavailable:/).count(), 0, 'Real ONNX model must load');
   await page.waitForFunction(() => window.sensorStreams.length === 1);
   assert.equal(await page.getByRole('heading', { name: 'Drone confidence' }).evaluate(e => getComputedStyle(e).color), 'rgb(23, 23, 23)');
-  const video = page.getByRole('link', { name: 'Open drone-demo.mp4 on YouTube (new tab)' });
-  assert.equal(await video.getAttribute('href'), 'https://youtu.be/DUTQkbuzxtk?is=_DargxbSpjJiuzxG');
-  assert.equal(await video.getAttribute('target'), '_blank');
+  const video = page.getByRole('button', { name: 'Open drone-demo.mp4', exact: true });
+  await video.click();
+  await page.getByRole('dialog', { name: 'drone-demo.mp4' }).waitFor();
+  const videoLink = page.getByRole('link', { name: 'Watch on YouTube ↗' });
+  assert.equal(await videoLink.getAttribute('href'), 'https://youtu.be/DUTQkbuzxtk?is=_DargxbSpjJiuzxG');
+  assert.equal(await videoLink.getAttribute('target'), '_blank');
+  await page.getByRole('button', { name: 'Close video viewer' }).click();
+  await page.getByRole('dialog').waitFor({ state: 'hidden' });
   assert((await video.boundingBox()).y > (await page.getByRole('button', { name: 'Open skymesh-join.svg' }).boundingBox()).y);
   assert.equal(await page.getByText('SKYMESH / SENSOR WORKSTATION').count(), 0);
   assert(await page.getByRole('img', { name: 'Drone confidence over the last 60 seconds' }).evaluate(c => { const p = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 0; i < p.length; i += 4) if (p[i] !== p[i+1] || p[i+1] !== p[i+2]) return false; return true; }));
@@ -37,7 +42,7 @@ try {
   assert(await page.getByRole('dialog', { name: 'skymesh-join.svg' }).isVisible());
   assert.equal(await page.getByRole('dialog').getByRole('link').getAttribute('href'), `${base}/`);
   await page.keyboard.press('Escape');
-  assert.equal(await page.getByRole('dialog').count(), 0);
+  await page.getByRole('dialog').waitFor({ state: 'hidden' });
   const node = await page.getByRole('heading', { name: /^Node / }).textContent();
   const initialSockets = await page.evaluate(() => window.sensorSockets.length);
   for (const width of [1440, 800, 390, 320]) {

@@ -115,3 +115,15 @@
 @media (min-width: 1100px) { .desktop { padding-top: 88px; } }
 @media (max-width: 1099px) { .desktop { padding-top: 294px; } }
 @media (max-width: 560px) { .videoFile { top: 146px; left: 12px; } }
+
+/* Translation stays separate from opening/closing transforms. */
+.titlebar { cursor: grab; touch-action: none; user-select: none; }
+.titlebar:active { cursor: grabbing; }
+.desktop .qrFile, .desktop .videoFile { touch-action: none; user-select: none; cursor: grab; }
+.desktop .videoFile { background: transparent; border: 1px solid transparent; box-shadow: none; font: 12px/1.4 'Courier New', monospace; }
+.desktop .videoFile:hover:not(:disabled) { background: #ffffff25; border: 1px dotted #222; }
+.qrFile:active, .videoFile:active { cursor: grabbing; }
+.videoViewer { width: min(720px, calc(100vw - 24px)); }
+.videoPlayer { display: block; width: calc(100% - 24px); aspect-ratio: 16 / 9; border: 1px solid #555; margin: 12px; background: #111; }
+.qrViewer { max-height: calc(100dvh - 90px); overflow: auto; }
+.qrViewer .titlebar { position: sticky; top: 0; }
