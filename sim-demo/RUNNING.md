@@ -62,7 +62,7 @@ deployment those hops are radio links (ARCHITECTURE.md §4.0).
 
 ## Tests
 
-    npm test                        # 24 unit + integration
+    npm test                        # unit + integration (scenario, fusion, mesh, integration)
     node tests/ui-smoke.mjs         # browser smoke; relay + dev must be running
     node tests/detector-smoke.mjs   # CRNN fires on synthesised drone audio
 
@@ -76,6 +76,28 @@ picture and evidence that replication works.
 
 **link emulation** (collapsed) — latency, loss, and cutting links. Network conditions,
 not detection: what phones would face in the field but never see on one WiFi.
+
+**scenario controls** — the demo layer, ported from `avery/frontend-map`'s operator
+map and rewired from mock state to live mesh primitives:
+
+- **place node** — hover previews placement constraints (1.2 m min separation,
+  6 m link range, 2 neighbours). Clicking a valid spot logs it; no mock node is
+  created — a real phone is still admitted and placed via gossip records.
+- **simulate drone** — click a start and destination, then start flight. The ✦
+  marker and halo are a visual hint only, never a record; nodes inside the halo
+  trigger an alert routed hop-by-hop to the command post (this console).
+- **simulate impact** — click the map to cut every link touching nodes in the
+  3 m blast radius; links restore after 8 s. Real partition, not a mock flag.
+- **disable random node** — isolates one node for 6 s, then it rejoins.
+- **interference / clear** — 500 ms + 20% loss on all links, then back to nominal.
+- **health + connectivity** — share of admitted nodes with fresh readings, and
+  whether the sensor graph is connected over links that are up.
+
+**activity** — scenario events (placement, flights, routing, outages), newest
+first, capped at six. Repeat halo detections dedupe to one line per node.
+
+Clicking a node opens an **inspector**: heartbeat (fresh readings vs silent),
+position, confidence, and per-link up/cut state.
 
 ## Detection
 

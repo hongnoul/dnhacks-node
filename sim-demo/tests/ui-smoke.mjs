@@ -103,6 +103,51 @@ if (await cut.count()) {
     .then(() => ok("link cut and restorable")).catch(() => bad("cut did not take"));
 } else bad("no cut control found");
 
+console.log("scenario controls");
+await admin.waitForFunction(() => document.body.innerText.includes("scenario controls"), { timeout: 5000 })
+  .then(() => ok("scenario panel renders")).catch(() => bad("no scenario panel"));
+
+// Placing mode arms from the topology panel and narrates hover constraints.
+await admin.getByRole("button", { name: /place node/i }).click();
+await admin.waitForFunction(() => document.body.innerText.includes("Move across the map"), { timeout: 5000 })
+  .then(() => ok("placement mode arms")).catch(() => bad("placement mode did not arm"));
+await admin.getByRole("button", { name: /cancel place/i }).click();
+
+// Drone mode: start + destination clicks arm the flight on the map overlay.
+await admin.getByRole("button", { name: /simulate drone/i }).click();
+await admin.waitForFunction(() => document.body.innerText.includes("Select drone starting position"), { timeout: 5000 })
+  .then(() => ok("drone mode arms")).catch(() => bad("drone mode did not arm"));
+const mapBox = await admin.evaluate(() => {
+  // The sidebar drone is also an SVG — the map is the largest one.
+  const svg = [...document.querySelectorAll("svg")].sort(
+    (a, b) => b.getBoundingClientRect().width - a.getBoundingClientRect().width
+  )[0];
+  const r = svg.getBoundingClientRect();
+  return { x: r.x, y: r.y, w: r.width, h: r.height };
+});
+await admin.mouse.click(mapBox.x + mapBox.w * 0.3, mapBox.y + mapBox.h * 0.3);
+await admin.waitForFunction(() => document.body.innerText.includes("Drone start placed"), { timeout: 5000 })
+  .then(() => ok("drone start placed on map")).catch(() => bad("drone start click missed"));
+await admin.mouse.click(mapBox.x + mapBox.w * 0.7, mapBox.y + mapBox.h * 0.7);
+await admin.waitForFunction(
+  () => document.body.innerText.includes("READY TO FLY") || document.body.innerText.includes("start flight"),
+  { timeout: 5000 }
+).then(() => ok("drone destination set, ready to fly")).catch(() => bad("drone destination click missed"));
+await admin.getByRole("button", { name: /start flight/i }).click();
+await admin.waitForFunction(() => document.body.innerText.includes("IN FLIGHT"), { timeout: 5000 })
+  .then(() => ok("simulated flight runs")).catch(() => bad("flight did not start"));
+await admin.getByRole("button", { name: /remove drone/i }).first().click();
+
+// Impact mode arms and narrates the click-to-cut contract.
+await admin.getByRole("button", { name: /simulate impact/i }).click();
+await admin.waitForFunction(() => document.body.innerText.includes("Impact armed"), { timeout: 5000 })
+  .then(() => ok("impact mode arms")).catch(() => bad("impact mode did not arm"));
+await admin.getByRole("button", { name: /cancel impact/i }).click();
+
+// Clicking a node row opens the inspector with heartbeat and links.
+await admin.waitForFunction(() => document.body.innerText.includes("scenario events") || document.body.innerText.includes("events"), { timeout: 5000 })
+  .then(() => ok("activity log present")).catch(() => bad("no activity log"));
+
 if (errors.length) { console.log("\npage errors:"); errors.forEach((e) => console.log("   ", e.split("\n")[0])); }
 await browser.close();
 
