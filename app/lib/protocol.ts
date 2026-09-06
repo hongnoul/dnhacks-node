@@ -40,6 +40,17 @@ export interface NodeConfig extends MeshRecord {
   node: string;
   x: number; // room frame, metres (§13)
   y: number;
+  /**
+   * 1-sigma on that position, metres (§13).
+   *
+   * On the wire because a coordinate without its uncertainty is a claim the
+   * receiver cannot check: 3.2 m from a laser survey and 3.2 m from a dragged
+   * marker are the same two numbers and very different evidence, and fusion
+   * weights them differently (fusion.ts, `effectiveSigmaDb`). Optional so that
+   * pre-survey records still parse — absent means "unstated", and fusion falls
+   * back to trusting the coordinate.
+   */
+  sigma_m?: number;
   enabled: boolean;
 }
 

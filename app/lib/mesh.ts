@@ -106,9 +106,24 @@ export class Mesh {
     return this.link.acknowledgeSimulation(id);
   }
 
-  /** Admin only: node placement, injected as a record so it gossips (§3.3). */
-  publishPosition(node: string, x: number, y: number, enabled = true): void {
-    this.gossip.publish({ type: "node_config", node, x, y, enabled } satisfies NewRecord);
+  /**
+   * Admin only: node placement, injected as a record so it gossips (§3.3).
+   *
+   * `sigmaM` is how the position was obtained, not decoration — a distance
+   * survey (survey.ts) quotes what its geometry actually supports, while a
+   * dragged marker leaves it undefined and fusion falls back to trusting the
+   * coordinate. Omitted from the record when undefined so a drag keeps
+   * producing byte-identical config to what it always did.
+   */
+  publishPosition(node: string, x: number, y: number, enabled = true, sigmaM?: number): void {
+    this.gossip.publish({
+      type: "node_config",
+      node,
+      x,
+      y,
+      enabled,
+      ...(Number.isFinite(sigmaM) && (sigmaM as number) > 0 ? { sigma_m: sigmaM } : {}),
+    } satisfies NewRecord);
   }
 
   positions(): Map<string, Placed> {
@@ -116,8 +131,10 @@ export class Mesh {
     // Sorted by key, so the last write per node wins deterministically across
     // replicas — a single-writer LWW register on a grow-only log (§3.3).
     for (const r of this.log.ofType("node_config")) {
-      const c = r as unknown as { node: string; x: number; y: number; enabled: boolean };
-      if (c.enabled) out.set(c.node, { node: c.node, x: c.x, y: c.y });
+      const c = r as unknown as {
+        node: string; x: number; y: number; enabled: boolean; sigma_m?: number;
+      };
+      if (c.enabled) out.set(c.node, { node: c.node, x: c.x, y: c.y, sigmaM: c.sigma_m });
       else out.delete(c.node);
     }
     return out;

@@ -51,6 +51,9 @@ export interface RoomMapProps {
 }
 
 const PX_PER_M = 56;
+/** Node marker radius. Shared so the uncertainty ring can tell whether it would
+ *  be visible at all outside the dot. */
+const NODE_RADIUS_PX = 8;
 
 export function linkKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
@@ -402,11 +405,25 @@ export function RoomMap(props: RoomMapProps) {
                 }
               }}
             >
+              {/* Surveyed position uncertainty (§13's sigma_m), drawn to scale.
+                  Only when it is genuinely bigger than the marker: at tape grade
+                  the true radius lands inside the 8 px dot, and a ring clamped up
+                  to stay visible would invent uncertainty that was measured away.
+                  So the ring means one thing — this node is less certain than its
+                  dot suggests — and its absence means the dot is honest. */}
+              {p.sigmaM !== undefined && (p.sigmaM / room.w) * w > NODE_RADIUS_PX + 2
+                && !props.unplaced?.has(p.node) && (
+                <circle
+                  cx={cx} cy={cy} r={(p.sigmaM / room.w) * w}
+                  fill="none" stroke="var(--accent)" strokeWidth={1}
+                  strokeDasharray="2 4" opacity={0.45}
+                />
+              )}
               {level > 0.02 && (
                 <circle cx={cx} cy={cy} r={10 + level * 26} fill="var(--accent)" opacity={0.12 + level * 0.3} />
               )}
               <circle
-                cx={cx} cy={cy} r={8}
+                cx={cx} cy={cy} r={NODE_RADIUS_PX}
                 fill={isSel ? "var(--accent)" : "#12202f"}
                 stroke={isSel ? "#fff" : "var(--accent)"}
                 strokeWidth={2}
