@@ -16,12 +16,14 @@ import json
 import random
 import time
 from dataclasses import dataclass, field
+from typing import Optional
 
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 app = FastAPI(title="SkyMesh mesh relay")
 
@@ -262,5 +264,69 @@ async def ws_endpoint(ws: WebSocket):
 # one origin means one certificate and one tunnel instead of two of each.
 # Mounted last so it never shadows /ws or /health.
 _STATIC = Path(__file__).parent.parent / "out"
+
+# HTML entry points carry no-cache so browsers always fetch the current bundle
+# manifest after a deploy. Hashed JS/CSS under /_next/static keep their long
+# cache lifetime: the filename changes with the content, so a fresh HTML file
+# always points at fresh assets.
+_NO_CACHE = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
+
+def _index_for(path: Path) -> Optional[Path]:
+    """Resolve a directory URL to its index.html, if one exists."""
+    if path.is_dir():
+        candidate = path / "index.html"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 if _STATIC.is_dir():
+
+    @app.get("/", include_in_schema=False)
+    async def _root_index():
+        target = _index_for(_STATIC)
+        if target is None:
+            return FileResponse(_STATIC, status_code=404)
+        return FileResponse(target, headers=_NO_CACHE)
+
+    # Explicit per-route entries beat the static mount for HTML documents.
+    # The trailingSlash export writes admin/index.html style directories,
+    # so both /station and /station/ must resolve with no-cache headers.
+    for _route_dir in sorted(p for p in _STATIC.iterdir() if p.is_dir()):
+        _index = _index_for(_route_dir)
+        if _index is None:
+            continue
+
+        async def _route_index(_index: Path = _index):
+            return FileResponse(_index, headers=_NO_CACHE)
+
+        app.add_api_route(
+            f"/{_route_dir.name}",
+            _route_index,
+            methods=["GET"],
+            include_in_schema=False,
+        )
+        app.add_api_route(
+            f"/{_route_dir.name}/",
+            _route_index,
+            methods=["GET"],
+            include_in_schema=False,
+        )
+
+    # One middleware covers deep paths (404.html, future nested routes) and
+    # guarantees nested index files also go out with no-cache.
+    @app.middleware("http")
+    async def _no_cache_html(request: Request, call_next):
+        response = await call_next(request)
+        ctype = response.headers.get("content-type", "")
+        if ctype.startswith("text/html"):
+            for key, value in _NO_CACHE.items():
+                response.headers[key] = value
+        return response
+
     app.mount("/", StaticFiles(directory=str(_STATIC), html=True), name="app")
