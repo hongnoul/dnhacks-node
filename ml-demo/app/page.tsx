@@ -14,7 +14,7 @@ const DETECT_THRESHOLD = 0.35;
 // DETECTED pill instead of chattering. Lower = stickier (more sensitive).
 const RELEASE_THRESHOLD = 0.25;
 // Display smoothing: raw CRNN output jumps hard (0.02 → 1.0 between 1 s
-// windows). EMA alpha 0.6 keeps attack fast (~1 tick to cross 0.5 on a
+// windows). EMA alpha 0.6 keeps attack fast (~1 tick to cross 0.35 on a
 // step) while damping single-window flicker. Detection itself uses the raw
 // score so smoothing never delays the pill.
 const DISPLAY_ALPHA = 0.6;
@@ -190,6 +190,10 @@ export default function NodePage() {
   const [conf, setConf] = useState<number | null>(null);
   const [history, setHistory] = useState<Point[]>([]);
   const [detections, setDetections] = useState<number>(0);
+  // Latched detection state for the pill: mirrors wasDetectingRef so the
+  // readout reflects the hysteresis decision (incl. marginal trips), not
+  // just whether the smoothed display number crossed the trip point.
+  const [pillDetecting, setPillDetecting] = useState(false);
   const [lastDetectAt, setLastDetectAt] = useState<string>("never");
   const [nodeId, setNodeId] = useState<string>("");
 
@@ -236,6 +240,7 @@ export default function NodePage() {
 
       setHistory([]);
       wasDetectingRef.current = false;
+      setPillDetecting(false);
       marginalRef.current = 0;
       smoothRef.current = null;
       peakRef.current = null;
@@ -283,13 +288,15 @@ export default function NodePage() {
           // Hysteresis: trip at 0.35, hold until below 0.25 — a flickering
           // 0.30/0.40 signal stays DETECTED instead of chattering.
           // Plus marginal-trip: 3 straight ticks >= 0.22 trips too (a
-          // distant drone that never quite reaches 0.35). Noise sits <0.06.
+          // distant drone that never quite reaches 0.35). Once tripped
+          // marginally, hold while raw stays >= 0.22 so the pill does not
+          // chatter between the marginal floor and the release point.
+          // Noise sits <0.06 sustained, so 0.22 is safe.
           const was = wasDetectingRef.current;
           marginalRef.current = raw >= MARGINAL_FLOOR ? marginalRef.current + 1 : 0;
-          const detecting =
-            was
-              ? raw >= RELEASE_THRESHOLD
-              : raw >= DETECT_THRESHOLD || marginalRef.current >= MARGINAL_TICKS;
+          const detecting = was
+            ? raw >= RELEASE_THRESHOLD || raw >= MARGINAL_FLOOR
+            : raw >= DETECT_THRESHOLD || marginalRef.current >= MARGINAL_TICKS;
           if (detecting && !was) {
             setDetections((n) => n + 1);
             setLastDetectAt(new Date().toLocaleTimeString());
@@ -300,6 +307,7 @@ export default function NodePage() {
             }
           }
           wasDetectingRef.current = detecting;
+          setPillDetecting(detecting);
         })
         .catch(() => {
           /* transient scoring error — next tick retries */
@@ -355,9 +363,10 @@ export default function NodePage() {
     setPhase("idle");
     setConf(null);
     wasDetectingRef.current = false;
+    setPillDetecting(false);
   }, []);
 
-  const detecting = (conf ?? 0) >= DETECT_THRESHOLD;
+  const detecting = pillDetecting;
   const confPct = conf == null ? null : Math.round(conf * 100);
   const busy = phase === "loading" || phase === "starting";
 
