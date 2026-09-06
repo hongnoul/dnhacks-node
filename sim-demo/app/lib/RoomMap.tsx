@@ -60,6 +60,8 @@ export function RoomMap(props: RoomMapProps) {
   /** Where the drag started, to tell a click from a drag. */
   const dragFrom = useRef<{ x: number; y: number } | null>(null);
   const moved = useRef(false);
+  /** Set after a real drag so the trailing click does not double as a map click. */
+  const suppressClick = useRef(false);
   /** Local preview while dragging, so the map tracks the finger at 60 Hz
    *  without publishing a replicated record per pointermove. */
   const [preview, setPreview] = useState<Placed | null>(null);
@@ -167,6 +169,9 @@ export function RoomMap(props: RoomMapProps) {
           if (node && moved.current && at && props.onMove) {
             // One record, on release.
             props.onMove(node, at.x, at.y);
+            // A drag ending on background still fires click — swallow it so a
+            // node move in drone/impact mode does not place a waypoint there.
+            suppressClick.current = true;
           } else if (node && !moved.current) {
             // No movement: it was a click, so it means "pick", not "place".
             props.onPick?.(node);
@@ -177,6 +182,10 @@ export function RoomMap(props: RoomMapProps) {
         onClick={(e) => {
           // Background clicks (not on a node) drive scenario modes: placing,
           // drone start/destination, impact. Node clicks arrive via onPick.
+          if (suppressClick.current) {
+            suppressClick.current = false;
+            return;
+          }
           if ((e.target as Element).closest("g")) return;
           if (!props.onMapClick) return;
           const pt = pointFromEvent(e);

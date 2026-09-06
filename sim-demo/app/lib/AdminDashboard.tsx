@@ -322,8 +322,17 @@ export function AdminDashboard() {
   function resetDrone() {
     if (flightRef.current !== null) window.cancelAnimationFrame(flightRef.current);
     if (alertTimerRef.current !== null) window.clearTimeout(alertTimerRef.current);
+    if (replayTimerRef.current !== null) window.clearTimeout(replayTimerRef.current);
     flightRef.current = null;
     alertTimerRef.current = null;
+    replayTimerRef.current = null;
+    // Cancelling mid-replay must not leave interference on with no flight to
+    // justify it, nor the replay button stuck disabled.
+    if (replaying) {
+      setInterferenceOn(false);
+      setReplaying(false);
+      log("Replay cancelled", "info");
+    }
     setAlertRoute(null);
     setDronePhase("idle");
     setDroneStart(null);
