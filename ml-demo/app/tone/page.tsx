@@ -19,6 +19,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import QRCode from "react-qr-code";
+import NodeModel from "./NodeModel";
 
 // Apex = production node page the phone opens.
 const APEX_URL = "https://dnhacks-node.vercel.app";
@@ -357,7 +358,26 @@ export default function TonePage() {
         <audio ref={droneRef} src="/drone-demo.wav" loop preload="auto" />
       </aside>
 
-      <div style={{ flex: 1 }} />
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          padding: 20,
+          gap: 8,
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: 18, color: "#111827" }}>
+          Sensor node — industrial design
+        </h2>
+        <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
+          Procedural 3D model built from the front view of the design photo.
+          Drag to orbit, scroll to zoom.
+        </p>
+        <div style={{ flex: 1, minHeight: 0, borderRadius: 12, background: "#f3f4f6" }}>
+          <NodeModel />
+        </div>
+      </div>
     </main>
   );
 }
