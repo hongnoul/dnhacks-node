@@ -19,8 +19,28 @@ import { DRONE_DETECTION_RADIUS_M, distanceM, type Site } from "./placement.ts";
 /** [lat, lon] — the order Leaflet uses, kept so callers need no conversion. */
 export type Waypoint = [number, number];
 
-/** Ground speed of the simulated threat, m/s (~126 km/h). */
-export const DRONE_SPEED_MPS = 35;
+/**
+ * Ground speed of the simulated threat, m/s (~54 km/h).
+ *
+ * An approach/loiter speed for a quadcopter rather than a dash, which is the
+ * honest profile for a run against a target it has to find. It is also the
+ * speed that makes the array watchable: nodes sit 100-150 m apart with a 140 m
+ * detection radius, so at a transit dash the drone is through a node's earshot
+ * in a couple of seconds and the mesh gossiping about it is over before it
+ * registers. At 15 m/s a node holds it for ~19 s and the spread is visible.
+ */
+export const DRONE_SPEED_MPS = 15;
+
+/**
+ * Range the operator can dial the threat's speed over, m/s.
+ *
+ * 5 m/s is a quadcopter creeping in on a target; 45 m/s (~162 km/h) is a fast
+ * fixed-wing run. Both are real profiles, and the array behaves very
+ * differently against them — which is the point of making it adjustable rather
+ * than fixing one number and calling it "the drone".
+ */
+export const MIN_DRONE_SPEED_MPS = 5;
+export const MAX_DRONE_SPEED_MPS = 45;
 
 /** Route sampling interval for the coverage estimate, metres. */
 const SAMPLE_M = 5;
