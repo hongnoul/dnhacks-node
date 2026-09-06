@@ -13,6 +13,12 @@ const DETECT_THRESHOLD = 0.35;
 // Release below the trip point so a flickering 0.30/0.40 signal holds the
 // DETECTED pill instead of chattering. Lower = stickier (more sensitive).
 const RELEASE_THRESHOLD = 0.25;
+// Marginal-trip: a distant drone may sit at 0.15-0.34 for seconds and never
+// cross 0.35 (measured: +4 dB SNR hovers 0.05-0.23 per window). Trip the pill
+// if the raw score holds above MARGINAL_FLOOR for MARGINAL_TICKS straight
+// ticks (~4 at 4 Hz × 250 ms ≈ 1 s of sustained drone-like audio). Noise
+// ceiling is 0.0009 across all testdata + field clips, so 0.15 keeps a 150×
+// safety margin. While latched, marginal trips hold at the floor.
 // Display smoothing: raw CRNN output jumps hard (0.02 → 1.0 between 1 s
 // windows). EMA alpha 0.6 keeps attack fast (~1 tick to cross 0.35 on a
 // step) while damping single-window flicker. Detection itself uses the raw
@@ -21,12 +27,8 @@ const DISPLAY_ALPHA = 0.6;
 // Max-hold: keep the displayed peak for this long so a brief 1.0 spike
 // (one 1 s window sliding past the drone) stays visible across ticks.
 const PEAK_HOLD_MS = 1500;
-// Marginal-trip: a distant drone may sit at 0.22-0.34 forever and never
-// cross 0.35. Trip the pill if the raw score holds above MARGINAL_FLOOR for
-// MARGINAL_TICKS straight ticks (~3 at 4 Hz × 250 ms ≈ 0.75 s of sustained
-// drone-like audio). Noise clips score <0.06 sustained, so 0.22 is safe.
-const MARGINAL_FLOOR = 0.22;
-const MARGINAL_TICKS = 3;
+const MARGINAL_FLOOR = 0.15;
+const MARGINAL_TICKS = 4;
 
 // Graph: show the last 60 s, keep the whole session (4 Hz → 14400 pts/hour).
 const WINDOW_MS = 60_000;
@@ -295,11 +297,11 @@ export default function NodePage() {
           });
           // Hysteresis: trip at 0.35, release at 0.25 — a flickering
           // 0.30/0.40 signal stays DETECTED instead of chattering.
-          // Plus marginal-trip: 3 straight ticks >= 0.22 trips too (a
+          // Plus marginal-trip: 4 straight ticks >= 0.15 trips too (a
           // distant drone that never quite reaches 0.35). While latched,
-          // hold on raw >= 0.22 so a marginal trip does not chatter between
+          // hold on raw >= 0.15 so a marginal trip does not chatter between
           // the marginal floor and the release point.
-          // Noise sits <0.06 sustained, so 0.22 is safe.
+          // Noise ceiling is 0.0009, so 0.15 is safe.
           if (detecting && !was) {
             setDetections((n) => n + 1);
             setLastDetectAt(new Date().toLocaleTimeString());
