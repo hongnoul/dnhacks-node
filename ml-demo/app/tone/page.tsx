@@ -28,9 +28,7 @@ const MUSIC_YT_WATCH = "https://www.youtube.com/watch?v=kRqCxuF2bms";
 const MUSIC_YT_EMBED = "https://www.youtube.com/embed/kRqCxuF2bms";
 
 export default function TonePage() {
-  const [playing, setPlaying] = useState(false);
   const [spin, setSpin] = useState(false);
-  const [ready, setReady] = useState(false);
   const mountRef = useRef<HTMLDivElement | null>(null);
   const droneRef = useRef<HTMLAudioElement | null>(null);
   const spinRef = useRef(false);
@@ -45,7 +43,6 @@ export default function TonePage() {
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
-    let disposed = false;
     let raf = 0;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -218,8 +215,6 @@ export default function TonePage() {
       drone.add(foot);
     });
 
-    if (!disposed) setReady(true);
-
     // Whole canvas is clickable via the container's onClick — no raycast
     // needed for the simplified UI.
 
@@ -246,7 +241,6 @@ export default function TonePage() {
     window.addEventListener("resize", onResize);
 
     return () => {
-      disposed = true;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
       controls.dispose();
@@ -259,7 +253,6 @@ export default function TonePage() {
     spinRef.current = false;
     setSpin(false);
     droneRef.current?.pause();
-    setPlaying(false);
   };
 
   const toggleDrone = async () => {
@@ -280,7 +273,6 @@ export default function TonePage() {
     }
     spinRef.current = true;
     setSpin(true);
-    setPlaying(true);
   };
 
 
@@ -289,36 +281,90 @@ export default function TonePage() {
       style={{
         minHeight: "100vh",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 32,
-        padding: 24,
-        flexWrap: "wrap",
+        flexDirection: "row",
+        alignItems: "stretch",
         fontFamily: "-apple-system, sans-serif",
       }}
     >
-      {/* LEFT: QR */}
-      <section
+      {/* LEFT: side panel (~25%) — all texts live here, single column */}
+      <aside
+        data-testid="side-panel"
         style={{
+          flex: "0 0 25%",
+          minWidth: 220,
+          maxWidth: 320,
+          borderRight: "1px solid #e5e7eb",
+          padding: 20,
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+          fontSize: 13,
+          color: "#374151",
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Node</div>
+          <div style={{ color: "#6b7280" }}>Scan to open node</div>
+        </div>
+
+        <div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Drone</div>
+          <div data-testid="spin-state" style={{ color: spin ? "#16a34a" : "#6b7280" }}>
+            {spin ? "● playing — click to stop" : "Click drone to play sound"}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+            Wind sound externality (false-positive check)
+          </div>
+          <div style={{ color: "#6b7280", marginBottom: 6 }}>
+            Play wind noise near the listening phone to simulate a windy-day
+            externality. Expect the node to stay quiet (no false drone alarm).
+          </div>
+          <a
+            href={WIND_YT_WATCH}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#2563eb" }}
+          >
+            Open on YouTube
+          </a>
+        </div>
+
+        <div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+            Music sound externality (false-positive check)
+          </div>
+          <div style={{ color: "#6b7280", marginBottom: 6 }}>
+            Play loud music near the listening phone to simulate a concert /
+            street-noise externality. Expect the node to stay quiet (no false
+            drone alarm).
+          </div>
+          <a
+            href={MUSIC_YT_WATCH}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#2563eb" }}
+          >
+            Open on YouTube
+          </a>
+        </div>
+      </aside>
+
+      {/* RIGHT: visuals only, no texts */}
+      <div
+        style={{
+          flex: 1,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 12,
+          gap: 24,
+          padding: 24,
         }}
       >
         <QRCode value={APEX_URL} size={260} data-testid="apex-qr" />
-        <div style={{ fontSize: 14, color: "#6b7280" }}>Scan to open node</div>
-      </section>
 
-      {/* RIGHT: clickable drone */}
-      <section
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
         <div
           ref={mountRef}
           data-testid="drone-canvas"
@@ -330,52 +376,8 @@ export default function TonePage() {
             cursor: "pointer",
             position: "relative",
           }}
-          title={spin ? "Click to stop" : "Click to play"}
-        >
-          {!ready && (
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#9ca3af",
-                fontSize: 13,
-              }}
-            >
-              Loading…
-            </div>
-          )}
-        </div>
-        <div
-          data-testid="spin-state"
-          style={{ fontSize: 14, color: spin ? "#16a34a" : "#6b7280" }}
-        >
-          {spin ? "● playing — click to stop" : "Click drone to play sound"}
-        </div>
-      </section>
+        />
 
-      <audio ref={droneRef} src="/drone-demo.wav" loop preload="auto" />
-
-      {/* BOTTOM: sound externalities — false-positive stress tests */}
-      <section
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 8,
-          flexBasis: "100%",
-          marginTop: 8,
-        }}
-      >
-        <div style={{ fontSize: 14, fontWeight: 600 }}>
-          Wind sound externality (false-positive check)
-        </div>
-        <div style={{ fontSize: 13, color: "#6b7280", maxWidth: 560, textAlign: "center" }}>
-          Play wind noise near the listening phone to simulate a windy-day
-          externality. Expect the node to stay quiet (no false drone alarm).
-        </div>
         <iframe
           data-testid="wind-embed"
           width="560"
@@ -386,34 +388,7 @@ export default function TonePage() {
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
         />
-        <a
-          href={WIND_YT_WATCH}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ fontSize: 13, color: "#2563eb" }}
-        >
-          Open on YouTube
-        </a>
-      </section>
 
-      <section
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 8,
-          flexBasis: "100%",
-          marginTop: 8,
-        }}
-      >
-        <div style={{ fontSize: 14, fontWeight: 600 }}>
-          Music sound externality (false-positive check)
-        </div>
-        <div style={{ fontSize: 13, color: "#6b7280", maxWidth: 560, textAlign: "center" }}>
-          Play loud music near the listening phone to simulate a concert /
-          street-noise externality. Expect the node to stay quiet (no false
-          drone alarm).
-        </div>
         <iframe
           data-testid="music-embed"
           width="560"
@@ -424,15 +399,9 @@ export default function TonePage() {
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
         />
-        <a
-          href={MUSIC_YT_WATCH}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ fontSize: 13, color: "#2563eb" }}
-        >
-          Open on YouTube
-        </a>
-      </section>
+
+        <audio ref={droneRef} src="/drone-demo.wav" loop preload="auto" />
+      </div>
     </main>
   );
 }
