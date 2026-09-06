@@ -18,10 +18,11 @@ WINDOW = SR  # 1 s
 HOP = SR // 2  # 500 ms
 
 # Scoring gain normalization: peak-normalize each 1s window to NORM_PEAK.
-# Real noise clips have peak >= 0.19; only digital silence falls below
-# PEAK_FLOOR, and those windows score 0 without amplification.
+# Only digital silence falls below PEAK_FLOOR (0.001 = -60 dBFS), and those
+# windows score 0 without amplification. Lab sweep: drone audio still scores
+# 1.0 down to -50 dB after norm; noise stays <0.002.
 NORM_PEAK = 0.9
-PEAK_FLOOR = 0.005
+PEAK_FLOOR = 0.001
 
 
 def _conv_block(in_ch, out_ch):

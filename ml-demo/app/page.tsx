@@ -8,12 +8,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MicCapture } from "./lib/audio";
 import { DroneDetector } from "./lib/detector";
 
-const SCORE_INTERVAL_MS = 500;
+const SCORE_INTERVAL_MS = 250;
 const DETECT_THRESHOLD = 0.5;
+// Release below the trip point so a flickering 0.45/0.55 signal holds the
+// DETECTED pill instead of chattering. Lower = stickier (more sensitive).
+const RELEASE_THRESHOLD = 0.35;
+// Display smoothing: raw CRNN output jumps hard (0.02 → 1.0 between 1 s
+// windows). EMA alpha 0.6 keeps attack fast (~1 tick to cross 0.5 on a
+// step) while damping single-window flicker. Detection itself uses the raw
+// score so smoothing never delays the pill.
+const DISPLAY_ALPHA = 0.6;
+// Max-hold: keep the displayed peak for this long so a brief 1.0 spike
+// (one 1 s window sliding past the drone) stays visible across ticks.
+const PEAK_HOLD_MS = 1500;
 
-// Graph: show the last 60 s, keep the whole session (2 Hz → 7200 pts/hour).
+// Graph: show the last 60 s, keep the whole session (4 Hz → 14400 pts/hour).
 const WINDOW_MS = 60_000;
-const MAX_POINTS = 28_800; // ~4 h cap to bound memory
+const MAX_POINTS = 28_800; // ~2 h cap at 4 Hz to bound memory
 
 type Phase = "idle" | "loading" | "starting" | "listening" | "error";
 type Point = { t: number; p: number };
@@ -183,6 +194,8 @@ export default function NodePage() {
   const detectorRef = useRef<DroneDetector | null>(null);
   const scoringRef = useRef(false); // skip ticks while an inference is in flight
   const wasDetectingRef = useRef(false);
+  const smoothRef = useRef<number | null>(null); // EMA of raw scores for display
+  const peakRef = useRef<{ p: number; t: number } | null>(null); // max-hold peak
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const historyRef = useRef<Point[]>([]);
@@ -216,6 +229,8 @@ export default function NodePage() {
 
       setHistory([]);
       wasDetectingRef.current = false;
+      smoothRef.current = null;
+      peakRef.current = null;
       setPhase("listening");
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -223,7 +238,10 @@ export default function NodePage() {
     }
   }, []);
 
-  // CRNN scoring at 2 Hz — all on this phone.
+  // CRNN scoring at 4 Hz — all on this phone. Each tick scores the last 1 s
+  // of audio, so windows overlap 75%: a drone entering mid-window still gets
+  // a full look within ~250 ms. Detection uses the raw score (never delayed
+  // by smoothing); the graph shows EMA + max-hold so spikes stay visible.
   useEffect(() => {
     if (phase !== "listening") return;
 
@@ -236,15 +254,29 @@ export default function NodePage() {
       scoringRef.current = true;
       det
         .score(samples, mic.sampleRate)
-        .then((p) => {
+        .then((raw) => {
           const t = Date.now();
+          // Display: fast-attack EMA + peak hold. Detection: raw + hysteresis.
+          const prev = smoothRef.current;
+          const smooth = prev == null ? raw : prev + DISPLAY_ALPHA * (raw - prev);
+          smoothRef.current = smooth;
+          const held = peakRef.current;
+          const display =
+            held && t - held.t < PEAK_HOLD_MS ? Math.max(smooth, held.p) : smooth;
+          if (!held || raw >= held.p || t - held.t >= PEAK_HOLD_MS) {
+            peakRef.current = { p: smooth, t };
+          }
+          const p = display;
           setConf(p);
-          setHistory((prev) => {
-            const next = [...prev, { t, p }];
+          setHistory((prevHist) => {
+            const next = [...prevHist, { t, p }];
             return next.length > MAX_POINTS ? next.slice(next.length - MAX_POINTS) : next;
           });
-          const detecting = p >= DETECT_THRESHOLD;
-          if (detecting && !wasDetectingRef.current) {
+          // Hysteresis: trip at 0.5, hold until below 0.35 — a flickering
+          // 0.45/0.55 signal stays DETECTED instead of chattering.
+          const was = wasDetectingRef.current;
+          const detecting = was ? raw >= RELEASE_THRESHOLD : raw >= DETECT_THRESHOLD;
+          if (detecting && !was) {
             setDetections((n) => n + 1);
             setLastDetectAt(new Date().toLocaleTimeString());
             try {
