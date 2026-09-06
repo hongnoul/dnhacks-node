@@ -191,6 +191,7 @@ export function DroneStage({ height = 240 }: { height?: number }) {
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div
+        className="drone-model"
         ref={mountRef}
         onClick={toggle}
         title="click to play drone audio"

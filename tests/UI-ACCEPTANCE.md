@@ -49,3 +49,15 @@ Changed-file mapping:
 - `ConfidenceGraph.tsx`: accessible label and small-phone fit, rendered per-node canvases in admitted session.
 
 For the approved UI-change scope, requirement-to-check mapping is complete. This does not expand the claim to physical audio accuracy, participant preference, performance benchmarking, or every possible combination of application state. Those are outside this UI acceptance result.
+
+## Full-viewport console revision
+
+The station now uses a 100dvh desktop shell at widths >=1000px and heights >=650px. The map measures both available width and height. A labeled native panel selector keeps every secondary control reachable without stacking all panels vertically. Sensor, pending-admission, link and event lists paginate instead of growing indefinitely. Narrower or shorter viewports retain the usable stacked/scrolling layout.
+
+Observed acceptance on the final build:
+- `ui-viewport-smoke.mjs`: all six console panels passed exact zero document overflow and visible-control bounds at 1440x900, 1366x768, 1280x720, 1024x768 and 1000x650.
+- `ui-smoke.mjs`: four real browser nodes admitted, fourth node reachable through Next sensors, all six populated panels fit at 1366x768 and 1000x650. Placement, map pointer interaction, flight, link cuts and replay passed through the panel selector.
+- `ui-design-smoke.mjs`: QR/drone visibility, palette, fonts, labels, keyboard focus, button targets and mobile layout passed at 1440/1024/390/320px.
+- Production build and all 45 unit/integration tests passed.
+
+The checks exposed and resolved sidebar text overflow, populated scenario overflow, and long activity-message overflow. No overflow-hidden rule is applied to the console to conceal offscreen controls. The long textual join URL is intentionally ellipsized in compact mode; its QR retains the full URL. This revision has not been deployed.

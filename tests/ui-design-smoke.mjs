@@ -15,9 +15,14 @@ try {
     assert.equal(await page.getByRole('heading', { name: 'Drone audio demo' }).count(), 1);
     assert.equal(await page.getByText('Simulation', { exact: true }).count(), 1);
     assert.equal(await page.locator('.metric').count(), 4);
+    const picker = page.getByRole('combobox', {name:'Console panel'});
+    const switchPanel = async key => { if(await picker.isVisible()) await picker.selectOption(key); };
+    const sections = {'Sensor confidence':'confidence','Network topology':'topology','Scenario activity':'activity','Sensor directory':'nodes'};
     for (const heading of ['Join the mesh', 'Mesh overview', 'Sensor confidence', 'Network topology', 'Scenario activity', 'Sensor directory']) {
+      if (sections[heading]) await switchPanel(sections[heading]);
       assert(await page.getByRole('heading', { name: heading, exact: true }).isVisible(), heading);
     }
+    await switchPanel('confidence');
     for (const label of ['Admitted sensors', 'Listening now', 'Detecting nodes', 'Replicated records', 'Room coordinates', 'Live readings', 'Your mesh starts with one phone.']) {
       assert(await page.getByText(label, { exact: true }).isVisible(), label);
     }
@@ -32,11 +37,12 @@ try {
     assert(await page.locator('.console-sidebar canvas').isVisible());
     const map = await page.locator('.map-card svg').boundingBox();
     assert(map.width > 0 && map.height > 0, 'responsive map has visible area');
-    const targets = await page.locator('button').evaluateAll(els => els.filter(el => el.getBoundingClientRect().height < 44).length);
+    const targets = await page.locator('button').evaluateAll(els => els.filter(el => el.getBoundingClientRect().height > 0 && el.getBoundingClientRect().height < 44).length);
     assert.equal(targets, 0, 'all operator button targets are at least 44px');
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `station overflow at ${width}`);
     const columns = await page.locator('.dashboard-grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
-    assert.equal(columns, width > 1200 ? 2 : 1);
+    assert.equal(columns, width >= 1000 ? 2 : 1);
+    await switchPanel('links');
     await page.getByRole('button', { name: 'show', exact: true }).click();
     await page.getByRole('button', { name: 'hide', exact: true }).waitFor();
     await page.goto(`${base}/?session=ui-review`);

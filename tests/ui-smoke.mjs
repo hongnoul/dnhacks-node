@@ -7,6 +7,7 @@
 import { chromium } from "playwright";
 
 const APP = process.env.APP_URL ?? "http://127.0.0.1:8001";
+const SESSION = process.env.UI_SESSION ?? `ui-smoke-${Date.now()}`;
 const fail = [];
 const ok = (m) => console.log("  ✔", m);
 const bad = (m) => { fail.push(m); console.log("  ✖", m); };
@@ -18,16 +19,16 @@ ctx.on("weberror", (e) => errors.push(String(e.error())));
 
 console.log("operator console");
 const admin = await ctx.newPage();
-await admin.goto(`${APP}/station/`);
+await admin.goto(`${APP}/station/?session=${encodeURIComponent(SESSION)}`);
 await admin.waitForSelector("h1");
 await admin.waitForFunction(() => document.body.innerText.toLowerCase().includes("relay connected"), { timeout: 8000 })
   .then(() => ok("relay connected")).catch(() => bad("relay never connected"));
 
 console.log("nodes join");
 const nodes = [];
-for (const id of ["n01", "n02", "n03"]) {
+for (const id of ["n01", "n02", "n03", "n04"]) {
   const p = await ctx.newPage();
-  await p.goto(`${APP}/?node=${id}`);
+  await p.goto(`${APP}/?node=${id}&session=${encodeURIComponent(SESSION)}`);
   await p.getByRole("button", { name: /enable microphone & join/i }).click();
   nodes.push({ id, page: p });
   await p.waitForTimeout(300); // stagger model loads
@@ -54,7 +55,12 @@ await admin.waitForFunction(
 ).then(async () => ok(`admitted ${(await admittedIds()).join(", ")}`))
  .catch(() => bad("nodes not admitted"));
 
+async function openPanel(name) {
+  const picker = admin.getByRole('combobox', {name:'Console panel'});
+  if (await picker.isVisible()) await picker.selectOption(name);
+}
 console.log("topology + placement");
+await openPanel('topology');
 await admin.getByRole("button", { name: /two clusters \+ bridge/i }).click();
 await admin.waitForTimeout(300);
 await admin.getByRole("button", { name: /auto-place/i }).click();
@@ -63,6 +69,7 @@ await admin.waitForFunction(() => !document.body.innerText.includes("unplaced"),
 
 // Link emulation is collapsed by default — it is network conditions, not
 // detection, and detection is what leads the console now.
+await openPanel("links");
 await admin.getByRole("button", { name: /^show$/ }).first().click();
 await admin.waitForFunction(
   () => document.querySelectorAll("input[type=range]").length > 0, { timeout: 5000 }
@@ -121,24 +128,27 @@ if (await cut.count()) {
 } else bad("no cut control found");
 
 console.log("scenario controls");
+await openPanel("scenario");
 await admin.waitForFunction(() => document.body.innerText.toLowerCase().includes("scenario controls"), { timeout: 5000 })
   .then(() => ok("scenario panel renders")).catch(() => bad("no scenario panel"));
 
 // Placing mode arms from the topology panel and narrates hover constraints.
+await openPanel("topology");
 await admin.getByRole("button", { name: /place node/i }).click();
 await admin.waitForFunction(() => document.body.innerText.includes("Move across the map"), { timeout: 5000 })
   .then(() => ok("placement mode arms")).catch(() => bad("placement mode did not arm"));
 await admin.getByRole("button", { name: /cancel place/i }).click();
 
 // Drone mode: start + destination clicks arm the flight on the map overlay.
+await openPanel("scenario");
 await admin.getByRole("button", { name: /simulate drone/i }).click();
-await admin.waitForFunction(() => document.body.innerText.includes("Select drone starting position"), { timeout: 5000 })
+await admin.waitForFunction(() => document.body.innerText.includes("Click to place the drone start."), { timeout: 5000 })
   .then(() => ok("drone mode arms")).catch(() => bad("drone mode did not arm"));
 const map = admin.locator('.map-card svg');
 await map.scrollIntoViewIfNeeded();
 const mapBox = await map.boundingBox();
 await map.click({ position: { x: mapBox.width * 0.3, y: mapBox.height * 0.3 } });
-await admin.waitForFunction(() => document.body.innerText.includes("Drone start placed"), { timeout: 5000 })
+await admin.waitForFunction(() => document.body.innerText.includes("Click to place the drone destination."), { timeout: 5000 })
   .then(() => ok("drone start placed on map")).catch(() => bad("drone start click missed"));
 await map.click({ position: { x: mapBox.width * 0.7, y: mapBox.height * 0.7 } });
 await admin.waitForFunction(
@@ -152,20 +162,43 @@ await admin.getByRole("button", { name: /remove drone/i }).first().click();
 
 // Impact mode arms and narrates the click-to-cut contract.
 await admin.getByRole("button", { name: /simulate impact/i }).click();
-await admin.waitForFunction(() => document.body.innerText.includes("Impact armed"), { timeout: 5000 })
+await admin.waitForFunction(() => document.body.innerText.includes("Click anywhere to run a simulated impact"), { timeout: 5000 })
   .then(() => ok("impact mode arms")).catch(() => bad("impact mode did not arm"));
 await admin.getByRole("button", { name: /cancel impact/i }).click();
 
 // Clicking a node row opens the inspector with heartbeat and links.
-await admin.waitForFunction(() => document.body.innerText.includes("scenario events") || document.body.innerText.includes("events"), { timeout: 5000 })
+await admin.waitForFunction(() => document.querySelector("[data-section=activity]") !== null, { timeout: 5000 })
   .then(() => ok("activity log present")).catch(() => bad("no activity log"));
 
 // Replay: one click runs interference + flight + restore, then reports done.
 await admin.getByRole("button", { name: /replay scenario/i }).click();
-await admin.waitForFunction(() => document.body.innerText.includes("Replay started"), { timeout: 5000 })
+await admin.waitForFunction(() => document.querySelector("[data-section=activity]")?.textContent.includes("Replay started"), { timeout: 5000 })
   .then(() => ok("replay sequence starts")).catch(() => bad("replay did not start"));
-await admin.waitForFunction(() => document.body.innerText.includes("Replay sequence complete"), { timeout: 20000 })
+await admin.waitForFunction(() => document.querySelector("[data-section=activity]")?.textContent.includes("Replay sequence complete"), { timeout: 20000 })
   .then(() => ok("replay sequence completes")).catch(() => bad("replay did not complete"));
+
+await openPanel('nodes');
+await admin.getByRole('button', {name:'Next sensors', exact:true}).click();
+await admin.locator('[data-section=nodes]').getByText('n04', {exact:true}).waitFor();
+ok('sensor pagination exposes fourth admitted node');
+await admin.getByRole('button', {name:'Previous sensors', exact:true}).click();
+console.log('populated console viewport fit');
+for (const [width, height] of [[1366,768],[1000,650]]) {
+  await admin.setViewportSize({width,height});
+  for (const panel of ['confidence','topology','scenario','activity','links','nodes']) {
+    await openPanel(panel);
+    await admin.waitForTimeout(100);
+    const fit = await admin.evaluate(() => {
+      const root = document.documentElement;
+      const visible = [...document.querySelectorAll('.console button, .console select, .console [data-section], .console table')].filter(el => el.getBoundingClientRect().height > 0);
+      return root.scrollHeight <= innerHeight && root.scrollWidth <= innerWidth && visible.every(el => {
+        const r = el.getBoundingClientRect();
+        return r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1 && el.scrollWidth <= el.clientWidth + 1;
+      });
+    });
+    fit ? ok(`${panel} fits populated ${width}x${height}`) : bad(`${panel} overflows populated ${width}x${height}`);
+  }
+}
 
 if (errors.length) { console.log("\npage errors:"); errors.forEach((e) => console.log("   ", e.split("\n")[0])); }
 await browser.close();

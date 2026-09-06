@@ -58,21 +58,36 @@ function useContainerWidth(fallback: number) {
     const el = ref.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
-      const w = Math.floor(el.clientWidth);
+      const w = Math.floor(Math.min(el.clientWidth, window.matchMedia("(min-width: 1000px) and (min-height: 650px)").matches && el.clientHeight > 0 ? el.clientHeight * 1.5 : el.clientWidth));
       if (w > 0) setWidth(w);
     });
     ro.observe(el);
     // First paint may precede layout; take whatever the box reports now too.
-    const w = Math.floor(el.clientWidth);
+    const w = Math.floor(Math.min(el.clientWidth, window.matchMedia("(min-width: 1000px) and (min-height: 650px)").matches && el.clientHeight > 0 ? el.clientHeight * 1.5 : el.clientWidth));
     if (w > 0) setWidth(w);
     return () => ro.disconnect();
   }, []);
   return { ref, width };
 }
 
+function PageControls({ label, count, size, offset, onPage }: { label: string; count: number; size: number; offset: number; onPage: (page: number) => void }) {
+  if (count <= size) return null;
+  const page = offset / size;
+  return <nav className="page-controls" aria-label={`${label} pages`}>
+    <button aria-label={`Previous ${label.toLowerCase()}`} disabled={page === 0} onClick={() => onPage(page - 1)}>‹</button>
+    <span>{offset + 1}–{Math.min(offset + size, count)} of {count}</span>
+    <button aria-label={`Next ${label.toLowerCase()}`} disabled={offset + size >= count} onClick={() => onPage(page + 1)}>›</button>
+  </nav>;
+}
+
 export function AdminDashboard() {
   const chanRef = useRef<AdminChannel | null>(null);
   const [, force] = useState(0);
+  const [eventPage, setEventPage] = useState(0);
+  const [sensorPage, setSensorPage] = useState(0);
+  const [linkPage, setLinkPage] = useState(0);
+  const [pendingPage, setPendingPage] = useState(0);
+  const [panel, setPanel] = useState("confidence");
   const [selected, setSelected] = useState<string | null>(null);
   const [pendingEdge, setPendingEdge] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -201,6 +216,7 @@ export function AdminDashboard() {
     if (node === ADMIN_ID) return;
     if (!pendingEdge) {
       setSelected(node);
+      setPanel("inspector");
       setPendingEdge(node);
       return;
     }
@@ -511,6 +527,12 @@ export function AdminDashboard() {
   const selectedPos = selected ? positions.get(selected) : undefined;
   const selectedLive = selected ? (view?.liveNodes ?? []).includes(selected) : false;
 
+  const eventOffset = Math.min(eventPage, Math.max(0, Math.ceil(events.length / 3) - 1)) * 3;
+  const sensorOffset = Math.min(sensorPage, Math.max(0, Math.ceil(admitted.length / 3) - 1)) * 3;
+  const linkOffset = Math.min(linkPage, Math.max(0, Math.ceil(sensorLinks.length / 2) - 1)) * 2;
+  const pendingOffset = Math.min(pendingPage, Math.max(0, Math.ceil(pending.length / 2) - 1)) * 2;
+  const sensorPager = <PageControls label="Sensors" count={admitted.length} size={3} offset={sensorOffset} onPage={setSensorPage} />;
+
   return (
     <div className="dashboard">
       {pending.length > 0 && (
@@ -528,7 +550,7 @@ export function AdminDashboard() {
               waiting to join ({pending.length})
             </h2>
             <div className="row" style={{ flexWrap: "wrap" }}>
-              {pending.map((n) => (
+              {pending.slice(pendingOffset, pendingOffset + 2).map((n) => (
                 <span key={n.node} className="row" style={{ gap: 6, marginRight: 8 }}>
                   <span>{n.node}</span>
                   <button className="primary" onClick={() => chan?.admit(n.node)}>
@@ -536,6 +558,7 @@ export function AdminDashboard() {
                   </button>
                 </span>
               ))}
+              <PageControls label="Pending sensors" count={pending.length} size={2} offset={pendingOffset} onPage={setPendingPage} />
               {pending.length > 1 && (
                 <button onClick={() => pending.forEach((n) => chan?.admit(n.node))}>
                   admit all
@@ -559,7 +582,7 @@ export function AdminDashboard() {
       <div className="dashboard-grid">
         <div className="panel map-card">
           <div className="card-heading"><h2>Mesh overview</h2><span className="badge">Room coordinates</span></div>
-          <div ref={mapBox.ref} style={{ width: "100%" }}>
+          <div ref={mapBox.ref} className="map-viewport">
             <RoomMap
               room={DEFAULT_ROOM}
               positions={positions}
@@ -571,7 +594,7 @@ export function AdminDashboard() {
               onPick={onPick}
               onMove={(node, x, y) => mesh?.publishPosition(node, x, y)}
               ripples={ripples}
-              width={Math.max(280, Math.min(mapBox.width, 720))}
+              width={Math.max(120, Math.min(mapBox.width, 720))}
               placement={placeCandidate}
               drone={dronePos ? { x: dronePos.x, y: dronePos.y, radiusM: DRONE_DETECTION_RADIUS_M, dest: droneDest } : null}
               alertPath={alertRoute?.path ?? null}
@@ -624,15 +647,27 @@ export function AdminDashboard() {
           </div>
         </div>
 
-        <div className="dashboard-cards">
-          <div className="panel">
+        <div className="dashboard-cards" data-panel={panel}>
+          <label className="panel-switcher">Console panel
+            <select aria-label="Console panel" value={panel} onChange={e => setPanel(e.target.value)}>
+              <option value="confidence">Sensor confidence</option>
+              <option value="topology">Network topology</option>
+              <option value="scenario">Scenario controls</option>
+              <option value="activity">Scenario activity</option>
+              <option value="links">Link emulation</option>
+              <option value="nodes">Sensor directory</option>
+              {selected && <option value="inspector">Selected sensor</option>}
+            </select>
+          </label>
+          <div className="panel" data-section="confidence">
+            {sensorPager}
             <div className="card-heading"><h2>Sensor confidence</h2><span className="badge live">Live readings</span></div>
             <p className="dim" style={{ fontSize: 12, marginTop: 0 }}>
               Each node&apos;s on-device CRNN confidence, drawn from records that gossiped
               here. Dashed line is SkyMesh&apos;s {DETECT_THRESHOLD} threshold.
             </p>
             {admitted.length === 0 && <div className="empty-state"><strong>Your mesh starts with one phone.</strong><p>Scan the QR code, allow microphone access, then admit the phone here.</p></div>}
-            {admitted.map((n) => {
+            {admitted.slice(sensorOffset, sensorOffset + 3).map((n) => {
               const p = levels.get(n);
               const isHot = hot.has(n);
               return (
@@ -660,7 +695,7 @@ export function AdminDashboard() {
             })}
           </div>
 
-          <div className="panel">
+          <div className="panel" data-section="topology">
             <h2>Network topology</h2>
             <div className="row" style={{ flexWrap: "wrap" }}>
               <button onClick={() => applyPreset("bridge")}>two clusters + bridge</button>
@@ -691,7 +726,7 @@ export function AdminDashboard() {
             </p>
           </div>
 
-          <div className="panel">
+          <div className="panel" data-section="scenario">
             <div className="row" style={{ justifyContent: "space-between" }}>
               <h2 style={{ margin: 0 }}>Scenario controls <span className="badge simulation">Simulation</span></h2>
               <span
@@ -775,18 +810,19 @@ export function AdminDashboard() {
             </p>
           </div>
 
-          <div className="panel">
+          <div className="panel" data-section="activity">
             <div className="row" style={{ justifyContent: "space-between" }}>
               <h2 style={{ margin: 0 }}>Scenario activity</h2>
               <span className="dim" style={{ fontSize: 12 }}>{events.length} events</span>
             </div>
+            <PageControls label="Events" count={events.length} size={3} offset={eventOffset} onPage={setEventPage} />
             {events.length === 0 && (
               <p className="dim" style={{ fontSize: 12, marginBottom: 0 }}>
                 Scenario events land here.
               </p>
             )}
             <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0", display: "grid", gap: 4, fontSize: 12 }}>
-              {events.map((e) => (
+              {events.slice(eventOffset, eventOffset + 3).map((e) => (
                 <li key={e.id} className="row" style={{ justifyContent: "flex-start", gap: 8 }}>
                   <span
                     style={{
@@ -806,10 +842,10 @@ export function AdminDashboard() {
           </div>
 
           {selected && (
-            <div className="panel">
+            <div className="panel" data-section="inspector">
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <h2 style={{ margin: 0 }}>{selected}</h2>
-                <button onClick={() => setSelected(null)} aria-label="Close inspector">×</button>
+                <button onClick={() => { setSelected(null); setPanel("confidence"); }} aria-label="Close inspector">×</button>
               </div>
               <dl style={{ display: "grid", gap: 4, fontSize: 13, margin: "8px 0" }}>
                 <div className="row" style={{ justifyContent: "space-between" }}>
@@ -849,7 +885,7 @@ export function AdminDashboard() {
             </div>
           )}
 
-          <div className="panel">
+          <div className="panel" data-section="links">
             <div className="row" style={{ justifyContent: "space-between" }}>
               <h2 style={{ margin: 0 }}>link emulation</h2>
               <button onClick={() => setShowLinks((v) => !v)}>
@@ -862,10 +898,11 @@ export function AdminDashboard() {
               Cutting a link is how partition-and-heal is demonstrated.
             </p>
             {showLinks && sensorLinks.length === 0 && <span className="dim">no links yet</span>}
+            {showLinks && <PageControls label="Links" count={sensorLinks.length} size={2} offset={linkOffset} onPage={setLinkPage} />}
             {showLinks && (
             <table>
               <tbody>
-                {sensorLinks.map((l) => (
+                {sensorLinks.slice(linkOffset, linkOffset + 2).map((l) => (
                   <tr key={linkKey(l.a, l.b)}>
                     <td>{l.a}–{l.b}</td>
                     <td>
@@ -909,14 +946,15 @@ export function AdminDashboard() {
             </div>
           </div>
 
-          <div className="panel">
+          <div className="panel" data-section="nodes">
             <h2>Sensor directory</h2>
+            {sensorPager}
             <table>
               <thead>
                 <tr><th>node</th><th>p</th><th>pos</th><th>neighbours</th></tr>
               </thead>
               <tbody>
-                {admitted.map((n) => {
+                {admitted.slice(sensorOffset, sensorOffset + 3).map((n) => {
                   const pos = positions.get(n);
                   const p = levels.get(n);
                   return (
