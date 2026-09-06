@@ -263,7 +263,7 @@ export default function NodePage() {
           const held = peakRef.current;
           const display =
             held && t - held.t < PEAK_HOLD_MS ? Math.max(smooth, held.p) : smooth;
-          if (!held || raw >= held.p || t - held.t >= PEAK_HOLD_MS) {
+          if (!held || smooth >= held.p || t - held.t >= PEAK_HOLD_MS) {
             peakRef.current = { p: smooth, t };
           }
           const p = display;
