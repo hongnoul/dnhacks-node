@@ -16,6 +16,7 @@
     "prebuild": "node vendor-detector.mjs",
     "vendor": "node vendor-detector.mjs",
     "build:static": "STATIC=1 NEXT_PUBLIC_RELAY_URL=/ws next build",
+    "demo:public": "./demo-public.sh",
     "serve": "server/.venv/bin/uvicorn relay:app --app-dir server --host 0.0.0.0 --port 8001"
   },
   "dependencies": {

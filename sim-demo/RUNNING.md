@@ -29,6 +29,8 @@ like a replication bug. `?session=<id>` isolates a run.
 a LAN IP will not work. Serve the static build from the relay so the page and the socket
 share one origin, then tunnel that one port:
 
+    npm run demo:public     # build + serve + quick tunnel; prints the station URL
+    # or step by step:
     npm run build:static      # static export; relay serves it beside /ws
     npm run serve             # relay on :8001, app included
     cloudflared tunnel --url http://localhost:8001
