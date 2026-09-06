@@ -24,8 +24,8 @@ export function TrajectoryHero() {
           <path d="M720 0V900M0 450H1440" strokeDasharray="4 12" />
         </g>
         {tracks.map(track => <g key={track.id} style={{ color: track.color }}>
-          <path d={track.path} fill="none" stroke="currentColor" strokeWidth="2" opacity="0.9" />
-          <path d={track.path} fill="none" stroke="currentColor" strokeWidth="7" opacity="0.08" />
+          <path d={track.path} fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.25" />
+          <path d={track.path} fill="none" stroke="currentColor" strokeWidth="5" opacity="0.025" />
           <g transform={`translate(${track.x} ${track.y})`}>
             <circle r="5" fill="#c0c0c0" stroke="currentColor" strokeWidth="2" />
             <path d="M-12 0H12M0-12V12" stroke="currentColor" />
