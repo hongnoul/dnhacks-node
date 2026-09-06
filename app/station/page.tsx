@@ -20,43 +20,18 @@ import { AdminDashboard } from "../lib/AdminDashboard.tsx";
 
 export default function StationPage() {
   return (
-    <>
-      <style>{`@media (max-width: 900px) {
-        .console { flex-direction: column; overflow-y: auto !important; }
-        .console-sidebar { width: 100% !important; flex: none !important; border-right: 0 !important; border-bottom: 1px solid var(--line); overflow-y: visible !important; }
-        .console-main { overflow-y: visible !important; }
-      }`}</style>
-    <main className="console" style={{ display: "flex", height: "100dvh", overflow: "hidden" }}>
-      <aside
-        className="console-sidebar"
-        style={{
-          width: 340,
-          flex: "0 0 340px",
-          padding: 20,
-          borderRight: "1px solid var(--line)",
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-          overflowY: "auto",
-        }}
-      >
-        <JoinCard compact />
-        <hr style={{ border: 0, borderTop: "1px solid var(--line)", margin: 0 }} />
-        <DroneStage height={240} />
+    <main className="console">
+      <aside className="console-sidebar" aria-label="Join and demonstrate">
+        <div className="brand"><span className="brand-mark">S</span><div><strong>SkyMesh</strong><div className="eyebrow">Distributed detection</div></div></div>
+        <section className="panel"><JoinCard compact /></section>
+        <section className="panel">
+          <div className="card-heading"><h2>Drone audio demo</h2><span className="badge simulation">Demo</span></div>
+          <p className="dim">Play a sample near a joined phone to test on-device detection.</p>
+          <DroneStage height={220} />
+        </section>
+        <p className="sidebar-note">Local intelligence. Shared awareness.<br />Raw microphone audio stays on each phone.</p>
       </aside>
-
-      <div
-        className="console-main"
-        style={{
-          flex: 1,
-          minWidth: 0, // flex children default to min-content; without this the
-          overflowY: "auto", // map can push the layout instead of fitting it
-          padding: 16,
-        }}
-      >
-        <AdminDashboard />
-      </div>
+      <div className="console-main"><AdminDashboard /></div>
     </main>
-    </>
   );
 }

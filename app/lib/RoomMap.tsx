@@ -127,7 +127,7 @@ export function RoomMap(props: RoomMapProps) {
   const now = Date.now();
 
   return (
-    <div style={{ position: "relative", width: w, height: h, flex: "0 0 auto" }}>
+    <div style={{ position: "relative", width: w, maxWidth: "100%", aspectRatio: `${w} / ${h}`, flex: "0 0 auto" }}>
       <canvas
         ref={canvasRef}
         width={w}
@@ -135,6 +135,7 @@ export function RoomMap(props: RoomMapProps) {
         style={{
           position: "absolute",
           inset: 0,
+          width: "100%", height: "100%",
           borderRadius: 8,
           background: "#0e1620",
           border: "1px solid var(--line)",
@@ -144,7 +145,8 @@ export function RoomMap(props: RoomMapProps) {
         ref={svgRef}
         width={w}
         height={h}
-        style={{ position: "absolute", inset: 0, touchAction: "none" }}
+        viewBox={`0 0 ${w} ${h}`}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", touchAction: "none" }}
         onPointerMove={(e) => {
           // Hover preview while placing needs pointer position even when no
           // drag is in flight.

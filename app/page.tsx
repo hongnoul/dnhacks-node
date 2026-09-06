@@ -88,20 +88,21 @@ export default function NodePage() {
 
   if (!joined) {
     return (
-      <main style={{ display: "grid", placeItems: "center", minHeight: "100dvh", padding: 24 }}>
-        <div style={{ textAlign: "center", maxWidth: 380 }}>
-          <h1 style={{ fontSize: 28, marginBottom: 4 }}>SkyMesh</h1>
+      <main className="join-screen">
+        <div className="panel join-panel">
+          <p className="eyebrow">A shared sky. Powered by your phone.</p>
+          <h1 className="join-title">Join SkyMesh</h1>
           <p className="dim" style={{ marginTop: 0 }}>
-            Your phone becomes a sensor node. Audio never leaves the device — only a
-            likelihood does.
+            Help the mesh listen for drones. Detection runs on your phone. Only detection scores are shared, never your audio.
           </p>
+          <ol className="join-steps"><li>Allow microphone access</li><li>Wait for the operator to admit you</li><li>Keep this screen open to listen</li></ol>
           <button
             className="primary"
             style={{ fontSize: 18, padding: "14px 32px" }}
             onClick={join}
             disabled={loading}
           >
-            {loading ? "loading model…" : "Join the mesh"}
+            {loading ? "Preparing your sensor…" : "Enable microphone & join"}
           </button>
           <p className="dim" style={{ fontSize: 12 }}>
             {loading
@@ -119,14 +120,15 @@ export default function NodePage() {
   const levels = new Map<string, number>(view ? [[view.nodeId, score.p]] : []);
 
   return (
-    <main style={{ padding: 16, display: "grid", gap: 12, maxWidth: 780, margin: "0 auto" }}>
+    <main className="node-screen">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h1>node {view?.nodeId ?? "…"}</h1>
+        <div><p className="eyebrow">SkyMesh sensor</p><h1>Node {view?.nodeId ?? "…"}</h1></div>
         <span
-          className="dim"
+          className="badge"
+          role="status"
           style={{ color: status === "active" ? "var(--ok)" : "var(--warn)" }}
         >
-          {status === "pending" ? "waiting for admin" : status}
+          {status === "pending" ? "Waiting for operator" : status}
         </span>
       </div>
 
@@ -163,7 +165,7 @@ export default function NodePage() {
       </div>
 
       <div className="panel">
-        <h2>my picture</h2>
+        <h2>Your mesh picture</h2>
         <p className="dim" style={{ fontSize: 12, marginTop: 0 }}>
           Computed here, from this phone's own replica — not received from a server.
         </p>

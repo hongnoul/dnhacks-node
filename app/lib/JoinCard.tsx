@@ -36,9 +36,9 @@ export function JoinCard({ compact = false }: { compact?: boolean }) {
         </p>
       </div>
 
-      <div style={{ background: "#fff", padding: compact ? 10 : 14, borderRadius: 10, alignSelf: "flex-start" }}>
+      <div style={{ background: "#fff", padding: compact ? 10 : 14, borderRadius: 10, justifySelf: "start" }}>
         {joinUrl ? (
-          <QRCode value={joinUrl} size={qrSize} />
+          <QRCode value={joinUrl} size={qrSize} title="Scan to join this SkyMesh session" />
         ) : (
           <div style={{ width: qrSize, height: qrSize }} />
         )}

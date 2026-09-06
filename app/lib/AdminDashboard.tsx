@@ -512,7 +512,7 @@ export function AdminDashboard() {
   const selectedLive = selected ? (view?.liveNodes ?? []).includes(selected) : false;
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div className="dashboard">
       {pending.length > 0 && (
         <div
           className="panel"
@@ -545,23 +545,20 @@ export function AdminDashboard() {
           </div>
         </div>
       )}
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <div className="row">
-          <h1 style={{ margin: 0 }}>SkyMesh — operator</h1>
-        </div>
-        <span className="dim" style={{ color: chan?.connected ? "var(--ok)" : "var(--hot)" }}>
-          {(mesh?.detecting().length ?? 0) > 0 && (
-            <b style={{ color: "var(--hot)" }}>
-              {mesh?.detecting().length} DETECTING ·{" "}
-            </b>
-          )}
-          relay {chan?.connected ? "connected" : "down"} · {admitted.length} nodes ·{" "}
-          {view?.records ?? 0} records
-        </span>
-      </div>
+      <header className="dashboard-header">
+        <div><p className="eyebrow">Operations console</p><h1>Shared airspace awareness</h1><p className="dim">A live picture built by the mesh, not a central detector.</p></div>
+        <span className={`badge ${chan?.connected ? "live" : "offline"}`} role="status">Relay {chan?.connected ? "connected" : "offline"}</span>
+      </header>
+      <section className="metrics" aria-label="Mesh status">
+        <div className="panel metric"><span>Admitted sensors</span><strong>{admitted.length}</strong><small>Phones in this session</small></div>
+        <div className="panel metric"><span>Listening now</span><strong>{view?.listening ?? 0}</strong><small>Live mesh readings</small></div>
+        <div className="panel metric"><span>Detecting nodes</span><strong style={{ color: hot.size ? "var(--hot)" : "var(--ok)" }}>{hot.size}</strong><small>On-device verdicts</small></div>
+        <div className="panel metric"><span>Replicated records</span><strong>{view?.records ?? 0}</strong><small>Received through gossip</small></div>
+      </section>
 
-      <div className="wrap" style={{ alignItems: "flex-start" }}>
-        <div className="panel" style={{ flex: "1 1 420px", minWidth: 0 }}>
+      <div className="dashboard-grid">
+        <div className="panel map-card">
+          <div className="card-heading"><h2>Mesh overview</h2><span className="badge">Room coordinates</span></div>
           <div ref={mapBox.ref} style={{ width: "100%" }}>
             <RoomMap
               room={DEFAULT_ROOM}
@@ -627,14 +624,14 @@ export function AdminDashboard() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: 12, minWidth: 300, flex: 1 }}>
+        <div className="dashboard-cards">
           <div className="panel">
-            <h2>detections</h2>
+            <div className="card-heading"><h2>Sensor confidence</h2><span className="badge live">Live readings</span></div>
             <p className="dim" style={{ fontSize: 12, marginTop: 0 }}>
               Each node&apos;s on-device CRNN confidence, drawn from records that gossiped
               here. Dashed line is SkyMesh&apos;s {DETECT_THRESHOLD} threshold.
             </p>
-            {admitted.length === 0 && <span className="dim">no nodes yet</span>}
+            {admitted.length === 0 && <div className="empty-state"><strong>Your mesh starts with one phone.</strong><p>Scan the QR code, allow microphone access, then admit the phone here.</p></div>}
             {admitted.map((n) => {
               const p = levels.get(n);
               const isHot = hot.has(n);
@@ -664,7 +661,7 @@ export function AdminDashboard() {
           </div>
 
           <div className="panel">
-            <h2>topology</h2>
+            <h2>Network topology</h2>
             <div className="row" style={{ flexWrap: "wrap" }}>
               <button onClick={() => applyPreset("bridge")}>two clusters + bridge</button>
               <button onClick={() => applyPreset("ring")}>ring</button>
@@ -696,7 +693,7 @@ export function AdminDashboard() {
 
           <div className="panel">
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <h2 style={{ margin: 0 }}>scenario controls</h2>
+              <h2 style={{ margin: 0 }}>Scenario controls <span className="badge simulation">Simulation</span></h2>
               <span
                 className="dim"
                 style={{
@@ -738,7 +735,7 @@ export function AdminDashboard() {
             </div>
             <div className="row" style={{ marginTop: 8, fontSize: 12 }}>
               <span className="dim">
-                <b style={{ color: "var(--fg)" }}>{health}%</b> health ·{" "}
+                <b style={{ color: "var(--text)" }}>{health}%</b> health ·{" "}
                 <b style={{ color: connected ? "var(--ok)" : "var(--warn)" }}>
                   {connected ? "connected" : "partitioned"}
                 </b>
@@ -780,7 +777,7 @@ export function AdminDashboard() {
 
           <div className="panel">
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <h2 style={{ margin: 0 }}>activity</h2>
+              <h2 style={{ margin: 0 }}>Scenario activity</h2>
               <span className="dim" style={{ fontSize: 12 }}>{events.length} events</span>
             </div>
             {events.length === 0 && (
@@ -913,7 +910,7 @@ export function AdminDashboard() {
           </div>
 
           <div className="panel">
-            <h2>nodes</h2>
+            <h2>Sensor directory</h2>
             <table>
               <thead>
                 <tr><th>node</th><th>p</th><th>pos</th><th>neighbours</th></tr>

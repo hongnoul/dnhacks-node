@@ -150,5 +150,5 @@ export function ConfidenceGraph({
     }
   }, [history, width, height, compact, now]);
 
-  return <canvas ref={ref} style={{ width, height, display: "block" }} />;
+  return <canvas ref={ref} aria-label="Drone confidence over the last 60 seconds" role="img" style={{ width, maxWidth: "100%", height: "auto", aspectRatio: `${width} / ${height}`, display: "block" }} />;
 }
