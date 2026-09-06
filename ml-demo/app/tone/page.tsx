@@ -21,9 +21,11 @@ import QRCode from "react-qr-code";
 // Apex = production node page the phone opens.
 const APEX_URL = "https://dnhacks-node.vercel.app";
 
-// Wind sound externality demo (false-positive stress test).
+// Wind + music sound externality demos (false-positive stress tests).
 const WIND_YT_WATCH = "https://www.youtube.com/watch?v=sT5f1jBJHng";
 const WIND_YT_EMBED = "https://www.youtube.com/embed/sT5f1jBJHng";
+const MUSIC_YT_WATCH = "https://www.youtube.com/watch?v=kRqCxuF2bms";
+const MUSIC_YT_EMBED = "https://www.youtube.com/embed/kRqCxuF2bms";
 
 export default function TonePage() {
   const [playing, setPlaying] = useState(false);
@@ -356,7 +358,7 @@ export default function TonePage() {
 
       <audio ref={droneRef} src="/drone-demo.wav" loop preload="auto" />
 
-      {/* BOTTOM: wind sound externality — false-positive stress test */}
+      {/* BOTTOM: sound externalities — false-positive stress tests */}
       <section
         style={{
           display: "flex",
@@ -386,6 +388,44 @@ export default function TonePage() {
         />
         <a
           href={WIND_YT_WATCH}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: 13, color: "#2563eb" }}
+        >
+          Open on YouTube
+        </a>
+      </section>
+
+      <section
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 8,
+          flexBasis: "100%",
+          marginTop: 8,
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 600 }}>
+          Music sound externality (false-positive check)
+        </div>
+        <div style={{ fontSize: 13, color: "#6b7280", maxWidth: 560, textAlign: "center" }}>
+          Play loud music near the listening phone to simulate a concert /
+          street-noise externality. Expect the node to stay quiet (no false
+          drone alarm).
+        </div>
+        <iframe
+          data-testid="music-embed"
+          width="560"
+          height="315"
+          style={{ maxWidth: "90vw", borderRadius: 12, border: "1px solid #e5e7eb" }}
+          src={MUSIC_YT_EMBED}
+          title="Music sound externality demo (My Bloody Valentine — New You)"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+        />
+        <a
+          href={MUSIC_YT_WATCH}
           target="_blank"
           rel="noopener noreferrer"
           style={{ fontSize: 13, color: "#2563eb" }}
