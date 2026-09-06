@@ -1,0 +1,57 @@
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const base=process.env.APP_URL || 'http://localhost:3017';
+const browser=await chromium.launch({headless:true});
+try {
+const page=await browser.newPage({viewport:{width:1440,height:1000}});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.addInitScript(()=>{window.__micCalls=0;navigator.mediaDevices.getUserMedia=()=>{window.__micCalls++;return Promise.reject(new Error('Unexpected mic request'));};});
+await page.goto(`${base}/hardware/`);
+await page.waitForFunction(()=>!document.querySelector('[role="status"]'),null,{timeout:20000});
+assert.equal(await page.locator('canvas').count(),1);
+const canvas=page.locator('canvas');
+const initial=await canvas.screenshot();
+const solar=page.getByRole('button',{name:'Solar-assisted power'});
+await solar.focus();await page.keyboard.press('Enter');
+assert.equal(await solar.getAttribute('aria-pressed'),'true');
+assert.notDeepEqual(await canvas.screenshot(),initial,'component view must change pixels');
+const box=await canvas.boundingBox();
+await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+80,box.y+box.height/2+20,{steps:8});await page.mouse.up();
+const dragged=await canvas.screenshot();
+assert.notDeepEqual(dragged,initial,'orbit changes model pixels');
+await page.mouse.wheel(0,-100);
+assert.notDeepEqual(await canvas.screenshot(),dragged,'zoom changes model pixels');
+await page.getByRole('button',{name:'Reset view'}).click();
+assert.equal(await page.getByRole('button',{name:'Acoustic array'}).getAttribute('aria-pressed'),'true');
+const downloadEvent=page.waitForEvent('download');await page.getByRole('link',{name:'Download concept model'}).click();
+const download=await downloadEvent;const bytes=await readFile(await download.path());
+assert.equal(bytes.toString('ascii',0,4),'glTF');assert.equal(bytes.readUInt32LE(4),2);assert.equal(bytes.readUInt32LE(8),bytes.length);
+await page.screenshot({path:`${process.env.JCODE_SCRATCH_DIR || '.'}/hardware-desktop.png`,fullPage:true});
+for(const width of [390,320]) {
+ await page.setViewportSize({width,height:844});
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no horizontal overflow');
+ await page.getByRole('button',{name:'Rugged enclosure'}).click();
+ assert.equal(await page.getByRole('button',{name:'Rugged enclosure'}).getAttribute('aria-pressed'),'true');
+}
+await page.screenshot({path:`${process.env.JCODE_SCRATCH_DIR || '.'}/hardware-mobile.png`,fullPage:true});
+assert.equal(await page.evaluate(()=>window.__micCalls),0);
+await page.goto(`${base}/?session=hardware-check`);
+const popupEvent=page.waitForEvent('popup');await page.getByRole('link',{name:'Explore the hardware concept'}).click();
+const popup=await popupEvent;await popup.waitForLoadState();
+assert.match(popup.url(),/\/hardware/);assert.match(page.url(),/session=hardware-check/);assert.equal(await page.evaluate(()=>window.__micCalls),0);await popup.close();
+await page.route('**/models/skymesh-node.glb',route=>route.abort());
+await page.goto(`${base}/hardware/`);
+await page.getByRole('status').filter({hasText:'3D unavailable'}).waitFor();
+assert(await page.getByAltText(/Illustration of the proposed/).isVisible());
+await page.getByRole('button',{name:'Radio antenna'}).click();
+assert(await page.getByText(/Proposed LoRa peer links/).isVisible());
+const noGpu=await browser.newPage({reducedMotion:'reduce'});
+await noGpu.addInitScript(()=>{const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){if(type.includes('webgl'))return null;return original.call(this,type,...args);};});
+await noGpu.goto(`${base}/hardware/`);
+await noGpu.getByRole('status').filter({hasText:'3D unavailable'}).waitFor();
+assert(await noGpu.getByAltText(/Illustration of the proposed/).isVisible());
+await noGpu.close();
+assert.deepEqual(errors,[]);
+console.log('PASS: model render, component keyboard selection, orbit, zoom, reset, GLB download, 390/320px layouts, onboarding session preservation, no microphone requests, failed-model fallback, no runtime errors');
+} finally {await browser.close();}

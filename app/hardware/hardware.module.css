@@ -1,0 +1,51 @@
+.page{min-height:100vh;background:#061727;color:#edf4f8;padding:0 clamp(20px,5vw,90px) 36px;font-family:Arial,sans-serif}
+.nav{display:flex;justify-content:space-between;gap:20px;padding:27px 0;border-bottom:1px solid #284050;font-size:14px}
+.page a{color:inherit;text-underline-offset:5px}
+.header{padding:64px 0 38px;max-width:760px}
+.eyebrow,.index,.dimension,.badge{font-family:monospace;letter-spacing:2px;font-size:11px;text-transform:uppercase}
+.eyebrow{color:#73c5e9}
+.header h1{font-size:clamp(42px,6vw,80px);line-height:1.03;letter-spacing:-3px;margin:20px 0}
+.header h1 span{color:#88a6bb}
+.header>p:not(.eyebrow){font-size:18px;line-height:1.65;max-width:630px;color:#aec2d0}
+.badge{display:inline-block;border:1px solid #446275;padding:10px;color:#9ad5ed;letter-spacing:1px}
+.explorer{display:grid;grid-template-columns:minmax(0,1fr) 310px;border:1px solid #365369}
+.viewport{position:relative;min-height:510px;background:radial-gradient(ellipse at center,#16456a44,transparent 70%),linear-gradient(#33577622 1px,transparent 1px),linear-gradient(90deg,#33577622 1px,transparent 1px);background-size:auto,36px 36px,36px 36px;overflow:hidden}
+.canvas{position:absolute;inset:0}
+.canvas canvas{display:block;touch-action:none}
+.index{position:absolute;left:24px;top:24px;pointer-events:none}
+.dimension{position:absolute;bottom:23px;left:24px;color:#88a6bb;letter-spacing:1px;pointer-events:none}
+.inspector{padding:30px 24px;border-left:1px solid #365369;background:#0b2032}
+.tabs{display:flex;flex-direction:column;gap:8px;margin-top:22px}
+.tabs button,.reset{color:#c5d9e6;background:transparent;border:1px solid #35526a;padding:14px;text-align:left;font:inherit;cursor:pointer}
+.tabs button span{margin-right:14px;font-family:monospace;color:#70bddf}
+.tabs button[aria-pressed=true]{background:#163e59;border-color:#80d2f3;color:white}
+.description{font-size:14px;line-height:1.7;min-height:115px;color:#b8ccda}
+.hint{font-size:12px;line-height:1.6;color:#91aabe}
+.reset{font-size:12px;padding:9px 14px}
+.page button:focus-visible,.page a:focus-visible{outline:3px solid #b4e6fa;outline-offset:4px}
+.bridge{display:grid;grid-template-columns:1fr 1fr;gap:60px;padding:65px 0}
+.bridge h2{font-size:32px;line-height:1.2;font-weight:500;letter-spacing:-1px}
+.bridge p{max-width:460px;color:#a4bfce;line-height:1.7}
+.bridge dl{margin:0}
+.bridge dl div{padding:19px 0;border-bottom:1px solid #284050}
+.bridge dt{font-size:15px}
+.bridge dd{margin:7px 0 0;color:#8faabe;font-size:14px}
+.download{display:inline-block;margin-top:16px;font-size:14px}
+.footer{border-top:1px solid #284050;padding-top:25px;font-size:12px;line-height:1.8;color:#8faabe}
+.fallback{position:absolute;inset:50px 25px;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.fallback img{width:min(75%,320px);max-height:290px}
+.fallback p{font-size:13px;max-width:350px;text-align:center;background:#061727;padding:10px}
+@media(max-width:740px){.header{padding-top:40px}
+.explorer{grid-template-columns:1fr}
+.viewport{min-height:370px}
+.inspector{border-left:0;border-top:1px solid #365369}
+.tabs{display:grid;grid-template-columns:1fr 1fr}
+.tabs button{font-size:13px;padding:12px}
+.tabs button span{margin-right:8px}
+.description{min-height:0}
+.bridge{grid-template-columns:1fr;gap:24px;padding:40px 0}
+.dimension{font-size:9px;left:15px}
+.index{left:15px}
+.nav{font-size:12px}
+}
+

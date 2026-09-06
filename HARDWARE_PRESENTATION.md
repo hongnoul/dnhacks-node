@@ -1,17 +1,17 @@
 # Hardware presentation strategy
 
 ## Scope
-Present the supplied SkyMesh hardware concept on the Apex marketing page and connect it to the working phone demo. This is a design proposal, not an implementation or confirmation that hardware specifications have been achieved. No dedicated Apex page was located in this repository.
+Present the supplied SkyMesh hardware concept on the Apex marketing page and connect it to the working phone demo. The initial design proposal is now partially implemented as a standalone hardware explorer. This does not confirm that hardware specifications have been achieved. No dedicated Apex page was located in this repository.
 
 ## Recommended experience
 Place a hardware section after the network explanation and before the demo CTA. Show an isolated perspective view alongside the headline “A small node. Part of a larger picture.” Use three primary callouts: microphone array, local processing, and radio links.
 
 Proposed copy: “SkyMesh’s proposed acoustic sensor combines local detection, radio communication, and solar-assisted power in a compact enclosure. Each node contributes observations to a shared picture.”
 
-Use the blueprint blue as an accent within the existing design. Do not shrink the full technical sheet into an unreadable inline image. Provide Exterior, Inside, and Full blueprint views. Start with static images rather than a new 3D model. Mobile annotations must be stacked and accessible without hover.
+Use the blueprint blue as an accent within the existing design. Do not shrink the full technical sheet into an unreadable inline image. Provide Exterior, Inside, and Full blueprint views. Use the interactive 3D exterior concept model, with a static illustration fallback. Mobile annotations must be stacked and accessible without hover.
 
 ## Product boundary
-The phone-facing product is SkyMesh Client. Preserve its existing controlled-release positioning. Add an optional “Explore the hardware concept” link beside the hardware disclaimer, without competing with microphone onboarding or placing marketing content in the operator workspace.
+The phone-facing product currently identifies itself as SkyMesh P2P. Preserve its existing controlled-release positioning. Add an optional “Explore the hardware concept” link beside the hardware disclaimer, without competing with microphone onboarding or placing marketing content in the operator workspace.
 
 | Proposed hardware | Current browser demonstration |
 | --- | --- |
@@ -39,5 +39,21 @@ Label the design “Hardware concept / Target specifications.” Treat weight, I
 - Browser relay transport is not relabeled as direct radio or LoRa connectivity.
 - No unverified specification is presented as a tested result.
 
-## Current validation and remaining boundary
-The proposal was checked against `app/page.tsx`, `app/lib/TrajectoryHero.tsx`, and the architecture and product flow in `README.md`, together with the supplied hardware drawing. These confirm the disclaimer placement, phone-local detection, and browser relay boundary. The current task produces a strategy document, so there is no new rendered interface to exercise. Apex layout, responsive behavior, image interactions, and end-to-end onboarding regression checks remain implementation acceptance criteria, not completed tests.
+## Initial strategy validation (before implementation)
+The proposal was checked against `app/page.tsx`, `app/lib/TrajectoryHero.tsx`, and the architecture and product flow in `README.md`, together with the supplied hardware drawing. These confirm the disclaimer placement, phone-local detection, and browser relay boundary. At the initial strategy stage there was no new rendered interface to exercise. The later implementation and validation results are recorded below. The separate Apex integration remains unimplemented.
+
+
+## Implemented hardware explorer
+- Route: `/hardware/`, linked from onboarding in a new tab so the original session and microphone flow remain untouched.
+- Model: `public/models/skymesh-node.glb` (approximately 374 KiB), generated with `node scripts/build-hardware-model.mjs`.
+- Exterior geometry includes dome, solar cap and cell seams, four protective ribs, antenna, chassis, mounting feet, and illustrative service port. Materials are procedural and require no external textures.
+- Drag/pinch/scroll controls, keyboard-operable component viewpoint buttons, reset, downloadable GLB, and static SVG loading/error fallback.
+- No automatic animation or continuous render loop. The viewer redraws on interaction and resize, including for reduced-motion users.
+- The original blueprint asset has not been imported. A blueprint viewer and internal cutaway remain future work, not implemented features. No dedicated Apex source was found, so the standalone route is the integration destination rather than a modification to an unknown marketing page.
+- The GLB is an illustrative exterior, not dimensionally validated CAD. It does not represent functional electronics, a tested acoustic array, or manufacturing-ready construction.
+
+### Validation commands
+`npm run build`, `npm test`, and `APP_URL=http://localhost:3017 node tests/hardware-ui.mjs`.
+The browser test checks rendered viewpoint changes, orbit/zoom/reset, keyboard selection, GLB download headers, 390px/320px layouts, onboarding session preservation, no microphone requests, and missing-model fallback. It runs against a real built application. Existing unit/integration tests pass separately. Physical-device touch and hardware performance are not validated by these checks.
+
+Both production build and static export passed the browser acceptance test. The existing regression suite passed all 128 tests. Desktop and 320px mobile screenshots were visually reviewed. WebGL-unavailable fallback was also exercised.

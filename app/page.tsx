@@ -126,6 +126,7 @@ export default function NodePage() {
             <p className={styles.note} role="status" aria-live="polite">
               {sensorReady ? "Sensor ready. Joining the mesh…" : loading ? "Loading the detector (~6 MB). Please wait…" : "Controlled release. Commercial derivative of frontline SkyMesh hardware."}
             </p>
+            <a href="/hardware/" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "inherit" }}>Explore the hardware concept ↗ (new tab)</a>
           </div>
           <div className={styles.brand}>
             <AsciiLogo className={styles.logo} mood={sensorReady ? "happy" : loading ? "loading" : "idle"} />
