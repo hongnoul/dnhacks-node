@@ -70,3 +70,48 @@
 @media (prefers-reduced-motion: reduce) {
   .window, .closing, .tabPanel { animation: none; }
 }
+
+/* Desktop objects and monochrome terminal instruments. */
+.desktop { padding-top: 154px; }
+.desktop .qrFile { position: absolute; z-index: 2; top: 18px; left: 20px; display: grid; justify-items: center; gap: 6px; padding: 5px; border: 1px solid transparent; box-shadow: none; background: transparent; font: 12px/1.4 'Courier New', monospace; }
+.desktop .qrFile:hover:not(:disabled) { background: #ffffff25; border: 1px dotted #222; }
+.fileImage { display: block; padding: 8px; background: #fff; border: 1px solid #111; box-shadow: 2px 2px #333; }
+.fileImage svg { display: block; }
+.fileName { padding: 2px 5px; background: #d0d0d0; color: #111; }
+.windowControls { display: flex; gap: 4px; }
+.windowControls button:last-child { font: bold 26px/1 Arial, sans-serif; }
+.status, .status[data-active='true'], .warning { color: #171717; background: #d0d0d0; border: 1px solid #555; font-family: 'Courier New', monospace; }
+.status::before { content: '[!] '; font-weight: bold; }
+.status[data-active='true']::before { content: '[+] '; }
+.warning::before { content: '[!] '; font-weight: bold; }
+.instrument { background: #111; border: 1px solid #666; padding: 13px; box-shadow: inset 0 0 0 3px #111; }
+.readout h2 { font-family: 'Courier New', monospace; text-transform: uppercase; font-size: 14px; }
+.readout strong, .readout strong[data-detecting='true'] { color: #171717; }
+.readout strong[data-detecting='true'] { text-decoration: underline; }
+.map { filter: grayscale(1); background: #111; border: 1px solid #666; }
+.mascot { display: block; flex: 0 0 auto; margin: 0 0 0 16px; padding: 4px; background: #111; color: #eee; font: bold 2.3px/2.5px 'Courier New', monospace; letter-spacing: 0; white-space: pre; }
+.taskbar { min-height: 72px; }
+.taskActivity { margin-left: auto; }
+.qrViewer { padding: 4px 4px 18px; width: min(360px, calc(100vw - 24px)); background: #dedede; color: #111; border: 2px solid; border-color: #fff #333 #333 #fff; box-shadow: 3px 3px #111; }
+.qrViewer::backdrop { background: #0008; }
+.qrViewer .titlebar { font-size: 13px; }
+.qrImage { padding: 24px; background: white; margin: 16px auto; width: fit-content; max-width: calc(100% - 24px); }
+.qrImage svg { display: block; width: 100%; height: auto; }
+.qrViewer p, .qrViewer a { display: block; margin: 8px 16px; font: 12px/1.5 'Courier New', monospace; color: #111; overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  .desktop { padding-top: 150px; }
+  .desktop .qrFile { top: 12px; left: 12px; }
+  .taskbar { flex-wrap: nowrap; }
+  .taskActivity { order: initial; width: auto; max-width: 100px; text-align: left; font-size: 10px; }
+  .mascot { margin-left: 0; font-size: 1.7px; line-height: 2px; }
+  .taskbar button:first-of-type { font-size: 11px; padding: 8px; }
+}
+
+.videoFile { position: absolute; z-index: 2; top: 152px; left: 20px; display: grid; justify-items: center; gap: 6px; padding: 5px; border: 1px solid transparent; color: #111; text-decoration: none; font: 12px/1.4 'Courier New', monospace; }
+.videoFile:hover { background: #ffffff25; border: 1px dotted #222; color: #111; }
+.videoImage { width: 90px; height: 90px; display: grid; place-content: center; text-align: center; background: #ddd; border: 2px solid #222; box-shadow: 2px 2px #333; }
+.videoImage > span { background: #111; color: #eee; width: 64px; font: 28px/48px monospace; border-inline: 5px dotted #ddd; }
+.videoImage small { font: bold 11px/20px 'Courier New', monospace; }
+@media (min-width: 1100px) { .desktop { padding-top: 88px; } }
+@media (max-width: 1099px) { .desktop { padding-top: 294px; } }
+@media (max-width: 560px) { .videoFile { top: 146px; left: 12px; } }

@@ -7,6 +7,8 @@ import type { Score } from "./scoring";
 import { ConfidenceGraph } from "./ConfidenceGraph";
 import { RoomMap } from "./RoomMap";
 import { TrajectoryHero } from "./TrajectoryHero";
+import QRCode from "react-qr-code";
+import { AsciiLogo } from "./AsciiLogo";
 import styles from "./SensorDesktop.module.css";
 
 const tabs = ["Monitor", "Mesh", "Diagnostics"] as const;
@@ -17,6 +19,10 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
   mesh: Mesh | null; view: MeshView | null; score: Score;
   detections: number; micError: string | null; onStop: () => void;
 }) {
+  const [joinUrl, setJoinUrl] = useState("");
+  const [qrOpen, setQrOpen] = useState(false);
+  const qrDialog = useRef<HTMLDialogElement>(null);
+  const qrFile = useRef<HTMLButtonElement>(null);
   const [tab, setTab] = useState<Tab>("Monitor");
   const [minimized, setMinimized] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -32,6 +38,10 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
       if (tabs.includes(saved?.tab)) setTab(saved.tab);
       if (typeof saved?.minimized === "boolean") setMinimized(saved.minimized);
     } catch { /* Storage is optional, including in private browsing. */ }
+    const url = new URL("/", window.location.origin);
+    const session = new URLSearchParams(window.location.search).get("session");
+    if (session) url.searchParams.set("session", session);
+    setJoinUrl(url.href);
     setReady(true);
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, []);
@@ -52,6 +62,18 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
     else windowRef.current?.focus();
   }, [minimized, ready]);
 
+  useEffect(() => {
+    if (qrOpen) qrDialog.current?.showModal();
+    else qrDialog.current?.close();
+  }, [qrOpen]);
+
+  function closeSensor() {
+    if (closing) return;
+    setClosing(true);
+    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180;
+    timer.current = setTimeout(onStop, duration);
+  }
+
   function minimize() {
     if (closing) return;
     setClosing(true);
@@ -65,16 +87,28 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
   if (!ready) return <main className={styles.desktop}><TrajectoryHero /></main>;
   return <main className={styles.desktop}>
     <TrajectoryHero />
-    <div className={styles.desktopLabel} aria-hidden="true">SKYMESH / SENSOR WORKSTATION</div>
+    <button ref={qrFile} className={styles.qrFile} type="button" onClick={() => setQrOpen(true)} aria-label="Open skymesh-join.svg">
+      <span className={styles.fileImage}><QRCode value={joinUrl} size={72} /></span>
+      <span className={styles.fileName}>skymesh-join.svg</span>
+    </button>
+    <a className={styles.videoFile} href="https://youtu.be/DUTQkbuzxtk?is=_DargxbSpjJiuzxG" target="_blank" rel="noopener noreferrer" aria-label="Open drone-demo.mp4 on YouTube (new tab)" title="YouTube video shortcut">
+      <span className={styles.videoImage} aria-hidden="true"><span>▶</span><small>MP4</small></span>
+      <span className={styles.fileName}>drone-demo.mp4</span>
+    </a>
+    <dialog ref={qrDialog} className={styles.qrViewer} aria-labelledby="qr-title" onCancel={() => setQrOpen(false)} onClose={() => { setQrOpen(false); qrFile.current?.focus(); }}>
+      <header className={styles.titlebar}><span id="qr-title">skymesh-join.svg</span><button type="button" aria-label="Close QR image" onClick={() => setQrOpen(false)}>×</button></header>
+      <div className={styles.qrImage}><QRCode value={joinUrl} size={256} title="Scan to join this SkyMesh session" /></div>
+      <p>Scan to join this mesh.</p><a href={joinUrl}>{joinUrl}</a>
+    </dialog>
     {!minimized && <section ref={windowRef} tabIndex={-1} aria-label="SkyMesh sensor window" className={`${styles.window} ${closing ? styles.closing : ""}`}>
       <header className={styles.titlebar}>
         <span>▧ SkyMesh · Sensor</span>
-        <button type="button" aria-label="Minimize sensor window" title="Minimize. Sensor keeps running." onClick={minimize}>_</button>
+        <div className={styles.windowControls}><button type="button" aria-label="Minimize sensor window" title="Minimize. Sensor keeps running." onClick={minimize}>_</button><button type="button" aria-label="Close sensor and return to welcome" title="Close sensor and return to welcome" onClick={closeSensor}>×</button></div>
       </header>
       <div className={styles.body}>
         <div className={styles.heading}>
           <div><p className={styles.eyebrow}>A shared sky. Powered by you.</p><h1>Node {view?.nodeId ?? "…"}</h1></div>
-          <span className={styles.status} role="status" data-active={status === "active"}>● {statusLabel}</span>
+          <span className={styles.status} role="status" data-active={status === "active"}> {statusLabel}</span>
         </div>
         {micError && <p className={styles.warning} role="status">Detector unavailable: {micError}. This node still relays and fuses mesh data, but contributes no microphone readings.</p>}
         <div className={styles.tabs} role="tablist" aria-label="Sensor views">
@@ -93,13 +127,13 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
           <div key={tab} role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} tabIndex={0} className={styles.tabPanel}>
             {tab === "Monitor" && <>
               <div className={styles.readout}><h2>{micError ? "Detector unavailable" : score.detecting ? "DRONE DETECTED" : "Drone confidence"}</h2><strong data-detecting={score.detecting}>{micError ? "N/A" : `${(score.display * 100).toFixed(0)}%`}</strong></div>
-              <div className={styles.instrument}><ConfidenceGraph history={mesh?.history(view?.nodeId ?? "") ?? []} width={Math.max(1, width - 28)} height={200} now={Date.now()} /></div>
+              <div className={styles.instrument}><ConfidenceGraph history={mesh?.history(view?.nodeId ?? "") ?? []} monochrome width={Math.max(1, width - 28)} height={200} now={Date.now()} /></div>
               <dl className={styles.metrics}><div><dt>Detector</dt><dd>{micError ? "Unavailable" : "On-device CRNN"}</dd></div><div><dt>Detections</dt><dd>{detections}</dd></div><div><dt>Signal / noise</dt><dd>{score.snrDb === null ? "—" : `${score.snrDb.toFixed(1)} dB`}</dd></div></dl>
               <p className={styles.note}>Audio stays on this phone. Only detection scores are shared.</p>
             </>}
             {tab === "Mesh" && <>
               <h2>Your mesh picture</h2><p className={styles.note}>Computed on this phone from its own replica, not received from a server.</p>
-              <div className={styles.map}><RoomMap room={DEFAULT_ROOM} positions={view?.positions ?? new Map()} estimate={est ?? null} levels={new Map(view ? [[view.nodeId, score.p]] : [])} width={Math.max(1, width)} /></div>
+              <div className={styles.map}><RoomMap room={DEFAULT_ROOM} positions={view?.positions ?? new Map()} estimate={est ?? null} levels={new Map(view ? [[view.nodeId, score.p]] : [])} width={Math.max(1, width - 2)} /></div>
               <p className={styles.note}>{est?.localised ? `Fused from ${est.nReports} reporting + ${est.nSilent} silent · ±${est.spreadM.toFixed(1)} m${!est.graded ? " · no SNR: coarse" : ""}` : est ? `${est.nReports} detecting · not localised` : (view?.positions.size ?? 0) > 0 ? `Nothing heard · ${view?.listening ?? 0} nodes listening` : "No positioned readings yet. The operator must place nodes."}</p>
             </>}
             {tab === "Diagnostics" && <>
@@ -115,6 +149,6 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
       <footer className={styles.statusbar}><span>{view?.records ?? 0} records</span><span>{view?.neighbours.length ?? 0} neighbours</span><span>{activity}</span></footer>
     </section>}
     {minimized && <div className={styles.minimizedNote}><h1>Sensor window minimized</h1><p>{activity}. Restore the window from the taskbar below.</p></div>}
-    <nav className={styles.taskbar} aria-label="Sensor taskbar"><span className={styles.wordmark}>SkyMesh</span><button ref={taskButton} type="button" aria-expanded={!minimized} onClick={() => minimized ? setMinimized(false) : minimize()}>▧ {minimized ? "Restore sensor" : "Sensor window"}</button><span className={styles.taskActivity} role="status">● {activity}</span><button type="button" onClick={onStop}>Stop sensor</button></nav>
+    <nav className={styles.taskbar} aria-label="Sensor taskbar"><button ref={taskButton} type="button" aria-expanded={!minimized} onClick={() => minimized ? setMinimized(false) : minimize()}>▧ {minimized ? "Restore sensor" : "Sensor window"}</button><span className={styles.taskActivity} role="status">● {activity}</span><AsciiLogo className={styles.mascot} mood="idle" /></nav>
   </main>;
 }

@@ -59,7 +59,7 @@ try {
   release();
   await page.getByText(/Detector unavailable:/).waitFor({ timeout: 30000 });
   assert(await page.getByRole('heading', { name: /^Node / }).isVisible());
-  assert.equal(await page.getByRole('img', { name: 'SkyMesh robot logo in ASCII art' }).count(), 0);
+  assert.equal(await page.getByRole('img', { name: 'SkyMesh robot logo in ASCII art' }).count(), 1);
   assert.deepEqual(errors, []);
   console.log('PASS: four responsive sizes, ASCII logo, classic hover and pressed bevel, retro colors, keyboard focus, loading state, and failed-detector join fallback.');
 } finally { await browser.close(); }

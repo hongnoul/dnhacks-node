@@ -14,11 +14,8 @@ import { useEffect, useRef } from "react";
 import {
   DETECT_THRESHOLD,
   GRAPH_WINDOW_MS,
-  GREEN,
-  GRID,
-  MUTED,
-  RED,
-  RED_FILL,
+  GREEN as DEFAULT_GREEN, GRID as DEFAULT_GRID, MUTED as DEFAULT_MUTED,
+  RED as DEFAULT_RED, RED_FILL as DEFAULT_RED_FILL,
 } from "./detection.ts";
 
 export interface Point {
@@ -33,17 +30,24 @@ export function ConfidenceGraph({
   width,
   height = 90,
   compact = false,
+  monochrome = false,
   now,
 }: {
   history: Point[];
   width: number;
   height?: number;
   compact?: boolean;
+  monochrome?: boolean;
   now: number;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    const GREEN = monochrome ? "#eeeeee" : DEFAULT_GREEN;
+    const RED = monochrome ? "#ffffff" : DEFAULT_RED;
+    const RED_FILL = monochrome ? "rgba(255,255,255,0.14)" : DEFAULT_RED_FILL;
+    const GRID = monochrome ? "#444444" : DEFAULT_GRID;
+    const MUTED = monochrome ? "#aaaaaa" : DEFAULT_MUTED;
     const canvas = ref.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
@@ -148,7 +152,7 @@ export function ConfidenceGraph({
       ctx.fillText("-60s", padL, height - 3);
       ctx.fillText("now", width - padR - 22, height - 3);
     }
-  }, [history, width, height, compact, now]);
+  }, [history, width, height, compact, now, monochrome]);
 
   return <canvas ref={ref} aria-label="Drone confidence over the last 60 seconds" role="img" style={{ width, maxWidth: "100%", height: "auto", aspectRatio: `${width} / ${height}`, display: "block" }} />;
 }

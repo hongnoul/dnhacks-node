@@ -25,6 +25,19 @@ try {
   assert.equal(await page.getByText(/Detector unavailable:/).count(), 0, 'Real ONNX model must load');
   await page.waitForFunction(() => window.sensorStreams.length === 1);
   assert.equal(await page.getByRole('heading', { name: 'Drone confidence' }).evaluate(e => getComputedStyle(e).color), 'rgb(23, 23, 23)');
+  const video = page.getByRole('link', { name: 'Open drone-demo.mp4 on YouTube (new tab)' });
+  assert.equal(await video.getAttribute('href'), 'https://youtu.be/DUTQkbuzxtk?is=_DargxbSpjJiuzxG');
+  assert.equal(await video.getAttribute('target'), '_blank');
+  assert((await video.boundingBox()).y > (await page.getByRole('button', { name: 'Open skymesh-join.svg' }).boundingBox()).y);
+  assert.equal(await page.getByText('SKYMESH / SENSOR WORKSTATION').count(), 0);
+  assert(await page.getByRole('img', { name: 'Drone confidence over the last 60 seconds' }).evaluate(c => { const p = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 0; i < p.length; i += 4) if (p[i] !== p[i+1] || p[i+1] !== p[i+2]) return false; return true; }));
+  assert.equal(await page.getByRole('button', { name: 'Stop sensor', exact: true }).count(), 0);
+  assert(await page.getByRole('img', { name: 'SkyMesh robot logo in ASCII art' }).isVisible());
+  await page.getByRole('button', { name: 'Open skymesh-join.svg' }).click();
+  assert(await page.getByRole('dialog', { name: 'skymesh-join.svg' }).isVisible());
+  assert.equal(await page.getByRole('dialog').getByRole('link').getAttribute('href'), `${base}/`);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.getByRole('dialog').count(), 0);
   const node = await page.getByRole('heading', { name: /^Node / }).textContent();
   const initialSockets = await page.evaluate(() => window.sensorSockets.length);
   for (const width of [1440, 800, 390, 320]) {
@@ -55,7 +68,7 @@ try {
   const recordsAfter = Number(await page.locator('dt').filter({ hasText: /^Records held$/ }).evaluate(e => e.nextElementSibling.textContent));
   assert(recordsAfter > recordsBefore, 'Readings must continue publishing while minimized');
   assert.equal(await page.getByRole('tab', { name: 'Diagnostics', exact: true }).getAttribute('aria-selected'), 'true');
-  await page.getByRole('button', { name: 'Stop sensor', exact: true }).click();
+  await page.getByRole('button', { name: 'Close sensor and return to welcome', exact: true }).click();
   await page.getByRole('button', { name: 'Resume sensor', exact: true }).waitFor();
   await page.waitForFunction(() => window.sensorStreams.every(s => s.getTracks().every(t => t.readyState === 'ended')));
   await page.waitForFunction(() => window.sensorSockets.every(s => s.readyState === WebSocket.CLOSED));
@@ -67,15 +80,17 @@ try {
   assert.equal(await page.getByRole('tab', { name: 'Diagnostics', exact: true }).getAttribute('aria-selected'), 'true');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   assert.equal(await page.getByRole('region', { name: 'SkyMesh sensor window' }).evaluate(e => getComputedStyle(e).animationName), 'none');
-  await page.getByRole('button', { name: 'Stop sensor', exact: true }).click();
+  await page.getByRole('button', { name: 'Close sensor and return to welcome', exact: true }).click();
   assert.deepEqual(errors, []);
   // Failure is still a usable relay, never a misleading zero-confidence sensor.
   const failed = await browser.newPage();
   await failed.route('**/drone_crnn.onnx', route => route.abort());
   await failed.goto(base);
+  await failed.waitForFunction(() => [...document.querySelectorAll('button')].some(b => Object.keys(b).some(k => k.startsWith('__reactProps$'))));
   await failed.getByRole('button', { name: 'Enable microphone & join' }).click();
   await failed.getByText(/Detector unavailable:/).waitFor({ timeout: 60000 });
   assert(await failed.getByText('N/A', { exact: true }).isVisible());
+  assert.equal(await failed.getByText(/Detector unavailable:/).evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(208, 208, 208)');
   assert(await failed.getByRole('tab', { name: 'Mesh', exact: true }).isVisible());
   console.log('PASS: real model + fake microphone, 4 responsive sizes, 3 tabs, keyboard navigation, minimize/restore, stable streams/sockets, stop cleanup, reload/resume, preference restoration, reduced motion, and detector failure.');
 } finally { await browser.close(); }
