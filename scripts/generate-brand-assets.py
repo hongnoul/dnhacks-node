@@ -57,7 +57,11 @@ def main() -> None:
     tile(64, 0.06).resize((32, 32), Image.LANCZOS).convert("RGB").save(PUB / "favicon-32.png")
 
     # Apple touch icon must be opaque (iOS ignores/darkens alpha).
-    tile(180, 0.03).convert("RGB").save(PUB / "icon-180.png")
+    # apple-touch-icon.png is the default path iOS probes (also precomposed).
+    touch = tile(180, 0.03).convert("RGB")
+    touch.save(PUB / "icon-180.png")
+    touch.save(PUB / "apple-touch-icon.png")
+    touch.save(PUB / "apple-touch-icon-precomposed.png")
     tile(192, 0.03).save(PUB / "icon-192.png")
     tile(512, 0.03).save(PUB / "icon-512.png")
     # Maskable: keep the glyph inside the central safe zone (~80% diameter).
