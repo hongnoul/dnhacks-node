@@ -83,3 +83,27 @@ State and computation are distributed: no fused picture exists anywhere but on t
 ## Built at DNHacks 2026
 
 Defense track presented by Second Front Systems. Roles: ML/audio, frontend/operator map, distributed mesh/comms, story/submission.
+
+## Design system
+
+The UI uses IBM Carbon React with the **g100** dark theme. The document-level
+`cds--g100` class supplies first-paint CSS tokens, while `DesignSystem` supplies
+the matching React theme context. Carbon owns buttons, tags, the operations
+header, and the desktop panel selector. Custom maps, graphs, and tables retain
+their domain behavior and use the semantic token bridge in `app/carbon.css`.
+
+- Use `ActionButton` for native button handlers and primary/tertiary/danger hierarchy.
+- Use Carbon components for new controls rather than duplicating their styles.
+- Keep detection, missing data, connection health, and simulation distinct in text.
+- Preserve 44px minimum phone touch targets and reduced-motion support.
+- Do not remove the document theme class: React theme context alone does not set CSS tokens.
+
+UI regression check against a running production or development server:
+
+```bash
+UI_BASE_URL=http://localhost:3000 node tests/carbon-ui.mjs
+```
+
+This checks theme contrast tokens, panel switching, drone-mode controls,
+responsive overflow, and phone enrollment button sizing. Live microphone
+permissions and multi-phone enrollment still require device acceptance testing.

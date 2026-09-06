@@ -1,0 +1,63 @@
+/* Carbon g100 tokens bridge existing visualizations to the component system. */
+:root, .cds--g100 {
+  --bg: var(--cds-background, #161616);
+  --panel: var(--cds-layer-01, #262626);
+  --line: var(--cds-border-subtle-01, #393939);
+  --text: var(--cds-text-primary, #f4f4f4);
+  --fg: var(--text);
+  --dim: var(--cds-text-secondary, #c6c6c6);
+  --accent: var(--cds-link-primary, #78a9ff);
+  --hot: var(--cds-support-error, #ff8389);
+  --ok: var(--cds-support-success, #42be65);
+  --warn: var(--cds-support-warning, #f1c21b);
+}
+body { font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; background: var(--bg); }
+h1, h2, h3 { color: var(--text); font-weight: 400; letter-spacing: 0; }
+h1 { font-size: clamp(24px, 2.4vw, 32px); }
+h2 { font-size: 16px; }
+a { color: var(--cds-link-primary); }
+.operations-shell.cds--header { position: relative; height: 48px; background: #161616; border-bottom: 1px solid var(--line); }
+.operations-shell .cds--header__name { padding-inline: 24px; }
+.shell-product { color: var(--dim); font-weight: 400; margin-left: 12px; }
+.shell-meta { margin-left: auto; padding-right: 16px; }
+.console { min-height: calc(100dvh - 48px); }
+.console-sidebar { background: var(--bg); border-color: var(--line); }
+.console-main { background: var(--bg); }
+.panel, .console .panel { border: 0; border-radius: 0; background: var(--panel); box-shadow: none; }
+.card-heading { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.brand { padding-block: 8px; }
+.brand strong { font-weight: 500; letter-spacing: 0; }
+.brand-mark { border: 0; border-radius: 0; background: #0f62fe; color: #fff; font-family: "IBM Plex Mono", monospace; }
+.eyebrow { color: var(--dim); font-size: 11px; letter-spacing: .08em; font-weight: 500; }
+.metric { border-top: 1px solid var(--cds-border-strong-01, #6f6f6f); }
+.metric strong { font-family: "IBM Plex Mono", monospace; font-weight: 400; font-variant-numeric: tabular-nums; }
+.metrics { gap: 1px; background: var(--line); }
+.dashboard-grid { gap: 16px; }
+.badge, .empty-state { border-radius: 0; }
+.dashboard table { font-family: "IBM Plex Sans", sans-serif; }
+.dashboard th { background: var(--cds-layer-02, #393939); color: var(--text); font-weight: 600; }
+.dashboard td { border-bottom: 1px solid var(--line); }
+.dashboard td, .dashboard th { padding: 10px 8px; font-family: inherit; }
+.panel-switcher .cds--form-item, .panel-switcher .cds--select { width: 100%; }
+.panel-switcher select { max-width: none; border-radius: 0; }
+.join-screen { background: var(--bg); border-top: 4px solid #0f62fe; }
+.join-panel { border-top: 1px solid var(--cds-border-strong-01); }
+.join-title { font-weight: 300; letter-spacing: 0; }
+.join-panel .cds--btn { width: 100%; max-width: none; min-height: 48px; }
+.join-steps { list-style: decimal; }
+.node-screen { padding-top: 32px; }
+.cds--btn { flex-shrink: 0; }
+.row { flex-wrap: wrap; }
+@media (min-width: 1000px) and (min-height: 650px) {
+  .console { height: calc(100dvh - 48px); min-height: 0; }
+  .console-sidebar, .console-main { overflow-y: auto; }
+  .dashboard-cards > .panel { overflow-y: auto; }
+  .panel-switcher { flex-shrink: 0; }
+}
+@media (max-width: 520px) {
+  .shell-meta { display: none; }
+  .operations-shell .cds--header__name { padding-inline: 16px; }
+  .node-screen .cds--btn { min-height: 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) { .cds--btn { transition: none; } }

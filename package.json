@@ -17,18 +17,20 @@
     "serve": "server/.venv/bin/uvicorn relay:app --app-dir server --host 0.0.0.0 --port 8001"
   },
   "dependencies": {
+    "@carbon/react": "^1.115.0",
+    "@carbon/styles": "^1.114.0",
     "next": "^15.4.6",
+    "onnxruntime-web": "1.18.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "onnxruntime-web": "1.18.0",
-    "three": "^0.185.1",
-    "react-qr-code": "^2.2.0"
+    "react-qr-code": "^2.2.0",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/node": "^22",
     "@types/react": "^19",
+    "@types/three": "^0.185.4",
     "playwright": "^1.63.0",
-    "typescript": "^5",
-    "@types/three": "^0.185.4"
+    "typescript": "^5"
   }
 }

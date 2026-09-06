@@ -14,18 +14,22 @@
 
 "use client";
 
+import { OperationsHeader } from "../lib/DesignSystem";
+import { Tag } from "@carbon/react";
 import { JoinCard } from "../lib/JoinCard.tsx";
 import { DroneStage } from "../lib/DroneStage.tsx";
 import { AdminDashboard } from "../lib/AdminDashboard.tsx";
 
 export default function StationPage() {
   return (
+    <>
+    <OperationsHeader />
     <main className="console">
       <aside className="console-sidebar" aria-label="Join and demonstrate">
         <div className="brand"><span className="brand-mark">S</span><div><strong>SkyMesh</strong><div className="eyebrow">Distributed detection</div></div></div>
         <section className="panel join-card"><JoinCard compact /></section>
         <section className="panel audio-card">
-          <div className="card-heading"><h2>Drone audio demo</h2><span className="badge simulation">Demo</span></div>
+          <div className="card-heading"><h2>Drone audio demo</h2><Tag type="purple" size="sm">Demo</Tag></div>
           <p className="dim">Play a sample near a joined phone to test on-device detection.</p>
           <DroneStage height={220} />
         </section>
@@ -33,5 +37,6 @@ export default function StationPage() {
       </aside>
       <div className="console-main"><AdminDashboard /></div>
     </main>
+    </>
   );
 }

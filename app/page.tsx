@@ -6,6 +6,8 @@
 
 "use client";
 
+import { ActionButton } from "./lib/DesignSystem";
+
 import { useEffect, useRef, useState } from "react";
 import { useMesh } from "./lib/useMesh.ts";
 import { MicScorer, SILENT, type Score } from "./lib/scoring.ts";
@@ -96,14 +98,14 @@ export default function NodePage() {
             Help the mesh listen for drones. Detection runs on your phone. Only detection scores are shared, never your audio.
           </p>
           <ol className="join-steps"><li>Allow microphone access</li><li>Wait for the operator to admit you</li><li>Keep this screen open to listen</li></ol>
-          <button
+          <ActionButton
             className="primary"
             style={{ fontSize: 18, padding: "14px 32px" }}
             onClick={join}
             disabled={loading}
           >
             {loading ? "Preparing your sensor…" : "Enable microphone & join"}
-          </button>
+          </ActionButton>
           <p className="dim" style={{ fontSize: 12 }}>
             {loading
               ? "Fetching the CRNN (~6 MB, cached after the first visit)."

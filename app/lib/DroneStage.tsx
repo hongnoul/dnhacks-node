@@ -14,6 +14,8 @@
 
 "use client";
 
+import { ActionButton } from "./DesignSystem";
+
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -206,7 +208,7 @@ export function DroneStage({ height = 240 }: { height?: number }) {
       />
       <div className="row" style={{ gap: 4 }}>
         {SOUNDS.map((s) => (
-          <button
+          <ActionButton
             key={s.id}
             onClick={() => pick(s.id)}
             style={{
@@ -216,18 +218,18 @@ export function DroneStage({ height = 240 }: { height?: number }) {
             }}
           >
             {s.label}
-          </button>
+          </ActionButton>
         ))}
       </div>
 
       {active.kind === "audio" ? (
-        <button
+        <ActionButton
           className={spin ? "danger" : "primary"}
           style={{ fontSize: 15, padding: "10px 16px", width: "100%" }}
           onClick={toggle}
         >
           {spin ? "stop" : `play ${active.label}`}
-        </button>
+        </ActionButton>
       ) : (
         <iframe
           key={active.id}

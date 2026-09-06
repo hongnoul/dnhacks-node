@@ -11,6 +11,9 @@
 
 "use client";
 
+import { Select, SelectItem, Tag } from "@carbon/react";
+import { ActionButton } from "./DesignSystem";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AdminChannel, edgesToTopology, preset, type Preset } from "./admin.ts";
 import { relayUrl, sessionId } from "./config.ts";
@@ -74,9 +77,9 @@ function PageControls({ label, count, size, offset, onPage }: { label: string; c
   if (count <= size) return null;
   const page = offset / size;
   return <nav className="page-controls" aria-label={`${label} pages`}>
-    <button aria-label={`Previous ${label.toLowerCase()}`} disabled={page === 0} onClick={() => onPage(page - 1)}>‹</button>
+    <ActionButton aria-label={`Previous ${label.toLowerCase()}`} disabled={page === 0} onClick={() => onPage(page - 1)}>‹</ActionButton>
     <span>{offset + 1}–{Math.min(offset + size, count)} of {count}</span>
-    <button aria-label={`Next ${label.toLowerCase()}`} disabled={offset + size >= count} onClick={() => onPage(page + 1)}>›</button>
+    <ActionButton aria-label={`Next ${label.toLowerCase()}`} disabled={offset + size >= count} onClick={() => onPage(page + 1)}>›</ActionButton>
   </nav>;
 }
 
@@ -553,16 +556,16 @@ export function AdminDashboard() {
               {pending.slice(pendingOffset, pendingOffset + 2).map((n) => (
                 <span key={n.node} className="row" style={{ gap: 6, marginRight: 8 }}>
                   <span>{n.node}</span>
-                  <button className="primary" onClick={() => chan?.admit(n.node)}>
+                  <ActionButton className="primary" onClick={() => chan?.admit(n.node)}>
                     admit
-                  </button>
+                  </ActionButton>
                 </span>
               ))}
               <PageControls label="Pending sensors" count={pending.length} size={2} offset={pendingOffset} onPage={setPendingPage} />
               {pending.length > 1 && (
-                <button onClick={() => pending.forEach((n) => chan?.admit(n.node))}>
+                <ActionButton onClick={() => pending.forEach((n) => chan?.admit(n.node))}>
                   admit all
-                </button>
+                </ActionButton>
               )}
             </div>
           </div>
@@ -570,7 +573,7 @@ export function AdminDashboard() {
       )}
       <header className="dashboard-header">
         <div><p className="eyebrow">Operations console</p><h1>Shared airspace awareness</h1><p className="dim">A live picture built by the mesh, not a central detector.</p></div>
-        <span className={`badge ${chan?.connected ? "live" : "offline"}`} role="status">Relay {chan?.connected ? "connected" : "offline"}</span>
+        <span role="status"><Tag type={chan?.connected ? "green" : "warm-gray"}>Relay {chan?.connected ? "connected" : "offline"}</Tag></span>
       </header>
       <section className="metrics" aria-label="Mesh status">
         <div className="panel metric"><span>Admitted sensors</span><strong>{admitted.length}</strong><small>Phones in this session</small></div>
@@ -581,7 +584,7 @@ export function AdminDashboard() {
 
       <div className="dashboard-grid">
         <div className="panel map-card">
-          <div className="card-heading"><h2>Mesh overview</h2><span className="badge">Room coordinates</span></div>
+          <div className="card-heading"><h2>Mesh overview</h2><Tag type="cool-gray" size="sm">Room coordinates</Tag></div>
           <div ref={mapBox.ref} className="map-viewport">
             <RoomMap
               room={DEFAULT_ROOM}
@@ -648,20 +651,20 @@ export function AdminDashboard() {
         </div>
 
         <div className="dashboard-cards" data-panel={panel}>
-          <label className="panel-switcher">Console panel
-            <select aria-label="Console panel" value={panel} onChange={e => setPanel(e.target.value)}>
-              <option value="confidence">Sensor confidence</option>
-              <option value="topology">Network topology</option>
-              <option value="scenario">Scenario controls</option>
-              <option value="activity">Scenario activity</option>
-              <option value="links">Link emulation</option>
-              <option value="nodes">Sensor directory</option>
-              {selected && <option value="inspector">Selected sensor</option>}
-            </select>
-          </label>
+          <div className="panel-switcher">
+            <Select id="console-panel" labelText="Console panel" size="md" value={panel} onChange={e => setPanel(e.target.value)}>
+              <SelectItem value="confidence" text="Sensor confidence" />
+              <SelectItem value="topology" text="Network topology" />
+              <SelectItem value="scenario" text="Scenario controls" />
+              <SelectItem value="activity" text="Scenario activity" />
+              <SelectItem value="links" text="Link emulation" />
+              <SelectItem value="nodes" text="Sensor directory" />
+              {selected && <SelectItem value="inspector" text="Selected sensor" />}
+            </Select>
+          </div>
           <div className="panel" data-section="confidence">
             {sensorPager}
-            <div className="card-heading"><h2>Sensor confidence</h2><span className="badge live">Live readings</span></div>
+            <div className="card-heading"><h2>Sensor confidence</h2><Tag type="teal" size="sm">Live readings</Tag></div>
             <p className="dim" style={{ fontSize: 12, marginTop: 0 }}>
               Each node&apos;s on-device CRNN confidence, drawn from records that gossiped
               here. Dashed line is SkyMesh&apos;s {DETECT_THRESHOLD} threshold.
@@ -698,11 +701,11 @@ export function AdminDashboard() {
           <div className="panel" data-section="topology">
             <h2>Network topology</h2>
             <div className="row" style={{ flexWrap: "wrap" }}>
-              <button onClick={() => applyPreset("bridge")}>two clusters + bridge</button>
-              <button onClick={() => applyPreset("ring")}>ring</button>
-              <button onClick={() => applyPreset("full")}>full mesh</button>
-              <button onClick={autoPlace}>auto-place</button>
-              <button
+              <ActionButton onClick={() => applyPreset("bridge")}>two clusters + bridge</ActionButton>
+              <ActionButton onClick={() => applyPreset("ring")}>ring</ActionButton>
+              <ActionButton onClick={() => applyPreset("full")}>full mesh</ActionButton>
+              <ActionButton onClick={autoPlace}>auto-place</ActionButton>
+              <ActionButton
                 className={mode === "placing" ? "primary" : ""}
                 onClick={() => {
                   if (mode === "placing") {
@@ -717,7 +720,7 @@ export function AdminDashboard() {
                 }}
               >
                 {mode === "placing" ? "cancel place" : "place node"}
-              </button>
+              </ActionButton>
             </div>
             <p className="dim" style={{ fontSize: 12, marginBottom: 0 }}>
               Adjacency is imposed here — every phone can physically reach every other.
@@ -728,7 +731,7 @@ export function AdminDashboard() {
 
           <div className="panel" data-section="scenario">
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <h2 style={{ margin: 0 }}>Scenario controls <span className="badge simulation">Simulation</span></h2>
+              <h2 style={{ margin: 0 }}>Scenario controls <Tag type="purple" size="sm">Simulation</Tag></h2>
               <span
                 className="dim"
                 style={{
@@ -740,10 +743,10 @@ export function AdminDashboard() {
               </span>
             </div>
             <div className="row" style={{ flexWrap: "wrap", marginTop: 8 }}>
-              <button onClick={dronePhase === "idle" ? startDroneMode : resetDrone}>
+              <ActionButton onClick={dronePhase === "idle" ? startDroneMode : resetDrone}>
                 {dronePhase === "idle" ? "◈ simulate drone" : "reset drone"}
-              </button>
-              <button
+              </ActionButton>
+              <ActionButton
                 className={mode === "impact" ? "primary" : ""}
                 onClick={() => {
                   if (mode === "impact") {
@@ -756,17 +759,17 @@ export function AdminDashboard() {
                 }}
               >
                 {mode === "impact" ? "cancel impact" : "◌ simulate impact"}
-              </button>
-              <button onClick={disableRandomNode}>− disable random node</button>
-              <button
+              </ActionButton>
+              <ActionButton onClick={disableRandomNode}>− disable random node</ActionButton>
+              <ActionButton
                 className={interference ? "primary" : ""}
                 onClick={() => setInterferenceOn(!interference)}
               >
                 {interference ? "≋ interference on (clear)" : "≋ simulate interference"}
-              </button>
-              <button onClick={replayScenario} disabled={replaying}>
+              </ActionButton>
+              <ActionButton onClick={replayScenario} disabled={replaying}>
                 {replaying ? "↻ replaying…" : "↻ replay scenario"}
-              </button>
+              </ActionButton>
             </div>
             <div className="row" style={{ marginTop: 8, fontSize: 12 }}>
               <span className="dim">
@@ -781,13 +784,13 @@ export function AdminDashboard() {
                 <span style={{ color: "var(--warn)" }}>{droneStatus}</span>
                 {dronePhase === "ready" && (
                   <div className="row" style={{ marginTop: 6 }}>
-                    <button className="primary" onClick={startFlight}>start flight</button>
-                    <button onClick={resetDrone}>remove drone</button>
+                    <ActionButton className="primary" onClick={startFlight}>start flight</ActionButton>
+                    <ActionButton onClick={resetDrone}>remove drone</ActionButton>
                   </div>
                 )}
                 {(dronePhase === "complete" || dronePhase === "flying") && (
                   <div className="row" style={{ marginTop: 6 }}>
-                    <button onClick={resetDrone}>remove drone</button>
+                    <ActionButton onClick={resetDrone}>remove drone</ActionButton>
                   </div>
                 )}
               </div>
@@ -845,7 +848,7 @@ export function AdminDashboard() {
             <div className="panel" data-section="inspector">
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <h2 style={{ margin: 0 }}>{selected}</h2>
-                <button onClick={() => { setSelected(null); setPanel("confidence"); }} aria-label="Close inspector">×</button>
+                <ActionButton onClick={() => { setSelected(null); setPanel("confidence"); }} aria-label="Close inspector">×</ActionButton>
               </div>
               <dl style={{ display: "grid", gap: 4, fontSize: 13, margin: "8px 0" }}>
                 <div className="row" style={{ justifyContent: "space-between" }}>
@@ -888,9 +891,9 @@ export function AdminDashboard() {
           <div className="panel" data-section="links">
             <div className="row" style={{ justifyContent: "space-between" }}>
               <h2 style={{ margin: 0 }}>link emulation</h2>
-              <button onClick={() => setShowLinks((v) => !v)}>
+              <ActionButton onClick={() => setShowLinks((v) => !v)}>
                 {showLinks ? "hide" : "show"}
-              </button>
+              </ActionButton>
             </div>
             <p className="dim" style={{ fontSize: 12, margin: "6px 0 0" }}>
               Network conditions, not detection. These stand in for radio links: latency
@@ -906,12 +909,12 @@ export function AdminDashboard() {
                   <tr key={linkKey(l.a, l.b)}>
                     <td>{l.a}–{l.b}</td>
                     <td>
-                      <button
+                      <ActionButton
                         className={l.up ? "danger" : ""}
                         onClick={() => chan?.setLink(l.a, l.b, { up: !l.up })}
                       >
                         {l.up ? "cut" : "restore"}
-                      </button>
+                      </ActionButton>
                     </td>
                     <td style={{ width: 120 }}>
                       <input
@@ -933,16 +936,16 @@ export function AdminDashboard() {
             </table>
             )}
             <div className="row" style={{ marginTop: 8, flexWrap: "wrap" }}>
-              <button
+              <ActionButton
                 onClick={() => sensorLinks.forEach((l) => chan?.setLink(l.a, l.b, { latency_ms: 500, loss: 0.2 }))}
               >
                 degrade all (500 ms, 20%)
-              </button>
-              <button
+              </ActionButton>
+              <ActionButton
                 onClick={() => sensorLinks.forEach((l) => chan?.setLink(l.a, l.b, { latency_ms: 50, loss: 0, up: true }))}
               >
                 restore all
-              </button>
+              </ActionButton>
             </div>
           </div>
 
