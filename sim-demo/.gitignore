@@ -11,3 +11,8 @@ app/lib/vendor/
 public/ort/
 public/drone_crnn.onnx
 public/drone-demo.wav
+public/drone-tone.wav
+public/models/
+
+# static export output (npm run build:static)
+out/

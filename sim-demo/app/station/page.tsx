@@ -24,10 +24,24 @@ import QRCode from "react-qr-code";
 import { sessionId } from "../lib/config.ts";
 
 const MODEL_SRC = "/models/drone-sillyfear.glb";
-const TONE_SRC = "/drone-tone.wav";
+
+// Drone is the real thing (DADS clips). Wind and music are ml-demo's
+// false-positive stress tests: play them loud and the CRNN should stay quiet,
+// which is a more convincing demo than only ever showing it succeed.
+const SOUNDS = [
+  { id: "drone", label: "drone", kind: "audio", src: "/drone-tone.wav",
+    note: "Real DADS drone audio. Detection should trip within about a second." },
+  { id: "wind", label: "wind", kind: "embed", src: "https://www.youtube.com/embed/sT5f1jBJHng",
+    note: "Externality test: broadband noise. Detection should stay quiet." },
+  { id: "music", label: "music", kind: "embed", src: "https://www.youtube.com/embed/kRqCxuF2bms",
+    note: "Externality test: music. Detection should stay quiet." },
+] as const;
+
+type SoundId = (typeof SOUNDS)[number]["id"];
 
 export default function StationPage() {
   const [spin, setSpin] = useState(false);
+  const [sound, setSound] = useState<SoundId>("drone");
   const [joinUrl, setJoinUrl] = useState("");
   const [session, setSession] = useState("");
   const [modelError, setModelError] = useState<string | null>(null);
@@ -60,6 +74,15 @@ export default function StationPage() {
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Pin the canvas to the box rather than letting it size the box. Without
+    // this the canvas lays out at its *attribute* width (CSS px = w x dpr),
+    // which grows the flex parent, which retriggers the ResizeObserver, which
+    // grows it again — a doubling loop that reached 67 million px wide on a
+    // retina display before WebGL gave up and rendered nothing. Invisible at
+    // dpr 1, which is why headless testing missed it.
+    renderer.domElement.style.display = "block";
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
     mount.appendChild(renderer.domElement);
 
     scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x0b0f14, 2.2));
@@ -115,10 +138,12 @@ export default function StationPage() {
     let raf = 0;
     let last = performance.now();
     const resize = () => {
+      // clientWidth of the mount, never of the canvas: reading the canvas back
+      // is what closes the feedback loop.
       const w = mount.clientWidth;
       const h = mount.clientHeight;
       if (!w || !h) return;
-      renderer.setSize(w, h, false);
+      renderer.setSize(w, h, false); // CSS size is fixed at 100% above
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
     };
@@ -149,7 +174,12 @@ export default function StationPage() {
     };
   }, []);
 
+  const active = SOUNDS.find((s) => s.id === sound)!;
+
   function toggle() {
+    // Only the drone clip spins the props — the externality tests are meant to
+    // look and sound like something that is not a drone.
+    if (active.kind !== "audio") return;
     const el = audioRef.current;
     if (!el) return;
     if (spin) {
@@ -162,6 +192,14 @@ export default function StationPage() {
       void el.play().catch(() => {});
       setSpin(true);
     }
+  }
+
+  function pick(id: SoundId) {
+    const el = audioRef.current;
+    el?.pause();
+    if (el) el.currentTime = 0;
+    setSpin(false);
+    setSound(id);
   }
 
   return (
@@ -202,16 +240,43 @@ export default function StationPage() {
           Admit new nodes on <a href={`/admin/?session=${session}`} style={{ color: "var(--accent)" }}>/admin</a>.
         </div>
 
-        <div style={{ marginTop: "auto" }}>
-          <button
-            className={spin ? "danger" : "primary"}
-            style={{ fontSize: 16, padding: "12px 20px", width: "100%" }}
-            onClick={toggle}
-          >
-            {spin ? "stop drone" : "play drone"}
-          </button>
-          <p className="dim" style={{ fontSize: 11, marginTop: 8 }}>
-            Real DADS drone audio. Volume up, hold the speaker 10–30 cm from the phones.
+        <div style={{ marginTop: "auto", display: "grid", gap: 8 }}>
+          <div className="row" style={{ gap: 4 }}>
+            {SOUNDS.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => pick(s.id)}
+                style={{
+                  flex: 1,
+                  borderColor: sound === s.id ? "var(--accent)" : undefined,
+                  color: sound === s.id ? "var(--accent)" : undefined,
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          {active.kind === "audio" ? (
+            <button
+              className={spin ? "danger" : "primary"}
+              style={{ fontSize: 16, padding: "12px 20px", width: "100%" }}
+              onClick={toggle}
+            >
+              {spin ? "stop" : `play ${active.label}`}
+            </button>
+          ) : (
+            <iframe
+              key={active.id}
+              src={active.src}
+              title={active.label}
+              allow="autoplay; encrypted-media"
+              style={{ width: "100%", aspectRatio: "16 / 9", border: 0, borderRadius: 8 }}
+            />
+          )}
+
+          <p className="dim" style={{ fontSize: 11, margin: 0 }}>
+            {active.note} Volume up, speaker 10–30 cm from the phones.
           </p>
           {modelError && (
             <p style={{ color: "var(--warn)", fontSize: 11 }}>3D model failed: {modelError}</p>
@@ -223,9 +288,15 @@ export default function StationPage() {
         ref={mountRef}
         onClick={toggle}
         title="click to play drone audio"
-        style={{ flex: 1, cursor: "pointer", background: "radial-gradient(circle at 50% 40%, #16202c, #0b0f14)" }}
+        style={{
+          flex: 1,
+          minWidth: 0, // flex children default to min-content; without this the
+          overflow: "hidden", // canvas can push the layout instead of fitting it
+          cursor: active.kind === "audio" ? "pointer" : "default",
+          background: "radial-gradient(circle at 50% 40%, #16202c, #0b0f14)",
+        }}
       />
-      <audio ref={audioRef} src={TONE_SRC} preload="auto" />
+      <audio ref={audioRef} src="/drone-tone.wav" preload="auto" />
     </main>
   );
 }

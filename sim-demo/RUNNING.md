@@ -11,8 +11,10 @@ Two processes:
 
 Then:
 
-- **`/station`** — the laptop screen. QR to put phones on this session, plus a clickable
-  3D drone that plays real DADS audio so every phone hears one at once.
+- **`/station`** — the laptop screen. QR to put phones on this session, a clickable 3D
+  drone playing real DADS audio, and wind/music selections as false-positive stress
+  tests: play those loud and detection should stay quiet, which is more convincing than
+  only ever showing it succeed.
 - **`/admin`** — operator console. Admit nodes, place them, draw the topology, cut links.
 - **`/`** — a sensor node. One tap to join; needs mic permission.
 
