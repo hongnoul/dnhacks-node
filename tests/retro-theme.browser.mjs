@@ -14,6 +14,18 @@ try {
   assert.equal(await color('.panel', 'backgroundColor'), 'rgb(222, 222, 222)');
   assert.equal(await color('.retro-console-header', 'backgroundColor'), 'rgb(0, 0, 128)');
   assert.equal(await color('.map-viewport', 'color'), 'rgb(244, 244, 244)');
+  assert.equal(await color('.panel', 'borderTopStyle'), 'solid');
+  assert.equal(await color('.panel', 'borderTopWidth'), '2px');
+  assert.equal(await color('.panel', 'borderRadius'), '0px');
+  assert.notEqual(await color('.panel', 'borderTopColor'), await color('.panel', 'borderBottomColor'));
+  assert.match(await color('main', 'fontFamily'), /Arial/);
+  assert.match(await color('.metric strong', 'fontFamily'), /Courier New/);
+  assert.equal(await color('.map-viewport', 'backgroundColor'), 'rgb(22, 22, 22)');
+  assert.equal(await color('.geographic-map', 'filter'), 'none');
+  assert.equal(await page.locator('.retro-console').evaluate(el => getComputedStyle(el).getPropertyValue('--hot').trim()), '#a01f0f');
+  assert.equal(await page.locator('.retro-console').evaluate(el => getComputedStyle(el).getPropertyValue('--ok').trim()), '#135c35');
+  assert.equal(await page.locator('.retro-console').evaluate(el => getComputedStyle(el).getPropertyValue('--warn').trim()), '#705000');
+  assert.equal(await page.locator('.join-card svg').isVisible(), true);
   await page.getByRole('button', { name: 'Link participants', exact: true }).click();
   await page.mouse.move(0, 0);
   assert.equal(await color('.cds--btn--primary', 'backgroundColor'), 'rgb(0, 0, 128)');
