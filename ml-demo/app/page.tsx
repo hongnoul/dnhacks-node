@@ -21,6 +21,12 @@ const DISPLAY_ALPHA = 0.6;
 // Max-hold: keep the displayed peak for this long so a brief 1.0 spike
 // (one 1 s window sliding past the drone) stays visible across ticks.
 const PEAK_HOLD_MS = 1500;
+// Marginal-trip: a distant drone may sit at 0.30-0.49 forever and never
+// cross 0.5. Trip the pill if the raw score holds above MARGINAL_FLOOR for
+// MARGINAL_TICKS straight ticks (~3 at 4 Hz × 250 ms ≈ 0.75 s of sustained
+// drone-like audio). Noise clips score <0.06 sustained, so 0.30 is safe.
+const MARGINAL_FLOOR = 0.3;
+const MARGINAL_TICKS = 3;
 
 // Graph: show the last 60 s, keep the whole session (4 Hz → 14400 pts/hour).
 const WINDOW_MS = 60_000;
@@ -194,6 +200,7 @@ export default function NodePage() {
   const detectorRef = useRef<DroneDetector | null>(null);
   const scoringRef = useRef(false); // skip ticks while an inference is in flight
   const wasDetectingRef = useRef(false);
+  const marginalRef = useRef(0); // straight ticks with raw >= MARGINAL_FLOOR
   const smoothRef = useRef<number | null>(null); // EMA of raw scores for display
   const peakRef = useRef<{ p: number; t: number } | null>(null); // max-hold peak
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
@@ -229,6 +236,7 @@ export default function NodePage() {
 
       setHistory([]);
       wasDetectingRef.current = false;
+      marginalRef.current = 0;
       smoothRef.current = null;
       peakRef.current = null;
       setPhase("listening");
@@ -249,7 +257,7 @@ export default function NodePage() {
       const mic = micRef.current;
       const det = detectorRef.current;
       if (!mic || !det?.ready || scoringRef.current) return;
-      const samples = mic.samples(1.0);
+      const samples = mic.samplesInto(1.0);
       if (!samples) return;
       scoringRef.current = true;
       det
@@ -274,8 +282,14 @@ export default function NodePage() {
           });
           // Hysteresis: trip at 0.5, hold until below 0.35 — a flickering
           // 0.45/0.55 signal stays DETECTED instead of chattering.
+          // Plus marginal-trip: 3 straight ticks >= 0.30 trips too (a
+          // distant drone that never quite reaches 0.5). Noise sits <0.06.
           const was = wasDetectingRef.current;
-          const detecting = was ? raw >= RELEASE_THRESHOLD : raw >= DETECT_THRESHOLD;
+          marginalRef.current = raw >= MARGINAL_FLOOR ? marginalRef.current + 1 : 0;
+          const detecting =
+            was
+              ? raw >= RELEASE_THRESHOLD
+              : raw >= DETECT_THRESHOLD || marginalRef.current >= MARGINAL_TICKS;
           if (detecting && !was) {
             setDetections((n) => n + 1);
             setLastDetectAt(new Date().toLocaleTimeString());

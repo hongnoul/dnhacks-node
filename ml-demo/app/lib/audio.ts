@@ -36,6 +36,9 @@ export class MicCapture {
   private ringWrite = 0;
   private ringFilled = 0;
   private freqBuf: Float32Array<ArrayBuffer> = new Float32Array(0);
+  // Scratch snapshot reused by samplesInto() so the 4 Hz tick allocates
+  // nothing in steady state (same sample rate → same buffer, zero GC churn).
+  private scratch: Float32Array<ArrayBuffer> = new Float32Array(0);
   public sampleRate = 48000;
 
   async start(): Promise<void> {
@@ -61,7 +64,10 @@ export class MicCapture {
 
     // ScriptProcessor is deprecated but still the most reliable cross-Safari way
     // to get raw samples without an AudioWorklet module fetch (which needs same-origin HTTPS anyway).
-    this.proc = this.ctx.createScriptProcessor(4096, 1, 1);
+    // 2048-sample buffer (~43 ms at 48 kHz): fresher audio per tick than the
+    // old 4096 (~85 ms), still a low callback rate. Smaller sizes risk
+    // dropouts on mobile Safari; 2048 is the safe floor.
+    this.proc = this.ctx.createScriptProcessor(2048, 1, 1);
     src.connect(this.proc);
     // Safari requires the processor to be connected to destination to fire.
     // Route through a zero-gain node so nothing is audible.
@@ -71,10 +77,14 @@ export class MicCapture {
     mute.connect(this.ctx.destination);
     this.proc.onaudioprocess = (e) => {
       const input = e.inputBuffer.getChannelData(0);
-      for (let i = 0; i < input.length; i++) {
-        this.ring[this.ringWrite] = input[i];
-        this.ringWrite = (this.ringWrite + 1) % this.ring.length;
+      // Block copy (wraps at most once) — no per-sample modulo in the
+      // real-time callback.
+      const first = Math.min(input.length, this.ring.length - this.ringWrite);
+      this.ring.set(input.subarray(0, first), this.ringWrite);
+      if (first < input.length) {
+        this.ring.set(input.subarray(first), 0);
       }
+      this.ringWrite = (this.ringWrite + input.length) % this.ring.length;
       this.ringFilled = Math.min(this.ringFilled + input.length, this.ring.length);
     };
   }
@@ -107,7 +117,8 @@ export class MicCapture {
   }
 
   /** Last `seconds` of raw mono samples from the ring (for on-device scoring).
-   *  Returns null until enough audio has been captured. */
+   *  Returns null until enough audio has been captured.
+   *  Allocating variant — prefer samplesInto() in the hot tick loop. */
   samples(seconds: number): Float32Array | null {
     const want = Math.floor(seconds * this.sampleRate);
     if (this.ringFilled < want) return null;
@@ -119,6 +130,20 @@ export class MicCapture {
     out.set(this.ring.subarray(start, start + first), 0);
     if (first < want) out.set(this.ring.subarray(0, want - first), first);
     return out;
+  }
+
+  /** Zero-alloc snapshot: copies the last `seconds` into a reused scratch
+   *  buffer and returns a view. The view is only valid until the next call —
+   *  the scorer must consume it synchronously (resample/score do). */
+  samplesInto(seconds: number): Float32Array | null {
+    const want = Math.floor(seconds * this.sampleRate);
+    if (this.ringFilled < want) return null;
+    if (this.scratch.length !== want) this.scratch = new Float32Array(want);
+    const start = (this.ringWrite - want + this.ring.length) % this.ring.length;
+    const first = Math.min(want, this.ring.length - start);
+    this.scratch.set(this.ring.subarray(start, start + first), 0);
+    if (first < want) this.scratch.set(this.ring.subarray(0, want - first), first);
+    return this.scratch;
   }
 
   /** Snapshot the most recent CLIP_SECONDS from the ring buffer as a 16-bit PCM WAV.
