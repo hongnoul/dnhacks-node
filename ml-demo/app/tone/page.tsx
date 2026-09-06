@@ -22,9 +22,7 @@ import QRCode from "react-qr-code";
 const APEX_URL = "https://dnhacks-node.vercel.app";
 
 // Wind + music sound externality demos (false-positive stress tests).
-const WIND_YT_WATCH = "https://www.youtube.com/watch?v=sT5f1jBJHng";
 const WIND_YT_EMBED = "https://www.youtube.com/embed/sT5f1jBJHng";
-const MUSIC_YT_WATCH = "https://www.youtube.com/watch?v=kRqCxuF2bms";
 const MUSIC_YT_EMBED = "https://www.youtube.com/embed/kRqCxuF2bms";
 
 export default function TonePage() {
@@ -286,7 +284,6 @@ export default function TonePage() {
         fontFamily: "-apple-system, sans-serif",
       }}
     >
-      {/* LEFT: side panel (~25%) — all texts live here, single column */}
       <aside
         data-testid="side-panel"
         style={{
@@ -298,91 +295,30 @@ export default function TonePage() {
           display: "flex",
           flexDirection: "column",
           gap: 20,
-          fontSize: 13,
-          color: "#374151",
+          alignItems: "stretch",
         }}
       >
-        <div>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>Node</div>
-          <div style={{ color: "#6b7280" }}>Scan to open node</div>
-        </div>
-
-        <div>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>Drone</div>
-          <div data-testid="spin-state" style={{ color: spin ? "#16a34a" : "#6b7280" }}>
-            {spin ? "● playing — click to stop" : "Click drone to play sound"}
-          </div>
-        </div>
-
-        <div>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>
-            Wind sound externality (false-positive check)
-          </div>
-          <div style={{ color: "#6b7280", marginBottom: 6 }}>
-            Play wind noise near the listening phone to simulate a windy-day
-            externality. Expect the node to stay quiet (no false drone alarm).
-          </div>
-          <a
-            href={WIND_YT_WATCH}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "#2563eb" }}
-          >
-            Open on YouTube
-          </a>
-        </div>
-
-        <div>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>
-            Music sound externality (false-positive check)
-          </div>
-          <div style={{ color: "#6b7280", marginBottom: 6 }}>
-            Play loud music near the listening phone to simulate a concert /
-            street-noise externality. Expect the node to stay quiet (no false
-            drone alarm).
-          </div>
-          <a
-            href={MUSIC_YT_WATCH}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "#2563eb" }}
-          >
-            Open on YouTube
-          </a>
-        </div>
-      </aside>
-
-      {/* RIGHT: visuals only, no texts */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 24,
-          padding: 24,
-        }}
-      >
-        <QRCode value={APEX_URL} size={260} data-testid="apex-qr" />
+        <QRCode value={APEX_URL} size={180} data-testid="apex-qr" />
 
         <div
           ref={mountRef}
           data-testid="drone-canvas"
           onClick={() => void toggleDrone()}
           style={{
-            width: 420,
-            maxWidth: "90vw",
-            height: 340,
+            width: "100%",
+            aspectRatio: "4 / 3",
             cursor: "pointer",
             position: "relative",
+            borderRadius: 12,
+            border: spin ? "2px solid #16a34a" : "2px solid transparent",
           }}
         />
 
         <iframe
           data-testid="wind-embed"
-          width="560"
-          height="315"
-          style={{ maxWidth: "90vw", borderRadius: 12, border: "1px solid #e5e7eb" }}
+          width="100%"
+          height="180"
+          style={{ borderRadius: 12, border: "1px solid #e5e7eb" }}
           src={WIND_YT_EMBED}
           title="Wind sound externality demo"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -391,17 +327,19 @@ export default function TonePage() {
 
         <iframe
           data-testid="music-embed"
-          width="560"
-          height="315"
-          style={{ maxWidth: "90vw", borderRadius: 12, border: "1px solid #e5e7eb" }}
+          width="100%"
+          height="180"
+          style={{ borderRadius: 12, border: "1px solid #e5e7eb" }}
           src={MUSIC_YT_EMBED}
-          title="Music sound externality demo (My Bloody Valentine — New You)"
+          title="Music sound externality demo"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
         />
 
         <audio ref={droneRef} src="/drone-demo.wav" loop preload="auto" />
-      </div>
+      </aside>
+
+      <div style={{ flex: 1 }} />
     </main>
   );
 }
