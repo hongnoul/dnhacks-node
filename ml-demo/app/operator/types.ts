@@ -22,3 +22,11 @@ export interface MockNetworkState {
   nodes: OperatorNode[];
   connections: NodeConnection[];
 }
+
+export interface CommandPostConfig {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  gatewayNodeIds: string[];
+}

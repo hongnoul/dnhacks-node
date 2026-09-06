@@ -1,4 +1,12 @@
-import type { MockNetworkState } from "./types";
+import type { CommandPostConfig, MockNetworkState } from "./types";
+
+export const commandPost: CommandPostConfig = {
+  id: "command-post",
+  name: "Command Post",
+  lat: 38.9012,
+  lon: -77.0409,
+  gatewayNodeIds: ["node-charlie"],
+};
 
 export const initialNetwork: MockNetworkState = {
   nodes: [
