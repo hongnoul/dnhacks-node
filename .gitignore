@@ -21,3 +21,7 @@ sim-demo/frontend/node_modules/
 sim-demo/frontend/.next/
 ml-demo/public/ort/
 .vercel
+
+# stray root build output (apps live in ml-demo/ and sim-demo/)
+.next/
+node_modules/
