@@ -48,18 +48,20 @@ def main() -> None:
         img.alpha_composite(m, ((size - inner) // 2, (size - inner) // 2))
         return img
 
-    # Favicon tile: generous padding so the dome survives 16px.
-    fav = tile(64, 0.16)
+    # Favicon + touch tiles: mascot master is already tightly cropped to the
+    # glyph bbox, so pad only for the rounded tile corners. ICO favicon gets
+    # slightly more air so the dome survives 16px.
+    fav = tile(64, 0.06)
     fav.save(PUB / "favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)])
     # Crisp PNG favicon for modern browsers (SVG icon.svg is primary).
-    tile(64, 0.16).resize((32, 32), Image.LANCZOS).convert("RGB").save(PUB / "favicon-32.png")
+    tile(64, 0.06).resize((32, 32), Image.LANCZOS).convert("RGB").save(PUB / "favicon-32.png")
 
     # Apple touch icon must be opaque (iOS ignores/darkens alpha).
-    tile(180, 0.10).convert("RGB").save(PUB / "icon-180.png")
-    tile(192, 0.10).save(PUB / "icon-192.png")
-    tile(512, 0.10).save(PUB / "icon-512.png")
+    tile(180, 0.03).convert("RGB").save(PUB / "icon-180.png")
+    tile(192, 0.03).save(PUB / "icon-192.png")
+    tile(512, 0.03).save(PUB / "icon-512.png")
     # Maskable: keep the glyph inside the central safe zone (~80% diameter).
-    tile(512, 0.22).save(PUB / "icon-512-maskable.png")
+    tile(512, 0.14).save(PUB / "icon-512-maskable.png")
 
     # OG image: dark console backdrop, mascot left, wordmark right.
     W, H = 1200, 630
