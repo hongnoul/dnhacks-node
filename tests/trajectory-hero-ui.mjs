@@ -16,6 +16,9 @@ try {
   const hero=page.locator('[data-trajectory-hero]');
   assert.equal(await hero.getAttribute('aria-hidden'),'true');
   assert.equal(await hero.evaluate(e=>getComputedStyle(e).pointerEvents),'none');
+  assert.equal(await hero.evaluate(e=>getComputedStyle(e).backgroundSize), '4px 4px');
+  assert.match(await hero.evaluate(e=>getComputedStyle(e).backgroundImage), /repeating-conic-gradient/);
+  assert(await hero.locator('svg > g[style]').evaluateAll(es=>es.every(e=>getComputedStyle(e).color==='rgb(0, 0, 0)')));
   const drones=hero.locator('g[style*="offset-path"]');assert.equal(await drones.count(),4);
   const drone=drones.first();
   const before=await drone.evaluate(e=>getComputedStyle(e).offsetDistance);
