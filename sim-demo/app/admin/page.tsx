@@ -5,20 +5,23 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sessionId } from "../lib/config.ts";
 
 export default function AdminRedirect() {
   const router = useRouter();
+  const [session, setSession] = useState("");
   useEffect(() => {
-    router.replace(`/station/?session=${sessionId()}`);
+    const s = sessionId();
+    setSession(s);
+    router.replace(`/station/?session=${s}`);
   }, [router]);
   return (
     <main style={{ padding: 24 }}>
       <p className="dim">
         The operator console moved to{" "}
-        <a href="/station/" style={{ color: "var(--accent)" }}>/station</a> — redirecting…
+        <a href={session ? `/station/?session=${session}` : "/station/"} style={{ color: "var(--accent)" }}>/station</a> — redirecting…
       </p>
     </main>
   );
