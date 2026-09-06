@@ -3,8 +3,7 @@
   align-content: center; justify-items: center; padding: 88px 24px 108px;
   background: #aaa; color: #171717; color-scheme: light; font: 14px/1.5 Arial, Helvetica, sans-serif;
 }
-.desktopLabel { z-index: 1; background: #aaa; padding: 3px 6px; position: absolute; top: 28px; left: 32px; font: 11px 'Courier New', monospace; letter-spacing: .14em; color: #333; }
-.window { position: relative; z-index: 1; width: min(100%, 760px); padding: 4px; background: #dedede; border: 2px solid; border-color: #eee #262626 #262626 #eee; box-shadow: inset 1px 1px #fff, inset -2px -2px #808080, 3px 3px #000; transform-origin: bottom left; animation: windowOpen 220ms steps(4, end) both; }
+.window { position: relative; z-index: 3; width: min(100%, 760px); padding: 4px; background: #dedede; border: 2px solid; border-color: #eee #262626 #262626 #eee; box-shadow: inset 1px 1px #fff, inset -2px -2px #808080, 3px 3px #000; transform-origin: bottom left; animation: windowOpen 220ms steps(4, end) both; }
 .desktop .window:focus { outline: none; }
 .titlebar { min-height: 42px; padding: 3px 4px 3px 12px; background: #000080; color: white; display: flex; align-items: center; justify-content: space-between; font-weight: bold; }
 .desktop button { border: 2px solid; border-color: #fff #343434 #343434 #fff; border-radius: 0; box-shadow: inset -1px -1px #808080; background: #c0c0c0; color: #111; font: 700 13px Arial, Helvetica, sans-serif; min-height: 44px; padding: 8px 14px; transition: none; }
@@ -42,18 +41,12 @@
 .warning { margin: 0 0 20px; padding: 12px; background: #eee5c6; border: 1px solid #958052; color: #5e4700; font-size: 12px; overflow-wrap: anywhere; }
 .statusbar { display: flex; gap: 4px; padding: 0 3px 3px; font: 11px/1.5 'Courier New', monospace; flex-wrap: wrap; }
 .statusbar span { padding: 4px 8px; border: 1px solid; border-color: #808080 #fff #fff #808080; flex: 1 1 auto; }
-.taskbar { position: fixed; z-index: 5; bottom: 0; left: 0; right: 0; display: flex; align-items: center; gap: 8px; padding: 6px 12px max(6px, env(safe-area-inset-bottom)); background: #c0c0c0; border-top: 2px solid #fff; box-shadow: 0 -1px #808080; }
-.wordmark { color: #000080; font-style: italic; font-weight: bold; padding: 0 12px; }
-.taskActivity { margin-left: auto; font: 11px 'Courier New', monospace; }
-.minimizedNote { position: relative; padding: 24px; background: #dedede; border: 2px solid; border-color: #eee #808080 #808080 #eee; max-width: 480px; }
-.minimizedNote p { margin-top: 16px; }
 .closing { animation: windowClose 180ms steps(4, end) both; pointer-events: none; }
 @keyframes windowOpen { from { opacity: 0; transform: translateY(36px) scaleY(.06); } 40% { opacity: 1; transform: translateY(12px) scaleY(.3); } to { opacity: 1; transform: none; } }
 @keyframes windowClose { to { opacity: 0; transform: translateY(60px) scale(.2, .04); } }
 @keyframes tabOpen { from { opacity: .2; clip-path: inset(0 0 90% 0); } to { opacity: 1; clip-path: inset(0); } }
 @media (max-width: 560px) {
   .desktop { padding: 64px 12px 148px; align-content: start; }
-  .desktopLabel { top: 22px; left: 16px; font-size: 10px; }
   .body { padding: 18px 12px; }
   .desktop h1 { font-size: 25px; }
   .heading { gap: 12px; margin-bottom: 18px; }
@@ -62,10 +55,6 @@
   .metrics { gap: 4px; }
   .metrics > div { padding: 6px; }
   .metrics dd { font-size: 11px; }
-  .taskbar { flex-wrap: wrap; gap: 6px; padding-left: 8px; padding-right: 8px; }
-  .wordmark { display: none; }
-  .taskActivity { order: 3; width: 100%; text-align: center; padding: 4px; }
-  .taskbar button:first-of-type { flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
   .window, .closing, .tabPanel { animation: none; }
@@ -89,9 +78,6 @@
 .readout strong, .readout strong[data-detecting='true'] { color: #171717; }
 .readout strong[data-detecting='true'] { text-decoration: underline; }
 .map { filter: grayscale(1); background: #111; border: 1px solid #666; }
-.mascot { display: block; flex: 0 0 auto; margin: 0 0 0 16px; padding: 4px; background: #111; color: #eee; font: bold 2.3px/2.5px 'Courier New', monospace; letter-spacing: 0; white-space: pre; }
-.taskbar { min-height: 72px; }
-.taskActivity { margin-left: auto; }
 .qrViewer { padding: 4px 4px 18px; width: min(360px, calc(100vw - 24px)); background: #dedede; color: #111; border: 2px solid; border-color: #fff #333 #333 #fff; box-shadow: 3px 3px #111; }
 .qrViewer::backdrop { background: #0008; }
 .qrViewer .titlebar { font-size: 13px; }
@@ -101,10 +87,6 @@
 @media (max-width: 560px) {
   .desktop { padding-top: 150px; }
   .desktop .qrFile { top: 12px; left: 12px; }
-  .taskbar { flex-wrap: nowrap; }
-  .taskActivity { order: initial; width: auto; max-width: 100px; text-align: left; font-size: 10px; }
-  .mascot { margin-left: 0; font-size: 1.7px; line-height: 2px; }
-  .taskbar button:first-of-type { font-size: 11px; padding: 8px; }
 }
 
 .videoFile { position: absolute; z-index: 2; top: 152px; left: 20px; display: grid; justify-items: center; gap: 6px; padding: 5px; border: 1px solid transparent; color: #111; text-decoration: none; font: 12px/1.4 'Courier New', monospace; }
@@ -127,3 +109,61 @@
 .videoPlayer { display: block; width: calc(100% - 24px); aspect-ratio: 16 / 9; border: 1px solid #555; margin: 12px; background: #111; }
 .qrViewer { max-height: calc(100dvh - 90px); overflow: auto; }
 .qrViewer .titlebar { position: sticky; top: 0; }
+
+/* The desktop mascot replaces the dock and launches the always-on sensor window. */
+.desktop .sensorFile { position: absolute; z-index: 2; top: 286px; left: 20px; display: grid; justify-items: center; gap: 6px; padding: 5px; border: 1px solid transparent; box-shadow: none; background: transparent; touch-action: none; user-select: none; cursor: grab; font: 12px/1.4 'Courier New', monospace; }
+.desktop .sensorFile:hover:not(:disabled) { background: #ffffff25; border: 1px dotted #222; }
+.sensorImage { width: 90px; height: 90px; display: grid; place-items: center; background: #111; border: 1px solid #ddd; box-shadow: 2px 2px #333; }
+.desktopMascot { margin: 0; padding: 0; color: #eee; background: transparent; font: bold 2.6px/3px 'Courier New', monospace; letter-spacing: 0; white-space: pre; }
+@media (max-width: 1099px) { .desktop { padding-top: 428px; padding-bottom: 24px; } }
+@media (max-width: 560px) { .desktop .sensorFile { top: 280px; left: 12px; } }
+
+/* Scattered desktop defaults, with larger, legible file artwork. */
+.desktop .qrFile, .desktop .videoFile, .desktop .sensorFile { font-size: 14px; gap: 8px; }
+.desktop .sensorFile { top: 12vh; left: max(24px, calc((100vw - 760px) / 2 - 190px)); }
+.desktop .qrFile { top: 40vh; left: auto; right: max(24px, calc((100vw - 760px) / 2 - 190px)); }
+.desktop .videoFile { top: 62vh; left: max(20px, calc((100vw - 760px) / 2 - 220px)); }
+.fileImage { padding: 12px; }
+.fileImage svg { width: 120px; height: 120px; }
+.sensorImage, .videoImage { width: 146px; height: 146px; }
+.desktopMascot { font-size: 4px; line-height: 4.5px; }
+.videoImage > span { width: 106px; font-size: 42px; line-height: 86px; border-inline-width: 8px; }
+.videoImage small { font-size: 15px; line-height: 28px; }
+@media (min-width: 1100px) { .desktop { padding-top: 88px; padding-bottom: 48px; } }
+@media (max-width: 1099px) {
+  .desktop { padding-top: 226px; padding-bottom: 24px; }
+  .desktop .sensorFile { top: 20px; left: 5vw; }
+  .desktop .qrFile { top: 20px; left: auto; right: 5vw; }
+  .desktop .videoFile { top: 20px; left: calc(50% - 80px); }
+}
+@media (max-width: 560px) {
+  .desktop { padding-top: 362px; }
+  .desktop .sensorFile { top: 14px; left: 12px; }
+  .desktop .qrFile { top: 90px; right: 12px; }
+  .desktop .videoFile { top: 188px; left: 12px; }
+  .desktop .qrFile, .desktop .videoFile, .desktop .sensorFile { font-size: 12px; gap: 6px; }
+  .sensorImage, .videoImage { width: 120px; height: 120px; }
+  .fileImage svg { width: 96px; height: 96px; }
+  .desktopMascot { font-size: 3.3px; line-height: 3.7px; }
+  .videoImage > span { width: 88px; line-height: 64px; }
+}
+
+.stationFile { position: absolute; z-index: 2; top: 72vh; right: max(24px, calc((100vw - 760px) / 2 - 190px)); display: grid; justify-items: center; gap: 8px; padding: 5px; border: 1px solid transparent; color: #111; text-decoration: none; font: 14px/1.4 'Courier New', monospace; touch-action: none; user-select: none; cursor: grab; }
+.stationFile:hover { background: #ffffff25; color: #111; border: 1px dotted #222; }
+.stationImage { width: 146px; height: 146px; display: grid; place-content: center; text-align: center; gap: 4px; color: #eee; background: #111; border: 1px solid #ddd; box-shadow: 2px 2px #333; }
+.stationImage > span { font: 48px/1 monospace; }
+.stationImage strong { font: bold 16px/1.1 'Courier New', monospace; letter-spacing: .12em; }
+@media (max-width: 1099px) {
+  .desktop { padding-top: 420px; }
+  .desktop .sensorFile, .desktop .qrFile { top: 20px; }
+  .desktop .videoFile { top: 208px; left: 5vw; }
+  .stationFile { top: 208px; right: 5vw; }
+}
+@media (max-width: 560px) {
+  .desktop { padding-top: 412px; }
+  .desktop .sensorFile { top: 14px; }
+  .desktop .qrFile { top: 60px; }
+  .desktop .videoFile { top: 188px; left: 12px; }
+  .stationFile { top: 234px; right: 12px; gap: 6px; font-size: 12px; }
+  .stationImage { width: 120px; height: 120px; }
+}

@@ -33,7 +33,7 @@ try {
   assert.equal(await videoLink.getAttribute('target'), '_blank');
   await page.getByRole('button', { name: 'Close video viewer' }).click();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
-  assert((await video.boundingBox()).y > (await page.getByRole('button', { name: 'Open skymesh-join.svg' }).boundingBox()).y);
+  assert((await video.boundingBox()).y >= (await page.getByRole('button', { name: 'Open skymesh-join.svg' }).boundingBox()).y);
   assert.equal(await page.getByText('SKYMESH / SENSOR WORKSTATION').count(), 0);
   assert(await page.getByRole('img', { name: 'Drone confidence over the last 60 seconds' }).evaluate(c => { const p = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 0; i < p.length; i += 4) if (p[i] !== p[i+1] || p[i+1] !== p[i+2]) return false; return true; }));
   assert.equal(await page.getByRole('button', { name: 'Stop sensor', exact: true }).count(), 0);
@@ -62,21 +62,25 @@ try {
   assert.equal(await page.getByRole('tab', { name: 'Diagnostics', exact: true }).getAttribute('aria-selected'), 'true');
   const recordsBefore = Number(await page.locator('dt').filter({ hasText: /^Records held$/ }).evaluate(e => e.nextElementSibling.textContent));
   await page.getByRole('button', { name: 'Minimize sensor window' }).click();
-  await page.getByRole('button', { name: 'Restore sensor' }).waitFor();
+  await page.getByRole('button', { name: 'Open sensor dashboard' }).waitFor();
   await page.waitForTimeout(1600);
   assert.equal(await page.evaluate(() => JSON.parse(sessionStorage.getItem('skymesh.sensor.desktop')).minimized), true);
   assert.equal(await page.evaluate(() => window.sensorStreams.length), 1);
   assert.equal(await page.evaluate(() => window.sensorStreams[0].getAudioTracks()[0].readyState), 'live');
   assert.equal(await page.evaluate(() => window.sensorSockets.length), initialSockets, 'No reconnect during presentation changes');
-  await page.getByRole('button', { name: 'Restore sensor' }).click();
+  await page.getByRole('button', { name: 'Open sensor dashboard' }).click();
   assert.equal(await page.getByRole('heading', { name: /^Node / }).textContent(), node);
   const recordsAfter = Number(await page.locator('dt').filter({ hasText: /^Records held$/ }).evaluate(e => e.nextElementSibling.textContent));
   assert(recordsAfter > recordsBefore, 'Readings must continue publishing while minimized');
   assert.equal(await page.getByRole('tab', { name: 'Diagnostics', exact: true }).getAttribute('aria-selected'), 'true');
-  await page.getByRole('button', { name: 'Close sensor and return to welcome', exact: true }).click();
-  await page.getByRole('button', { name: 'Resume sensor', exact: true }).waitFor();
-  await page.waitForFunction(() => window.sensorStreams.every(s => s.getTracks().every(t => t.readyState === 'ended')));
-  await page.waitForFunction(() => window.sensorSockets.every(s => s.readyState === WebSocket.CLOSED));
+  await page.getByRole('button', { name: 'Close sensor window', exact: true }).click();
+  await page.getByRole('region', { name: 'SkyMesh sensor window' }).waitFor({ state: 'hidden' });
+  assert.equal(await page.getByRole('heading', { name: 'Welcome to SkyMesh' }).count(), 0);
+  assert.equal(await page.evaluate(() => window.sensorStreams[0].getAudioTracks()[0].readyState), 'live');
+  await page.getByRole('button', { name: 'Open sensor dashboard' }).click();
+  await page.getByRole('region', { name: 'SkyMesh sensor window' }).waitFor();
+  assert.equal(await page.evaluate(() => window.sensorStreams.length), 1);
+  assert.equal(await page.evaluate(() => window.sensorSockets.length), initialSockets);
   await page.reload();
   await page.getByRole('button', { name: 'Resume sensor', exact: true }).waitFor();
   assert.equal(await page.evaluate(() => window.sensorStreams.length), 0, 'Reload must not silently restart microphone');
@@ -85,7 +89,7 @@ try {
   assert.equal(await page.getByRole('tab', { name: 'Diagnostics', exact: true }).getAttribute('aria-selected'), 'true');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   assert.equal(await page.getByRole('region', { name: 'SkyMesh sensor window' }).evaluate(e => getComputedStyle(e).animationName), 'none');
-  await page.getByRole('button', { name: 'Close sensor and return to welcome', exact: true }).click();
+  await page.getByRole('button', { name: 'Close sensor window', exact: true }).click();
   assert.deepEqual(errors, []);
   // Failure is still a usable relay, never a misleading zero-confidence sensor.
   const failed = await browser.newPage();
@@ -97,5 +101,5 @@ try {
   assert(await failed.getByText('N/A', { exact: true }).isVisible());
   assert.equal(await failed.getByText(/Detector unavailable:/).evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(208, 208, 208)');
   assert(await failed.getByRole('tab', { name: 'Mesh', exact: true }).isVisible());
-  console.log('PASS: real model + fake microphone, 4 responsive sizes, 3 tabs, keyboard navigation, minimize/restore, stable streams/sockets, stop cleanup, reload/resume, preference restoration, reduced motion, and detector failure.');
+  console.log('PASS: real model + fake microphone, 4 responsive sizes, 3 tabs, keyboard navigation, minimize/restore, stable streams/sockets, close/reopen continuity, reload/resume, preference restoration, reduced motion, and detector failure.');
 } finally { await browser.close(); }

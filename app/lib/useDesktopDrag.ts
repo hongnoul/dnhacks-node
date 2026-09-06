@@ -28,9 +28,8 @@ export function useDesktopDrag<T extends HTMLElement>(windowHandle = false) {
       const dx = event.clientX - start.x, dy = event.clientY - start.y;
       if (!start.moved && Math.hypot(dx, dy) < 5) return;
       start.moved = true;
-      const taskbar = document.querySelector('[aria-label="Sensor taskbar"]')?.getBoundingClientRect().height ?? 80;
       const maxX = Math.max(0, window.innerWidth - start.width);
-      const maxY = Math.max(0, window.innerHeight - taskbar - (windowHandle ? 48 : start.height));
+      const maxY = Math.max(0, window.innerHeight - (windowHandle ? 48 : start.height));
       const left = Math.max(0, Math.min(maxX, start.left + dx));
       const top = Math.max(0, Math.min(maxY, start.top + dy));
       setOffset({ x: start.ox + left - start.left, y: start.oy + top - start.top });

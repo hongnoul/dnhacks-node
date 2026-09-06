@@ -5,6 +5,7 @@ const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream',
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors = []; page.on('pageerror', e => errors.push(e.message));
+  await page.addInitScript(() => sessionStorage.setItem('skymesh.sensor.desktop', JSON.stringify({tab:'Monitor', minimized:true})));
   await page.goto(base);
   await page.getByRole('button', { name: 'Enable microphone & join' }).click();
   const sensor = page.getByRole('region', { name: 'SkyMesh sensor window' });
@@ -16,14 +17,38 @@ try {
     await page.mouse.move(x, y); await page.mouse.down();
     await page.mouse.move(x + dx, y + dy, { steps: 12 }); await page.mouse.up();
   }
+  assert.equal(await page.getByRole('navigation', { name: 'Sensor taskbar' }).count(), 0);
+  const station = page.getByRole('link', { name: 'Open Station DC website (new tab)' });
+  assert.equal(await station.getAttribute('href'), 'https://stationdc.org');
+  assert.equal(await station.getAttribute('target'), '_blank');
+  assert.equal(await station.locator('span').first().evaluate(e => e.getBoundingClientRect().width), 146);
+  const launcher = page.getByRole('button', { name: 'Open sensor dashboard' });
+  assert(await launcher.isVisible());
+  assert(await page.getByText('SkyMesh_x64.exe', { exact: true }).isVisible());
+  assert(await sensor.isVisible(), 'Dashboard opens even when prior session was minimized');
+  await page.getByRole('button', { name: 'Minimize sensor window' }).click();
+  await sensor.waitFor({ state: 'hidden' });
+  const stationBefore = await station.boundingBox();
+  await drag(station, -80, -50);
+  const stationAfter = await station.boundingBox();
+  assert(Math.abs(stationAfter.x - stationBefore.x + 80) < 2);
+  assert.equal(page.context().pages().length, 1, 'Dragging Station must not open external page');
+  const launcherBefore = await launcher.boundingBox();
+  await drag(launcher, 140, 30);
+  const launcherAfter = await launcher.boundingBox();
+  assert(Math.abs(launcherAfter.x - launcherBefore.x - 140) < 2);
+  assert.equal(await sensor.count(), 0, 'Dragging mascot must not restore sensor');
+  await launcher.click(); await sensor.waitFor(); await sensor.evaluate(async e => { await Promise.all(e.getAnimations().map(a => a.finished.catch(() => {}))); });
   let before = await sensor.boundingBox();
   await drag(sensor.locator('header').first(), 100, 50);
   let after = await sensor.boundingBox();
   assert(Math.abs(after.x - before.x - 100) < 2);
   assert(Math.abs(after.y - before.y - 50) < 2);
+  await page.getByRole('button', { name: 'Minimize sensor window' }).click();
+  await sensor.waitFor({ state: 'hidden' });
   const qr = page.getByRole('button', { name: 'Open skymesh-join.svg' });
-  before = await qr.boundingBox(); await drag(qr, 160, 60); after = await qr.boundingBox();
-  assert(Math.abs(after.x - before.x - 160) < 2);
+  before = await qr.boundingBox(); await drag(qr, -160, 60); after = await qr.boundingBox();
+  assert(Math.abs(after.x - before.x + 160) < 2);
   assert.equal(await page.getByRole('dialog').count(), 0, 'Dragging must not open QR');
   await qr.click();
   const dialog = page.getByRole('dialog'); await dialog.waitFor();
@@ -53,8 +78,12 @@ try {
   await page.keyboard.press('Escape'); await dialog.waitFor({ state: 'hidden' });
   await page.setViewportSize({ width: 390, height: 900 });
   await page.waitForFunction(() => document.documentElement.scrollWidth <= innerWidth);
-  await page.getByRole('button', { name: 'Close sensor and return to welcome' }).click();
-  await page.getByRole('button', { name: 'Resume sensor', exact: true }).waitFor();
+  await launcher.click(); await sensor.waitFor();
+  await page.getByRole('button', { name: 'Close sensor window' }).click();
+  await sensor.waitFor({ state: 'hidden' });
+  assert(await launcher.isVisible());
+  assert.equal(await page.getByRole('heading', { name: 'Welcome to SkyMesh' }).count(), 0);
+  await launcher.click(); await sensor.waitFor();
   assert.deepEqual(errors, []);
-  console.log('PASS: sensor moved 100x50, QR icon 160x60, QR viewer 110x40, video icon 170x80, video viewer -90x-30; drag never opens files; boundaries, 220ms animation, keyboard, reduced motion, resize and close all pass.');
+  console.log('PASS: no dock, default-open SkyMesh_x64.exe launcher, 146px Station DC artwork/link/drag; sensor moved 100x50, QR icon -160x60, QR viewer 110x40, video icon 170x80, video viewer -90x-30; drag never opens files; boundaries, 220ms animation, keyboard, reduced motion, resize and close all pass.');
 } finally { await browser.close(); }

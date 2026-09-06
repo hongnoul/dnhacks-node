@@ -135,19 +135,7 @@ export default function NodePage() {
     );
   }
 
-  function stopSensor() {
-    scorerRef.current?.stop();
-    scorerRef.current = null;
-    setJoined(false);
-    setSensorReady(false);
-    setLoading(false);
-    setScore(SILENT);
-    setDetections(0);
-    wasDetecting.current = false;
-    setResume(true);
-  }
-
   // The runtime stays mounted here while the desktop switches or hides windows.
   return <SensorDesktop mesh={mesh} view={view} score={score}
-    detections={detections} micError={micError} onStop={stopSensor} />;
+    detections={detections} micError={micError} />;
 }

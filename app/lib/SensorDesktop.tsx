@@ -16,9 +16,9 @@ const tabs = ["Monitor", "Mesh", "Diagnostics"] as const;
 type Tab = typeof tabs[number];
 const preferenceKey = "skymesh.sensor.desktop";
 
-export function SensorDesktop({ mesh, view, score, detections, micError, onStop }: {
+export function SensorDesktop({ mesh, view, score, detections, micError }: {
   mesh: Mesh | null; view: MeshView | null; score: Score;
-  detections: number; micError: string | null; onStop: () => void;
+  detections: number; micError: string | null;
 }) {
   const [joinUrl, setJoinUrl] = useState("");
   const [qrOpen, setQrOpen] = useState<false | "qr" | "video">(false);
@@ -26,6 +26,8 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
   const viewerDrag = useDesktopDrag<HTMLDialogElement>(true);
   const qrDrag = useDesktopDrag<HTMLButtonElement>();
   const videoDrag = useDesktopDrag<HTMLButtonElement>();
+  const mascotDrag = useDesktopDrag<HTMLButtonElement>();
+  const stationDrag = useDesktopDrag<HTMLAnchorElement>();
   const qrDialog = viewerDrag.ref;
   const qrFile = qrDrag.ref;
   const launchIcon = useRef<HTMLElement | null>(null);
@@ -38,13 +40,13 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
   const [width, setWidth] = useState(300);
   const viewport = useRef<HTMLDivElement>(null);
   const windowRef = sensorDrag.ref;
-  const taskButton = useRef<HTMLButtonElement>(null);
+  const taskButton = mascotDrag.ref;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     try {
       const saved = JSON.parse(sessionStorage.getItem(preferenceKey) ?? "null");
       if (tabs.includes(saved?.tab)) setTab(saved.tab);
-      if (typeof saved?.minimized === "boolean") setMinimized(saved.minimized);
+      // Always show the dashboard at startup; the mascot restores it after minimizing.
     } catch { /* Storage is optional, including in private browsing. */ }
     const url = new URL("/", window.location.origin);
     const session = new URLSearchParams(window.location.search).get("session");
@@ -105,13 +107,6 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
     viewerClosing.current = false;
   }
 
-  function closeSensor() {
-    if (closing) return;
-    setClosing(true);
-    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180;
-    timer.current = setTimeout(onStop, duration);
-  }
-
   function minimize() {
     if (closing) return;
     setClosing(true);
@@ -133,6 +128,10 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
       <span className={styles.videoImage} aria-hidden="true"><span>▶</span><small>MP4</small></span>
       <span className={styles.fileName}>drone-demo.mp4</span>
     </button>
+    <a ref={stationDrag.ref} style={stationDrag.style} {...stationDrag.handlers} className={styles.stationFile} href="https://stationdc.org" target="_blank" rel="noopener noreferrer" aria-label="Open Station DC website (new tab)">
+      <span className={styles.stationImage} aria-hidden="true"><span>▥</span><strong>STATION<br />DC</strong></span>
+      <span className={styles.fileName}>station-dc.url</span>
+    </a>
     <dialog ref={qrDialog} style={viewerDrag.style} className={`${styles.qrViewer} ${qrOpen === "video" ? styles.videoViewer : ""}`} aria-labelledby="qr-title" onCancel={event => { event.preventDefault(); void closeViewer(); }} onClose={() => { setQrOpen(false); launchIcon.current?.focus(); }}>
       <header {...viewerDrag.handlers} className={styles.titlebar}><span id="qr-title">{qrOpen === "video" ? "drone-demo.mp4" : "skymesh-join.svg"}</span><button type="button" aria-label={qrOpen === "video" ? "Close video viewer" : "Close QR image"} onClick={() => void closeViewer()}>×</button></header>
       {qrOpen === "video" ? <>
@@ -146,7 +145,7 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
     {!minimized && <section ref={windowRef} style={sensorDrag.style} tabIndex={-1} aria-label="SkyMesh sensor window" className={`${styles.window} ${closing ? styles.closing : ""}`}>
       <header {...sensorDrag.handlers} className={styles.titlebar}>
         <span>▧ SkyMesh · Sensor</span>
-        <div className={styles.windowControls}><button type="button" aria-label="Minimize sensor window" title="Minimize. Sensor keeps running." onClick={minimize}>_</button><button type="button" aria-label="Close sensor and return to welcome" title="Close sensor and return to welcome" onClick={closeSensor}>×</button></div>
+        <div className={styles.windowControls}><button type="button" aria-label="Minimize sensor window" title="Minimize. Sensor keeps running." onClick={minimize}>_</button><button type="button" aria-label="Close sensor window" title="Close window. Sensor keeps running." onClick={minimize}>×</button></div>
       </header>
       <div className={styles.body}>
         <div className={styles.heading}>
@@ -191,7 +190,9 @@ export function SensorDesktop({ mesh, view, score, detections, micError, onStop 
       </div>
       <footer className={styles.statusbar}><span>{view?.records ?? 0} records</span><span>{view?.neighbours.length ?? 0} neighbours</span><span>{activity}</span></footer>
     </section>}
-    {minimized && <div className={styles.minimizedNote}><h1>Sensor window minimized</h1><p>{activity}. Restore the window from the taskbar below.</p></div>}
-    <nav className={styles.taskbar} aria-label="Sensor taskbar"><button ref={taskButton} type="button" aria-expanded={!minimized} onClick={() => minimized ? setMinimized(false) : minimize()}>▧ {minimized ? "Restore sensor" : "Sensor window"}</button><span className={styles.taskActivity} role="status">● {activity}</span><AsciiLogo className={styles.mascot} mood="idle" /></nav>
+    <button ref={taskButton} style={mascotDrag.style} {...mascotDrag.handlers} className={styles.sensorFile} type="button" aria-label="Open sensor dashboard" aria-expanded={!minimized} onClick={() => { setMinimized(false); requestAnimationFrame(() => windowRef.current?.focus()); }}>
+      <span className={styles.sensorImage}><AsciiLogo className={styles.desktopMascot} mood="idle" /></span>
+      <span className={styles.fileName}>SkyMesh_x64.exe</span>
+    </button>
   </main>;
 }
