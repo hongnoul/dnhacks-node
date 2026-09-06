@@ -30,8 +30,9 @@ for (const id of ["n01", "n02", "n03"]) {
   await p.goto(`${APP}/?node=${id}`);
   await p.getByRole("button", { name: /join the mesh/i }).click();
   nodes.push({ id, page: p });
+  await p.waitForTimeout(300); // stagger model loads
 }
-await admin.waitForFunction(() => document.body.innerText.includes("waiting to join"), { timeout: 8000 })
+await admin.waitForFunction(() => document.body.innerText.includes("waiting to join"), { timeout: 60000 })
   .then(() => ok("pending queue populated")).catch(() => bad("no pending nodes appeared"));
 
 for (let i = 0; i < 6; i++) {
@@ -71,11 +72,18 @@ await n1.waitForFunction(() => document.body.innerText.includes("my picture"), {
 await n1.waitForFunction(() => /records held/.test(document.body.innerText), { timeout: 5000 })
   .then(() => ok("node reports its replica size")).catch(() => bad("no replica info"));
 
-const replica = await n1.evaluate(() => {
-  const m = document.body.innerText.match(/(\d+) records held/);
-  return m ? +m[1] : 0;
-});
-replica > 0 ? ok(`node holds ${replica} records`) : bad("node holds no records");
+// Wait for convergence rather than sampling once: the admin's placement records
+// have to gossip to the node, and an instantaneous read races that.
+await n1.waitForFunction(
+  () => {
+    const m = document.body.innerText.match(/(\d+) records held/);
+    return m ? +m[1] > 0 : false;
+  },
+  { timeout: 15000 }
+).then(async () => {
+  const n = await n1.evaluate(() => +document.body.innerText.match(/(\d+) records held/)[1]);
+  ok(`replica converged (${n} records received from the mesh)`);
+}).catch(() => bad("no records reached the node"));
 
 console.log("cut a link");
 const cut = admin.getByRole("button", { name: "cut" }).first();

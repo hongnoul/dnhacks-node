@@ -14,6 +14,7 @@ import { DEFAULT_ROOM } from "./lib/mesh.ts";
 
 export default function NodePage() {
   const [joined, setJoined] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [score, setScore] = useState<Score>(SILENT);
   const { mesh, view } = useMesh({ enabled: joined });
@@ -21,14 +22,19 @@ export default function NodePage() {
 
   async function join() {
     setMicError(null);
+    setLoading(true);
     const scorer = new MicScorer();
     try {
+      // Loads the CRNN (~6 MB, cached after first visit) then opens the mic.
       await scorer.start();
       scorerRef.current = scorer;
-      setJoined(true);
     } catch (e) {
-      // A node without a mic is still a valid node — it just contributes nothing.
+      // A node that cannot score is still a valid node — it just contributes no
+      // evidence, and silence from it is not mistaken for a quiet room because
+      // it publishes nothing at all.
       setMicError(String(e));
+    } finally {
+      setLoading(false);
       setJoined(true);
     }
   }
@@ -38,7 +44,9 @@ export default function NodePage() {
   useEffect(() => {
     if (!joined || !mesh) return;
     const id = setInterval(() => {
-      const s = scorerRef.current?.latest() ?? SILENT;
+      const scorer = scorerRef.current;
+      if (!scorer?.ready) return; // absent beats a false "heard nothing" (§6.1)
+      const s = scorer.latest();
       setScore(s);
       mesh.publishReading(s);
     }, 1000);
@@ -65,10 +73,19 @@ export default function NodePage() {
             Your phone becomes a sensor node. Audio never leaves the device — only a
             likelihood does.
           </p>
-          <button className="primary" style={{ fontSize: 18, padding: "14px 32px" }} onClick={join}>
-            Join the mesh
+          <button
+            className="primary"
+            style={{ fontSize: 18, padding: "14px 32px" }}
+            onClick={join}
+            disabled={loading}
+          >
+            {loading ? "loading model…" : "Join the mesh"}
           </button>
-          <p className="dim" style={{ fontSize: 12 }}>Allow microphone access when asked.</p>
+          <p className="dim" style={{ fontSize: 12 }}>
+            {loading
+              ? "Fetching the CRNN (~6 MB, cached after the first visit)."
+              : "Allow microphone access when asked. Detection runs on this device."}
+          </p>
         </div>
       </main>
     );
@@ -92,7 +109,8 @@ export default function NodePage() {
 
       {micError && (
         <div className="panel" style={{ borderColor: "var(--warn)", color: "var(--warn)" }}>
-          No microphone: {micError}. Still a valid node — it just contributes no evidence.
+          Detector unavailable: {micError}. Still a valid node — it relays and fuses, it
+          just contributes no evidence of its own.
         </div>
       )}
 
@@ -114,8 +132,8 @@ export default function NodePage() {
           />
         </div>
         <div className="dim" style={{ fontSize: 12, marginTop: 6 }}>
-          snr {score.snrDb === null ? "—" : `${score.snrDb.toFixed(1)} dB`} · logit{" "}
-          {score.logit.toFixed(2)}
+          CRNN on-device · snr {score.snrDb === null ? "—" : `${score.snrDb.toFixed(1)} dB`} ·
+          logit {score.logit.toFixed(2)}
         </div>
       </div>
 

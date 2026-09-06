@@ -192,7 +192,7 @@ iteration-order dependence.
 
 | To | Contract |
 |---|---|
-| **ML** | `score(frame): {p, logit, snr_db}` on 1 s windows at 500 ms hop, 16 kHz mono, 64-mel. Must run in-browser (§9). Band-energy stub satisfies the interface until it lands |
+| **ML** | ✅ **landed.** ml-demo's CRNN runs in-browser via ONNX Runtime Web; vendored by `sim-demo/vendor-detector.mjs`. The band-energy stub is gone |
 | **Frontend** | Room map + heatmap render from `fusion.ts` output. Admin page owns topology and link controls |
 
 Both can proceed against the stub. Neither blocks the mesh.
@@ -262,3 +262,31 @@ Five things the plan got wrong, found by building it. All are reflected in
   ephemeral port per file.
 - The anti-entropy interval is a constructor argument: 5 s shipping, 400 ms in tests, so
   convergence assertions measure the protocol rather than the timer.
+
+---
+
+## 11. Detector integration
+
+The stub is retired: `sim-demo` now runs ml-demo's CRNN unchanged, vendored at
+`npm install` (`vendor-detector.mjs` copies `mel.ts`, `detector.ts`, `audio.ts`,
+`drone_crnn.onnx` and the ORT wasm). Copying rather than re-implementing keeps one
+source of truth; copying rather than cross-importing keeps sim-demo a standalone
+Next app. Re-run `npm run vendor` after ml-demo changes.
+
+**Their normalisation makes the level channel mandatory.** `detector.ts` peak-normalises
+every 1 s window before the mel front end (`NORM_PEAK / peak`, mirroring `model.py`) so
+room playback 20–30 dB below file level still lands in the CRNN's training range. That is
+right for detection — and it means the returned probability carries *no level information
+by construction*.
+
+Measured end to end with Chromium synthesising the mic from `drone-demo.wav`
+(`tests/detector-smoke.mjs`): **p = 1.00, snr = 53.6 dB.** Fully saturated, which is
+exactly the §6.2 failure mode — with p alone, fusion would have had nothing to localise
+with. `scoring.ts` therefore reports `bandLoudness` in dB against a tracked noise floor,
+taken from the raw frame *before* normalisation. The CRNN answers "is it a drone"; the
+level answers "how close".
+
+One behavioural change that followed: a node whose detector fails to start now publishes
+**nothing at all**, rather than a stream of `p = 0`. Fusion treats a low reading as
+positive evidence of quiet (§6.1), so a broken node must be absent rather than
+confidently reporting silence it never measured.

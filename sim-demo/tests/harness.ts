@@ -5,6 +5,8 @@
 // rather than a model of them (IMPLEMENTATION.md §6).
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Gossip } from "../app/lib/gossip.ts";
 import { Log } from "../app/lib/log.ts";
 import { RelayedLink } from "../app/lib/link.ts";
@@ -49,12 +51,15 @@ export async function waitFor(
   throw new Error(`timed out waiting for ${label}${detail}`);
 }
 
+// Resolve from this file, not the cwd, so the suite runs from anywhere.
+const PROJECT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
 export async function startRelay(): Promise<ChildProcess> {
   relayPort = await freePort();
   const proc = spawn(
-    "server/.venv/bin/uvicorn",
-    ["relay:app", "--app-dir", "server", "--host", "127.0.0.1", "--port", String(relayPort), "--log-level", "warning"],
-    { stdio: ["ignore", "pipe", "pipe"] }
+    join(PROJECT, "server/.venv/bin/uvicorn"),
+    ["relay:app", "--app-dir", join(PROJECT, "server"), "--host", "127.0.0.1", "--port", String(relayPort), "--log-level", "warning"],
+    { cwd: PROJECT, stdio: ["ignore", "pipe", "pipe"] }
   );
   proc.stderr?.on("data", (d) => {
     const line = String(d).trim();
