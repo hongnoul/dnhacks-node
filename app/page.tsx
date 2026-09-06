@@ -96,21 +96,24 @@ export default function NodePage() {
         <TrajectoryHero />
         <section className={styles.dialog} aria-labelledby="join-title" aria-busy={loading}>
           <div className={styles.content}>
-            <h1 id="join-title" className={styles.title}>SkyMesh</h1>
+            <h1 id="join-title" className={styles.title}>Welcome to SkyMesh</h1>
             <div className={styles.rule} />
-            <p className={styles.intro}>A shared sky.</p>
+            <p className={styles.intro}>A shared sky. Powered by your phone.</p>
             <dl className={styles.fields}>
-              <dt>Mode:</dt><dd>Listening</dd>
-              <dt>Privacy:</dt><dd>On-device</dd>
+              <dt>Mode:</dt><dd>On-device drone detection</dd>
+              <dt>Privacy:</dt><dd>Audio stays on this phone</dd>
             </dl>
             <ol className={styles.steps}>
-              <li>Enable microphone.</li>
-              <li>Wait for admission.</li>
-              <li>Keep screen open.</li>
+              <li>Enable your microphone.</li>
+              <li>Wait for the operator to admit you.</li>
+              <li>Keep this screen open to listen.</li>
             </ol>
             <button className={styles.joinButton} type="button" onClick={join} disabled={loading}>
-              {loading ? "Preparing…" : "Join"}
+              {loading ? "Preparing your sensor…" : "Enable microphone & join"}
             </button>
+            <p className={styles.note} role="status" aria-live="polite">
+              {loading ? "Loading the detector (~6 MB). Please wait…" : "Only detection scores are shared. Never your audio."}
+            </p>
           </div>
           <div className={styles.brand}>
             <AsciiLogo className={styles.logo} />
