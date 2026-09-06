@@ -21,6 +21,10 @@ import QRCode from "react-qr-code";
 // Apex = production node page the phone opens.
 const APEX_URL = "https://dnhacks-node.vercel.app";
 
+// Wind sound externality demo (false-positive stress test).
+const WIND_YT_WATCH = "https://www.youtube.com/watch?v=sT5f1jBJHng";
+const WIND_YT_EMBED = "https://www.youtube.com/embed/sT5f1jBJHng";
+
 export default function TonePage() {
   const [playing, setPlaying] = useState(false);
   const [spin, setSpin] = useState(false);
@@ -351,6 +355,44 @@ export default function TonePage() {
       </section>
 
       <audio ref={droneRef} src="/drone-demo.wav" loop preload="auto" />
+
+      {/* BOTTOM: wind sound externality — false-positive stress test */}
+      <section
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 8,
+          flexBasis: "100%",
+          marginTop: 8,
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 600 }}>
+          Wind sound externality (false-positive check)
+        </div>
+        <div style={{ fontSize: 13, color: "#6b7280", maxWidth: 560, textAlign: "center" }}>
+          Play wind noise near the listening phone to simulate a windy-day
+          externality. Expect the node to stay quiet (no false drone alarm).
+        </div>
+        <iframe
+          data-testid="wind-embed"
+          width="560"
+          height="315"
+          style={{ maxWidth: "90vw", borderRadius: 12, border: "1px solid #e5e7eb" }}
+          src={WIND_YT_EMBED}
+          title="Wind sound externality demo"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+        />
+        <a
+          href={WIND_YT_WATCH}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: 13, color: "#2563eb" }}
+        >
+          Open on YouTube
+        </a>
+      </section>
     </main>
   );
 }
