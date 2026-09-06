@@ -124,7 +124,7 @@ export default function NodePage() {
               {sensorReady ? "Sensor ready!" : loading ? "Preparing your sensor…" : resume ? "Resume sensor" : "Enable microphone & join"}
             </button>
             <p className={styles.note} role="status" aria-live="polite">
-              {sensorReady ? "Sensor ready. Joining the mesh…" : loading ? "Loading the detector (~6 MB). Please wait…" : "Only detection scores are shared. Never your audio."}
+              {sensorReady ? "Sensor ready. Joining the mesh…" : loading ? "Loading the detector (~6 MB). Please wait…" : "Beta phone build. SkyMesh proper runs on frontline hardware."}
             </p>
           </div>
           <div className={styles.brand}>
