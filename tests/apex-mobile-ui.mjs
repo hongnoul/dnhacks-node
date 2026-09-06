@@ -70,6 +70,24 @@ try {
   await page.waitForFunction(y => scrollY > y, before);
   assert.equal(await sensor.evaluate(e => getComputedStyle(e).translate), 'none');
   if (process.env.JCODE_SCRATCH_DIR) await page.screenshot({ path: `${process.env.JCODE_SCRATCH_DIR}/apex-mobile.png`, fullPage: true });
+  // Emulate nonzero CSS environment insets, not merely a notched device size.
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 44, bottom: 34, left: 0, right: 0 } });
+  const padding = () => page.locator('main').evaluate(e => {
+    const s = getComputedStyle(e);
+    return [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft];
+  });
+  assert.deepEqual(await padding(), ['44px', '12px', '34px', '12px']);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, bottom: 21, left: 44, right: 44 } });
+  assert.deepEqual(await padding(), ['12px', '44px', '21px', '44px']);
+  await page.getByRole('button', { name: 'Open skymesh-join.svg' }).tap();
+  const safeDialog = await page.getByRole('dialog').boundingBox();
+  assert(safeDialog.x >= 44 && safeDialog.x + safeDialog.width <= 800 && safeDialog.height <= 345);
+  await page.getByRole('button', { name: 'Close QR image' }).tap();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 44, bottom: 34, left: 0, right: 0 } });
+  await page.goto(base);
+  assert.deepEqual(await padding(), ['44px', '12px', '34px', '12px']);
   // Existing admin public boundary still forwards session context to station.
   await page.goto(`${base}/admin/?session=mobile-acceptance`);
   await page.waitForURL(url => /^\/station\/?$/.test(url.pathname) && url.searchParams.get('session') === 'mobile-acceptance');

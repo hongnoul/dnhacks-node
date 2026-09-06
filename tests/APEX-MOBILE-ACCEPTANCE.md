@@ -19,7 +19,7 @@ Implementation: `bc6a23c`. Checked against the production Next.js server on 2026
 | Sensor runtime independent of presentation | `sensor-ui.mjs`: real ONNX model with fake microphone, tabs/resizes, minimize/restore, close/reopen | Pass. One live microphone stream, unchanged socket count, records continue publishing while minimized. Reload requires explicit resume. |
 | Failure remains a usable relay, not false confidence | Both sensor and mobile suites abort model request and join through the public action | Pass. Detector unavailable warning, N/A readout, sensor tabs and launchers remain usable. |
 | Admin excluded and session routing preserved | Mobile suite navigates `/admin/?session=mobile-acceptance`; scoped git diff | Pass. Redirect reaches `/station` with matching session. No admin, station, global stylesheet, or root-layout changes. |
-| Safe-area padding | Route-local CSS uses `env(safe-area-inset-*)` and existing viewport-fit metadata | Implemented, but nonzero physical safe-area behavior is NOT verified by Chromium desktop emulation. |
+| Safe-area padding | Chromium `Emulation.setSafeAreaInsetsOverride`, added to mobile suite | Pass. Join and sensor use top44/bottom34 padding. Landscape uses left44/right44/bottom21. QR dialog x242/y22.5/w360/h345 respects available dimensions. This verifies nonzero CSS environment handling, not physical Safari behavior. |
 | Real mobile browser toolbar and standalone mode | Proposed device acceptance checks | NOT RUN. Resizing a headless viewport is not equivalent to Safari toolbar expansion, physical notches, or installed standalone behavior. |
 | Zoom / enlarged text | Chromium CDP pageScaleFactor=2 at 390x844, then reset and minimize/restore | Emulated pinch scale reached 2 with visualViewport width195 and layout width390. Reset and touch minimize/restore passed. This does not verify interactions while zoomed, enlarged text, or physical iOS zoom. |
 
@@ -35,3 +35,5 @@ Implementation: `bc6a23c`. Checked against the production Next.js server on 2026
 All three browser suites were rerun after the implementation commit and passed. A later measurement attempt was interrupted by the server reload, which stopped the local server. Restarting the server and repeating the measurements produced the results above.
 
 Automated acceptance covers the main workflows and integration boundaries. Traceability remains partial for the physical-device and zoom checks explicitly listed as not run. Do not describe this as complete iOS acceptance.
+
+Safe-area follow-up: the initial CDP method name was incorrect. The supported `Emulation.setSafeAreaInsetsOverride` succeeded and is now covered by the committed suite.
