@@ -18,6 +18,12 @@ try {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     const logo = page.getByRole('img', { name: 'SkyMesh robot logo in ASCII art' });
     assert(await logo.isVisible());
+    const centered = await logo.evaluate(e => {
+      const a=e.getBoundingClientRect(), b=e.parentElement.getBoundingClientRect();
+      return {dx:Math.abs(a.x+a.width/2-b.x-b.width/2),dy:Math.abs(a.y+a.height/2-b.y-b.height/2),children:e.parentElement.children.length};
+    });
+    assert(centered.dx<1 && centered.dy<1, 'ASCII art must center within its own media container');
+    assert.equal(centered.children,1, 'Media container contains only ASCII art');
     assert.match(await logo.textContent(), /^[ #+.\n]+$/);
     assert((await logo.textContent()).split('\n').length >= 20);
     const button = page.getByRole('button', { name: 'Enable microphone & join' });

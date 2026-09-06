@@ -78,14 +78,10 @@
   color: #fff;
 }
 .logo { display: block; margin: 0; padding: 0; color: #fff; background: transparent; font: 700 7.5px/10px "Courier New", monospace; white-space: pre; letter-spacing: 0; overflow: visible; }
-.wordmark { margin-top: 20px; font-size: 20px; font-weight: 700; letter-spacing: 2px; }
-.brandCaption { margin-top: 8px; font: 9px/1.5 monospace; text-align: center; }
 @media (max-width: 560px) {
   .screen { padding: 90px 16px; }
   .dialog { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 24px 20px; }
   .brand { grid-row: 1; flex-direction: column; gap: 12px; padding: 18px 12px; }
   .logo { font-size: 7.5px; line-height: 9px; flex-shrink: 0; }
-  .wordmark { margin: 0; font-size: 18px; }
-  .brandCaption { display: none; }
   .title { margin-bottom: 18px; }
 }

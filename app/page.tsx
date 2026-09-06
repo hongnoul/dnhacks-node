@@ -117,8 +117,6 @@ export default function NodePage() {
           </div>
           <div className={styles.brand}>
             <AsciiLogo className={styles.logo} />
-            <span className={styles.wordmark}>SKYMESH</span>
-            <span className={styles.brandCaption}>PERSONAL SENSOR NODE</span>
           </div>
         </section>
       </main>
