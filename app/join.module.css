@@ -1,8 +1,9 @@
 .screen {
+  min-height: 100vh;
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 100px 20px;
+  padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
   position: relative;
   isolation: isolate;
   color: #000;
@@ -79,11 +80,16 @@
 }
 .logo { display: block; margin: 0; padding: 0; color: #fff; background: transparent; font: 700 7.5px/10px "Courier New", monospace; white-space: pre; letter-spacing: 0; overflow: visible; }
 @media (max-width: 560px) {
-  .screen { padding: 90px 16px; }
-  .dialog { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 24px 20px; }
-  .brand { grid-row: 1; flex-direction: column; gap: 12px; padding: 18px 12px; }
-  .logo { font-size: 7.5px; line-height: 9px; flex-shrink: 0; }
-  .title { margin-bottom: 18px; }
+  .screen { padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  .dialog { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 18px 16px; }
+  .brand { padding: 10px; }
+  .logo { font-size: 3.5px; line-height: 4px; }
+  .title { margin-bottom: 12px; }
+  .intro { margin: 12px 0; }
+  .steps { margin: 12px 0; }
+}
+@media (max-height: 600px) {
+  .screen { align-items: start; }
 }
 
 /* Acknowledgement first, then hand the desktop over to the sensor window. */

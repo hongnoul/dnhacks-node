@@ -1,5 +1,5 @@
 .desktop {
-  min-height: 100dvh; position: relative; isolation: isolate; display: grid;
+  min-height: 100vh; min-height: 100dvh; position: relative; isolation: isolate; display: grid;
   align-content: center; justify-items: center; padding: 88px 24px 108px;
   background: var(--retro-desktop); color: #171717; color-scheme: light; font: 14px/1.5 Arial, Helvetica, sans-serif;
 }
@@ -55,7 +55,6 @@
 @keyframes windowClose { to { opacity: 0; transform: translateY(60px) scale(.2, .04); } }
 @keyframes tabOpen { from { opacity: .2; clip-path: inset(0 0 90% 0); } to { opacity: 1; clip-path: inset(0); } }
 @media (max-width: 560px) {
-  .desktop { padding: 64px 12px 148px; align-content: start; }
   .body { padding: 18px 12px; }
   .desktop h1 { font-size: 25px; }
   .heading { gap: 12px; margin-bottom: 18px; }
@@ -93,10 +92,6 @@
 .qrImage { padding: 24px; background: white; margin: 16px auto; width: fit-content; max-width: calc(100% - 24px); }
 .qrImage svg { display: block; width: 100%; height: auto; }
 .qrViewer p, .qrViewer a { display: block; margin: 8px 16px; font: 12px/1.5 'Courier New', monospace; color: #111; overflow-wrap: anywhere; }
-@media (max-width: 560px) {
-  .desktop { padding-top: 150px; }
-  .desktop .qrFile { top: 12px; left: 12px; }
-}
 
 .videoFile { position: absolute; z-index: 2; top: 152px; left: 20px; display: grid; justify-items: center; gap: 6px; padding: 5px; border: 1px solid transparent; color: #111; text-decoration: none; font: 12px/1.4 'Courier New', monospace; }
 .videoFile:hover { background: #ffffff25; border: 1px dotted #222; color: #111; }
@@ -104,8 +99,6 @@
 .videoImage > span { background: #111; color: #eee; width: 64px; font: 28px/48px monospace; border-inline: 5px dotted #ddd; }
 .videoImage small { font: bold 11px/20px 'Courier New', monospace; }
 @media (min-width: 1100px) { .desktop { padding-top: 88px; } }
-@media (max-width: 1099px) { .desktop { padding-top: 294px; } }
-@media (max-width: 560px) { .videoFile { top: 146px; left: 12px; } }
 
 /* Translation stays separate from opening/closing transforms. */
 .titlebar { cursor: grab; touch-action: none; user-select: none; }
@@ -124,8 +117,6 @@
 .desktop .sensorFile:hover:not(:disabled) { background: #ffffff25; border: 1px dotted #222; }
 .sensorImage { width: 90px; height: 90px; display: grid; place-items: center; background: #111; border: 1px solid #ddd; box-shadow: 2px 2px #333; }
 .desktopMascot { margin: 0; padding: 0; color: #eee; background: transparent; font: bold 2.6px/3px 'Courier New', monospace; letter-spacing: 0; white-space: pre; }
-@media (max-width: 1099px) { .desktop { padding-top: 428px; padding-bottom: 24px; } }
-@media (max-width: 560px) { .desktop .sensorFile { top: 280px; left: 12px; } }
 
 /* Scattered desktop defaults, with larger, legible file artwork. */
 .desktop .qrFile, .desktop .videoFile, .desktop .sensorFile { font-size: 14px; gap: 8px; }
@@ -139,44 +130,54 @@
 .videoImage > span { width: 106px; font-size: 42px; line-height: 86px; border-inline-width: 8px; }
 .videoImage small { font-size: 15px; line-height: 28px; }
 @media (min-width: 1100px) { .desktop { padding-top: 88px; padding-bottom: 48px; } }
-@media (max-width: 1099px) {
-  .desktop { padding-top: 226px; padding-bottom: 24px; }
-  .desktop .sensorFile { top: 20px; left: 5vw; }
-  .desktop .qrFile { top: 20px; left: auto; right: 5vw; }
-  .desktop .videoFile { top: 20px; left: calc(50% - 80px); }
-}
-@media (max-width: 560px) {
-  .desktop { padding-top: 362px; }
-  .desktop .sensorFile { top: 14px; left: 12px; }
-  .desktop .qrFile { top: 90px; right: 12px; }
-  .desktop .videoFile { top: 188px; left: 12px; }
-  .desktop .qrFile, .desktop .videoFile, .desktop .sensorFile { font-size: 12px; gap: 6px; }
-  .sensorImage, .videoImage { width: 120px; height: 120px; }
-  .fileImage svg { width: 96px; height: 96px; }
-  .desktopMascot { font-size: 3.3px; line-height: 3.7px; }
-  .videoImage > span { width: 88px; line-height: 64px; }
-}
 
 .stationFile { position: absolute; z-index: 2; top: 72vh; right: max(24px, calc((100vw - 760px) / 2 - 190px)); display: grid; justify-items: center; gap: 8px; padding: 5px; border: 1px solid transparent; color: #111; text-decoration: none; font: 14px/1.4 'Courier New', monospace; touch-action: none; user-select: none; cursor: grab; }
 .stationFile:hover { background: #ffffff25; color: #111; border: 1px dotted #222; }
 .stationImage { width: 146px; height: 146px; display: grid; place-content: center; text-align: center; gap: 4px; color: #eee; background: #111; border: 1px solid #ddd; box-shadow: 2px 2px #333; }
 .stationImage > span { font: 48px/1 monospace; }
 .stationImage strong { font: bold 16px/1.1 'Courier New', monospace; letter-spacing: .12em; }
-@media (max-width: 1099px) {
-  .desktop { padding-top: 420px; }
-  .desktop .sensorFile, .desktop .qrFile { top: 20px; }
-  .desktop .videoFile { top: 208px; left: 5vw; }
-  .stationFile { top: 208px; right: 5vw; }
-}
-@media (max-width: 560px) {
-  .desktop { padding-top: 412px; }
-  .desktop .sensorFile { top: 14px; }
-  .desktop .qrFile { top: 60px; }
-  .desktop .videoFile { top: 188px; left: 12px; }
-  .stationFile { top: 234px; right: 12px; gap: 6px; font-size: 12px; }
-  .stationImage { width: 120px; height: 120px; }
-}
 
 /* bottom-style terminal panel: title interrupts a single-cell border. */
 .terminalInstrument { min-width: 0; margin: 0; padding: 0 13px 10px; border: 1px solid #dedee3; background: #101216; box-shadow: 0 0 0 6px #101216; color: #dedee3; }
 .terminalInstrument legend { padding: 0 7px; background: #101216; font: 12px/1.5 Menlo, Consolas, monospace; }
+
+/* Compact apex layout: sensor first, launchers in flow, one page scroll owner. */
+@media (max-width: 1099px) {
+  .desktop {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 16px;
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+  .window { grid-column: 1 / -1; min-width: 0; }
+  .desktop .qrFile, .desktop .videoFile, .desktop .sensorFile, .desktop .stationFile {
+    position: relative; inset: auto; translate: none !important;
+    width: 100%; min-width: 0; font-size: 12px; gap: 6px;
+    touch-action: auto; cursor: pointer;
+  }
+  .fileName { max-width: 100%; overflow-wrap: anywhere; }
+  .sensorImage, .videoImage, .stationImage { width: 80px; height: 80px; }
+  .fileImage { padding: 7px; }
+  .fileImage svg { width: 64px; height: 64px; }
+  .desktopMascot { font-size: 2.2px; line-height: 2.5px; }
+  .videoImage > span { width: 56px; font-size: 26px; line-height: 44px; border-inline-width: 4px; }
+  .videoImage small { font-size: 11px; line-height: 20px; }
+  .stationImage > span { font-size: 26px; }
+  .stationImage strong { font-size: 11px; }
+  .window, .qrViewer { translate: none !important; }
+  .titlebar { touch-action: auto; cursor: default; }
+  .tabPanel { min-height: 0; }
+  .graph { height: clamp(140px, 30svh, 240px); }
+}
+@media (pointer: coarse) {
+  .desktop .qrFile, .desktop .videoFile, .desktop .sensorFile, .desktop .stationFile, .titlebar { touch-action: auto; cursor: auto; }
+  .window, .qrViewer, .desktop .qrFile, .desktop .videoFile, .desktop .sensorFile, .desktop .stationFile { translate: none !important; }
+}
+.qrViewer {
+  max-width: calc(100% - 24px - env(safe-area-inset-left) - env(safe-area-inset-right));
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+.graph { min-width: 0; }
+@media (min-width: 1100px) { .graph { height: 240px; } }

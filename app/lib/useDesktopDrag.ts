@@ -9,12 +9,18 @@ export function useDesktopDrag<T extends HTMLElement>(windowHandle = false) {
   const gesture = useRef<{ id: number; x: number; y: number; left: number; top: number; width: number; height: number; ox: number; oy: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
   useEffect(() => {
-    const reset = () => setOffset({ x: 0, y: 0 });
+    const reset = () => {
+      gesture.current = null;
+      suppressClick.current = false;
+      setOffset({ x: 0, y: 0 });
+    };
     window.addEventListener("resize", reset);
     return () => window.removeEventListener("resize", reset);
   }, []);
   const handlers = {
     onPointerDown(event: PointerEvent<HTMLElement>) {
+      // Keep compact layouts and touch scrolling native. This hook is apex-only.
+      if (window.matchMedia("(max-width: 1099px), (pointer: coarse)").matches || event.pointerType === "touch") return;
       if (event.button !== 0 || !event.isPrimary || !ref.current) return;
       if (windowHandle && (event.target as HTMLElement).closest("button, a, input")) return;
       const box = ref.current.getBoundingClientRect();

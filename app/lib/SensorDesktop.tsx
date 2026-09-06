@@ -38,6 +38,8 @@ export function SensorDesktop({ mesh, view, score, detections, micError }: {
   const [minimized, setMinimized] = useState(false);
   const [closing, setClosing] = useState(false);
   const [ready, setReady] = useState(false);
+  const [graphHeight, setGraphHeight] = useState(240);
+  const graph = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(300);
   const viewport = useRef<HTMLDivElement>(null);
   const windowRef = sensorDrag.ref;
@@ -72,6 +74,14 @@ export function SensorDesktop({ mesh, view, score, detections, micError }: {
     if (minimized) taskButton.current?.focus();
     else windowRef.current?.focus();
   }, [minimized, ready]);
+
+  useEffect(() => {
+    const el = graph.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => setGraphHeight(Math.max(1, Math.floor(entry.contentRect.height))));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [tab, minimized, ready]);
 
   function viewerFrames() {
     const icon = launchIcon.current?.getBoundingClientRect();
@@ -121,28 +131,6 @@ export function SensorDesktop({ mesh, view, score, detections, micError }: {
   if (!ready) return <main className={styles.desktop}><TrajectoryHero /></main>;
   return <main className={styles.desktop}>
     <TrajectoryHero />
-    <button ref={qrFile} style={qrDrag.style} {...qrDrag.handlers} className={styles.qrFile} type="button" onClick={() => openViewer("qr")} aria-label="Open skymesh-join.svg">
-      <span className={styles.fileImage}><QRCode value={joinUrl} size={72} /></span>
-      <span className={styles.fileName}>skymesh-join.svg</span>
-    </button>
-    <button ref={videoDrag.ref} style={videoDrag.style} {...videoDrag.handlers} className={styles.videoFile} type="button" onClick={() => openViewer("video")} aria-label="Open drone-demo.mp4" title="Open video viewer">
-      <span className={styles.videoImage} aria-hidden="true"><span>▶</span><small>MP4</small></span>
-      <span className={styles.fileName}>drone-demo.mp4</span>
-    </button>
-    <a ref={stationDrag.ref} style={stationDrag.style} {...stationDrag.handlers} className={styles.stationFile} href="https://stationdc.org" target="_blank" rel="noopener noreferrer" aria-label="Open Station DC website (new tab)">
-      <span className={styles.stationImage} aria-hidden="true"><span>▥</span><strong>STATION<br />DC</strong></span>
-      <span className={styles.fileName}>station-dc.url</span>
-    </a>
-    <dialog ref={qrDialog} style={viewerDrag.style} className={`${styles.qrViewer} ${qrOpen === "video" ? styles.videoViewer : ""}`} aria-labelledby="qr-title" onCancel={event => { event.preventDefault(); void closeViewer(); }} onClose={() => { setQrOpen(false); launchIcon.current?.focus(); }}>
-      <header {...viewerDrag.handlers} className={styles.titlebar}><span id="qr-title">{qrOpen === "video" ? "drone-demo.mp4" : "skymesh-join.svg"}</span><button type="button" aria-label={qrOpen === "video" ? "Close video viewer" : "Close QR image"} onClick={() => void closeViewer()}>×</button></header>
-      {qrOpen === "video" ? <>
-        <iframe className={styles.videoPlayer} src="https://www.youtube-nocookie.com/embed/DUTQkbuzxtk" title="Drone demo video" allow="encrypted-media; picture-in-picture; fullscreen" allowFullScreen />
-        <p>drone-demo.mp4 · YouTube video</p><a href="https://youtu.be/DUTQkbuzxtk?is=_DargxbSpjJiuzxG" target="_blank" rel="noopener noreferrer">Watch on YouTube ↗</a>
-      </> : <>
-        <div className={styles.qrImage}><QRCode value={joinUrl} size={256} title="Scan to join this SkyMesh session" /></div>
-        <p>Scan to join this mesh.</p><a href={joinUrl}>{joinUrl}</a>
-      </>}
-    </dialog>
     {!minimized && <section ref={windowRef} style={sensorDrag.style} tabIndex={-1} aria-label="SkyMesh sensor window" className={`${styles.window} ${closing ? styles.closing : ""}`}>
       <header {...sensorDrag.handlers} className={styles.titlebar}>
         <span>▧ SkyMesh · Sensor</span>
@@ -170,7 +158,7 @@ export function SensorDesktop({ mesh, view, score, detections, micError }: {
           <div key={tab} role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} tabIndex={0} className={styles.tabPanel}>
             {tab === "Monitor" && <>
               <div className={styles.readout}><h2>{micError ? "Detector unavailable" : score.detecting ? "DRONE DETECTED" : "Drone confidence"}</h2><strong data-detecting={score.detecting}>{micError ? "N/A" : `${(score.display * 100).toFixed(0)}%`}</strong></div>
-              <fieldset className={styles.terminalInstrument}><legend>Confidence</legend><ConfidenceGraph history={mesh?.history(view?.nodeId ?? "") ?? []} terminal width={Math.max(1, width - 28)} height={240} now={Date.now()} /></fieldset>
+              <fieldset className={styles.terminalInstrument}><legend>Confidence</legend><div ref={graph} className={styles.graph}><ConfidenceGraph history={mesh?.history(view?.nodeId ?? "") ?? []} terminal width={Math.max(1, width - 28)} height={graphHeight} now={Date.now()} /></div></fieldset>
               <dl className={styles.metrics}><div><dt>Detector</dt><dd>{micError ? "Unavailable" : "On-device CRNN"}</dd></div><div><dt>Detections</dt><dd>{detections}</dd></div><div><dt>Signal / noise</dt><dd>{score.snrDb === null ? "—" : `${score.snrDb.toFixed(1)} dB`}</dd></div></dl>
               <p className={styles.note}>Audio stays on this phone. Only detection scores are shared.</p>
             </>}
@@ -191,6 +179,28 @@ export function SensorDesktop({ mesh, view, score, detections, micError }: {
       </div>
       <footer className={styles.statusbar}><span>{view?.records ?? 0} records</span><span>{view?.neighbours.length ?? 0} neighbours</span><span>{activity}</span></footer>
     </section>}
+    <button ref={qrFile} style={qrDrag.style} {...qrDrag.handlers} className={styles.qrFile} type="button" onClick={() => openViewer("qr")} aria-label="Open skymesh-join.svg">
+      <span className={styles.fileImage}><QRCode value={joinUrl} size={72} /></span>
+      <span className={styles.fileName}>skymesh-join.svg</span>
+    </button>
+    <button ref={videoDrag.ref} style={videoDrag.style} {...videoDrag.handlers} className={styles.videoFile} type="button" onClick={() => openViewer("video")} aria-label="Open drone-demo.mp4" title="Open video viewer">
+      <span className={styles.videoImage} aria-hidden="true"><span>▶</span><small>MP4</small></span>
+      <span className={styles.fileName}>drone-demo.mp4</span>
+    </button>
+    <a ref={stationDrag.ref} style={stationDrag.style} {...stationDrag.handlers} className={styles.stationFile} href="https://stationdc.org" target="_blank" rel="noopener noreferrer" aria-label="Open Station DC website (new tab)">
+      <span className={styles.stationImage} aria-hidden="true"><span>▥</span><strong>STATION<br />DC</strong></span>
+      <span className={styles.fileName}>station-dc.url</span>
+    </a>
+    <dialog ref={qrDialog} style={viewerDrag.style} className={`${styles.qrViewer} ${qrOpen === "video" ? styles.videoViewer : ""}`} aria-labelledby="qr-title" onCancel={event => { event.preventDefault(); void closeViewer(); }} onClose={() => { setQrOpen(false); launchIcon.current?.focus(); }}>
+      <header {...viewerDrag.handlers} className={styles.titlebar}><span id="qr-title">{qrOpen === "video" ? "drone-demo.mp4" : "skymesh-join.svg"}</span><button type="button" aria-label={qrOpen === "video" ? "Close video viewer" : "Close QR image"} onClick={() => void closeViewer()}>×</button></header>
+      {qrOpen === "video" ? <>
+        <iframe className={styles.videoPlayer} src="https://www.youtube-nocookie.com/embed/DUTQkbuzxtk" title="Drone demo video" allow="encrypted-media; picture-in-picture; fullscreen" allowFullScreen />
+        <p>drone-demo.mp4 · YouTube video</p><a href="https://youtu.be/DUTQkbuzxtk?is=_DargxbSpjJiuzxG" target="_blank" rel="noopener noreferrer">Watch on YouTube ↗</a>
+      </> : <>
+        <div className={styles.qrImage}><QRCode value={joinUrl} size={256} title="Scan to join this SkyMesh session" /></div>
+        <p>Scan to join this mesh.</p><a href={joinUrl}>{joinUrl}</a>
+      </>}
+    </dialog>
     <button ref={taskButton} style={mascotDrag.style} {...mascotDrag.handlers} className={styles.sensorFile} type="button" aria-label="Open sensor dashboard" aria-expanded={!minimized} onClick={() => { setMinimized(false); requestAnimationFrame(() => windowRef.current?.focus()); }}>
       <span className={styles.sensorImage}><AsciiLogo className={styles.desktopMascot} mood="idle" /></span>
       <span className={styles.fileName}>SkyMesh_x64.exe</span>
