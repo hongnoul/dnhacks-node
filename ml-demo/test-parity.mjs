@@ -74,7 +74,7 @@ async function scoreJs(samples, sampleRate) {
       const a = Math.abs(raw[i]);
       if (a > peak) peak = a;
     }
-    if (peak < 0.005) continue;
+    if (peak < 0.001) continue;
     const g = 0.9 / peak;
     const chunk = new Float32Array(raw.length);
     for (let i = 0; i < raw.length; i++) chunk[i] = raw[i] * g;

@@ -5,7 +5,7 @@ Simulates 4 nodes at known GPS positions around a known drone position.
 Each node uploads a real drone clip; loudness falls with distance to the
 virtual drone. Verifies:
   - CRNN confirms every drone clip (server_conf > 0.9)
-  - noise clip is rejected (server_conf < 0.5, no track pollution)
+  - noise clip is rejected (server_conf < 0.35, no track pollution)
   - fused track lands near truth and error shrinks as nodes join
 
 Usage: python sim_fusion.py [server_url]
@@ -92,7 +92,7 @@ def main():
         "type": "detection", "node_id": "sim-noise", "t": time.time(),
         "loudness": 0.9, "lat": 38.91, "lon": -77.05,
     })
-    assert r.get("server_conf", 1) < 0.5, f"noise scored {r.get('server_conf')}"
+    assert r.get("server_conf", 1) < 0.35, f"noise scored {r.get('server_conf')}"
     print(f"  noise clip rejected: conf={r['server_conf']:.3f} ✓")
 
     final_err = errors[-1]

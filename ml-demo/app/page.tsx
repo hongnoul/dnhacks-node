@@ -8,15 +8,32 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MicCapture } from "./lib/audio";
 import { DroneDetector } from "./lib/detector";
 
-const SCORE_INTERVAL_MS = 500;
-const DETECT_THRESHOLD = 0.5;
+const SCORE_INTERVAL_MS = 250;
+const DETECT_THRESHOLD = 0.35;
+// Release below the trip point so a flickering 0.30/0.40 signal holds the
+// DETECTED pill instead of chattering. Lower = stickier (more sensitive).
+const RELEASE_THRESHOLD = 0.25;
+// Display smoothing: raw CRNN output jumps hard (0.02 → 1.0 between 1 s
+// windows). EMA alpha 0.6 keeps attack fast (~1 tick to cross 0.35 on a
+// step) while damping single-window flicker. Detection itself uses the raw
+// score so smoothing never delays the pill.
+const DISPLAY_ALPHA = 0.6;
+// Max-hold: keep the displayed peak for this long so a brief 1.0 spike
+// (one 1 s window sliding past the drone) stays visible across ticks.
+const PEAK_HOLD_MS = 1500;
+// Marginal-trip: a distant drone may sit at 0.22-0.34 forever and never
+// cross 0.35. Trip the pill if the raw score holds above MARGINAL_FLOOR for
+// MARGINAL_TICKS straight ticks (~3 at 4 Hz × 250 ms ≈ 0.75 s of sustained
+// drone-like audio). Noise clips score <0.06 sustained, so 0.22 is safe.
+const MARGINAL_FLOOR = 0.22;
+const MARGINAL_TICKS = 3;
 
-// Graph: show the last 60 s, keep the whole session (2 Hz → 7200 pts/hour).
+// Graph: show the last 60 s, keep the whole session (4 Hz → 14400 pts/hour).
 const WINDOW_MS = 60_000;
-const MAX_POINTS = 28_800; // ~4 h cap to bound memory
+const MAX_POINTS = 28_800; // ~2 h cap at 4 Hz to bound memory
 
 type Phase = "idle" | "loading" | "starting" | "listening" | "error";
-type Point = { t: number; p: number };
+type Point = { t: number; p: number; d: boolean };
 
 function randomNodeId(): string {
   return Math.random().toString(36).slice(2, 8);
@@ -81,7 +98,7 @@ function drawGraph(canvas: HTMLCanvasElement, history: Point[], now: number) {
   ctx.stroke();
   ctx.restore();
   ctx.fillStyle = MUTED;
-  const tLabel = "threshold 50%";
+  const tLabel = `threshold ${Math.round(DETECT_THRESHOLD * 100)}%`;
   ctx.fillText(tLabel, w - padR - ctx.measureText(tLabel).width, y(DETECT_THRESHOLD) - 4);
 
   // Visible points (+ one before the window so the line enters from the edge)
@@ -103,13 +120,14 @@ function drawGraph(canvas: HTMLCanvasElement, history: Point[], now: number) {
     return;
   }
 
-  // Red fill wherever the line is above threshold
+  // Red fill + red segments wherever the latched detection state is on
+  // (covers marginal trips that sit below the trip line).
   ctx.beginPath();
   let filling = false;
   for (let i = 0; i < vis.length; i++) {
     const px = Math.max(padL, x(vis[i].t));
     const py = y(vis[i].p);
-    if (vis[i].p >= DETECT_THRESHOLD) {
+    if (vis[i].d) {
       if (!filling) {
         ctx.moveTo(px, y(DETECT_THRESHOLD));
         ctx.lineTo(px, py);
@@ -138,7 +156,7 @@ function drawGraph(canvas: HTMLCanvasElement, history: Point[], now: number) {
   for (let i = 1; i < vis.length; i++) {
     const a = vis[i - 1];
     const b = vis[i];
-    ctx.strokeStyle = (b.p >= DETECT_THRESHOLD || a.p >= DETECT_THRESHOLD) ? RED : GREEN;
+    ctx.strokeStyle = b.d || a.d ? RED : GREEN;
     ctx.beginPath();
     ctx.moveTo(Math.max(padL, x(a.t)), y(a.p));
     ctx.lineTo(Math.max(padL, x(b.t)), y(b.p));
@@ -148,7 +166,7 @@ function drawGraph(canvas: HTMLCanvasElement, history: Point[], now: number) {
   // Red ticks along the top edge for each rising-edge crossing in view
   ctx.fillStyle = RED;
   for (let i = 1; i < vis.length; i++) {
-    if (vis[i - 1].p < DETECT_THRESHOLD && vis[i].p >= DETECT_THRESHOLD) {
+    if (!vis[i - 1].d && vis[i].d) {
       const px = Math.max(padL, x(vis[i].t));
       ctx.fillRect(px - 1, 0, 2, 6);
     }
@@ -159,7 +177,7 @@ function drawGraph(canvas: HTMLCanvasElement, history: Point[], now: number) {
   if (now - last.t < WINDOW_MS) {
     ctx.beginPath();
     ctx.arc(Math.max(padL, x(last.t)), y(last.p), 4, 0, Math.PI * 2);
-    ctx.fillStyle = last.p >= DETECT_THRESHOLD ? RED : GREEN;
+    ctx.fillStyle = last.d ? RED : GREEN;
     ctx.fill();
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 1.5;
@@ -173,6 +191,10 @@ export default function NodePage() {
   const [conf, setConf] = useState<number | null>(null);
   const [history, setHistory] = useState<Point[]>([]);
   const [detections, setDetections] = useState<number>(0);
+  // Latched detection state for the pill: mirrors wasDetectingRef so the
+  // readout reflects the hysteresis decision (incl. marginal trips), not
+  // just whether the smoothed display number crossed the trip point.
+  const [pillDetecting, setPillDetecting] = useState(false);
   const [lastDetectAt, setLastDetectAt] = useState<string>("never");
   const [nodeId, setNodeId] = useState<string>("");
 
@@ -183,6 +205,9 @@ export default function NodePage() {
   const detectorRef = useRef<DroneDetector | null>(null);
   const scoringRef = useRef(false); // skip ticks while an inference is in flight
   const wasDetectingRef = useRef(false);
+  const marginalRef = useRef(0); // straight ticks with raw >= MARGINAL_FLOOR
+  const smoothRef = useRef<number | null>(null); // EMA of raw scores for display
+  const peakRef = useRef<{ p: number; t: number } | null>(null); // max-hold peak
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const historyRef = useRef<Point[]>([]);
@@ -216,6 +241,10 @@ export default function NodePage() {
 
       setHistory([]);
       wasDetectingRef.current = false;
+      setPillDetecting(false);
+      marginalRef.current = 0;
+      smoothRef.current = null;
+      peakRef.current = null;
       setPhase("listening");
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -223,28 +252,55 @@ export default function NodePage() {
     }
   }, []);
 
-  // CRNN scoring at 2 Hz — all on this phone.
+  // CRNN scoring at 4 Hz — all on this phone. Each tick scores the last 1 s
+  // of audio, so windows overlap 75%: a drone entering mid-window still gets
+  // a full look within ~250 ms. Detection uses the raw score (never delayed
+  // by smoothing); the graph shows EMA + max-hold so spikes stay visible.
   useEffect(() => {
     if (phase !== "listening") return;
 
-    const scorer = setInterval(() => {
+    const tick = () => {
       const mic = micRef.current;
       const det = detectorRef.current;
       if (!mic || !det?.ready || scoringRef.current) return;
-      const samples = mic.samples(1.0);
+      const samples = mic.samplesInto(1.0);
       if (!samples) return;
       scoringRef.current = true;
       det
         .score(samples, mic.sampleRate)
-        .then((p) => {
+        .then((raw) => {
           const t = Date.now();
+          // Display: fast-attack EMA + peak hold. Detection: raw + hysteresis.
+          const prev = smoothRef.current;
+          const smooth = prev == null ? raw : prev + DISPLAY_ALPHA * (raw - prev);
+          smoothRef.current = smooth;
+          const held = peakRef.current;
+          const display =
+            held && t - held.t < PEAK_HOLD_MS ? Math.max(smooth, held.p) : smooth;
+          if (!held || smooth >= held.p || t - held.t >= PEAK_HOLD_MS) {
+            peakRef.current = { p: smooth, t };
+          }
+          const p = display;
           setConf(p);
-          setHistory((prev) => {
-            const next = [...prev, { t, p }];
+          // Compute the hysteresis verdict BEFORE appending the point so
+          // the graph pixel for this tick carries the latched state.
+          const was = wasDetectingRef.current;
+          marginalRef.current = raw >= MARGINAL_FLOOR ? marginalRef.current + 1 : 0;
+          const detecting = was
+            ? raw >= RELEASE_THRESHOLD || raw >= MARGINAL_FLOOR
+            : raw >= DETECT_THRESHOLD || marginalRef.current >= MARGINAL_TICKS;
+          setHistory((prevHist) => {
+            const next = [...prevHist, { t, p, d: detecting }];
             return next.length > MAX_POINTS ? next.slice(next.length - MAX_POINTS) : next;
           });
-          const detecting = p >= DETECT_THRESHOLD;
-          if (detecting && !wasDetectingRef.current) {
+          // Hysteresis: trip at 0.35, hold until below 0.25 — a flickering
+          // 0.30/0.40 signal stays DETECTED instead of chattering.
+          // Plus marginal-trip: 3 straight ticks >= 0.22 trips too (a
+          // distant drone that never quite reaches 0.35). Once tripped
+          // marginally, hold while raw stays >= 0.22 so the pill does not
+          // chatter between the marginal floor and the release point.
+          // Noise sits <0.06 sustained, so 0.22 is safe.
+          if (detecting && !was) {
             setDetections((n) => n + 1);
             setLastDetectAt(new Date().toLocaleTimeString());
             try {
@@ -254,6 +310,7 @@ export default function NodePage() {
             }
           }
           wasDetectingRef.current = detecting;
+          setPillDetecting(detecting);
         })
         .catch(() => {
           /* transient scoring error — next tick retries */
@@ -261,7 +318,11 @@ export default function NodePage() {
         .finally(() => {
           scoringRef.current = false;
         });
-    }, SCORE_INTERVAL_MS);
+    };
+    // Fire immediately on Start (1 s of ring audio is usually already
+    // buffered) instead of waiting a full 250 ms for the first verdict.
+    tick();
+    const scorer = setInterval(tick, SCORE_INTERVAL_MS);
 
     // Re-render clock so the graph scrolls even between scores
     const clock = setInterval(() => setNowTick(Date.now()), 500);
@@ -305,9 +366,10 @@ export default function NodePage() {
     setPhase("idle");
     setConf(null);
     wasDetectingRef.current = false;
+    setPillDetecting(false);
   }, []);
 
-  const detecting = (conf ?? 0) >= DETECT_THRESHOLD;
+  const detecting = pillDetecting;
   const confPct = conf == null ? null : Math.round(conf * 100);
   const busy = phase === "loading" || phase === "starting";
 

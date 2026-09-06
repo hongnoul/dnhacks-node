@@ -121,7 +121,7 @@ async def ingest_clip(file: UploadFile = File(...), meta: str = Form(...)):
 # ── Fusion: loudness×confidence weighted centroid over a sliding window ──────
 
 FUSE_WINDOW_S = 4.0      # detections within this window fuse into one estimate
-CONF_THRESHOLD = 0.5     # CRNN verdict below this → not a drone, don't fuse
+CONF_THRESHOLD = 0.35     # CRNN verdict below this → not a drone, don't fuse
 recent_detections: deque = deque(maxlen=64)
 
 

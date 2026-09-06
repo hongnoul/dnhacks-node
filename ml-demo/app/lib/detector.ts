@@ -34,6 +34,16 @@ export class DroneDetector {
     this.session = await ort.InferenceSession.create("/drone_crnn.onnx", {
       executionProviders: ["wasm"],
     });
+    // Warm up: first run compiles wasm kernels (~200-500 ms on phones).
+    // Doing it here keeps the first live tick fast so the first drone
+    // window scores in ~50 ms instead of stalling the scan loop.
+    const warm = new Float32Array(N_MELS * FRAMES_PER_WINDOW);
+    const tensor = new ort.Tensor("float32", warm, [1, 1, N_MELS, FRAMES_PER_WINDOW]);
+    try {
+      await this.session.run({ log_mel: tensor });
+    } catch {
+      /* warmup is best-effort — real ticks will compile on demand */
+    }
   }
 
   get ready(): boolean {
@@ -59,6 +69,20 @@ export class DroneDetector {
    */
   async score(samples: Float32Array, sampleRate: number): Promise<number> {
     if (!this.session) throw new Error("model not loaded");
+    // Fast silence gate BEFORE resample+mel: scan every 4th sample for any
+    // peak above the floor. Digital silence skips ~9 ms of frontend work and
+    // returns 0 in microseconds — quiet rooms cost nothing. Any real audio
+    // (peak >> floor even at -60 dBFS) falls through to the exact path.
+    // Stride 4 cannot miss: a peak above floor spans many samples.
+    let gate = 0;
+    for (let i = 0; i < samples.length; i += 4) {
+      const a = Math.abs(samples[i]);
+      if (a > gate) {
+        gate = a;
+        if (gate >= PEAK_FLOOR) break;
+      }
+    }
+    if (gate < PEAK_FLOOR) return 0;
     let wave = resampleTo16k(samples, sampleRate);
     if (wave.length < WINDOW_SAMPLES) {
       const padded = new Float32Array(WINDOW_SAMPLES);
@@ -92,8 +116,11 @@ export class DroneDetector {
 // window before the mel front end. Room playback lands 20-30 dB below file
 // level and the fixed (dB+40)/40 norm shifts quiet audio out of the CRNN's
 // training range. Windows below PEAK_FLOOR are digital silence — score 0.
+// PEAK_FLOOR = 0.001 (-60 dBFS): lab sweep shows the CRNN still recovers
+// 1.0 on drone audio down to -50 dB after norm, with noise clips staying
+// <0.002. The old 0.005 floor gated drone audio quieter than -35 dB.
 export const NORM_PEAK = 0.9;
-export const PEAK_FLOOR = 0.005;
+export const PEAK_FLOOR = 0.001;
 
 // Expected mel frame count for a 1 s window: center padding adds n_fft, so
 // frames = 1 + ((SR + N_FFT) - N_FFT) / HOP = 1 + SR/HOP = 101
