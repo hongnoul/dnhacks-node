@@ -69,6 +69,13 @@ export default function AdminPage() {
     return m;
   }, [mesh, tick]);
 
+  // Each node's own latched verdict — the mesh reports what the node decided,
+  // it does not re-derive detection from p (detection.ts).
+  const hot = useMemo(
+    () => new Set(mesh?.detecting() ?? []),
+    [mesh, tick]
+  );
+
   const ripples = useMemo(
     () => (chan?.forwards ?? []).filter((f) => !f.dropped && Date.now() - f.at < 600),
     [chan, tick]
@@ -145,7 +152,17 @@ export default function AdminPage() {
   return (
     <main style={{ padding: 16, display: "grid", gap: 12 }}>
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h1>SkyMesh — operator</h1>
+        <div className="row">
+          <h1 style={{ margin: 0 }}>SkyMesh — operator</h1>
+          <a
+            href={`/station/?session=${sessionId()}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: "var(--accent)", fontSize: 13 }}
+          >
+            open join station ↗
+          </a>
+        </div>
         <span className="dim" style={{ color: chan?.connected ? "var(--ok)" : "var(--hot)" }}>
           {(mesh?.detecting().length ?? 0) > 0 && (
             <b style={{ color: "var(--hot)" }}>
@@ -225,16 +242,16 @@ export default function AdminPage() {
             {admitted.length === 0 && <span className="dim">no nodes yet</span>}
             {admitted.map((n) => {
               const p = levels.get(n);
-              const hot = (p ?? 0) >= DETECT_THRESHOLD;
+              const isHot = hot.has(n);
               return (
                 <div key={n} style={{ marginBottom: 6 }}>
                   <div className="row" style={{ justifyContent: "space-between" }}>
-                    <span style={{ color: hot ? "var(--hot)" : undefined }}>
-                      {n} {hot && "· DRONE"}
+                    <span style={{ color: isHot ? "var(--hot)" : undefined }}>
+                      {n} {isHot && "· DRONE"}
                     </span>
                     <span
                       className="dim"
-                      style={{ color: hot ? "var(--hot)" : undefined, fontVariantNumeric: "tabular-nums" }}
+                      style={{ color: isHot ? "var(--hot)" : undefined, fontVariantNumeric: "tabular-nums" }}
                     >
                       {p === undefined ? "—" : p.toFixed(2)}
                     </span>
@@ -339,7 +356,7 @@ export default function AdminPage() {
                   return (
                     <tr key={n}>
                       <td>{n}</td>
-                      <td style={{ color: (p ?? 0) > 0.7 ? "var(--hot)" : undefined }}>
+                      <td style={{ color: hot.has(n) ? "var(--hot)" : undefined }}>
                         {p === undefined ? "—" : p.toFixed(2)}
                       </td>
                       <td className="dim">

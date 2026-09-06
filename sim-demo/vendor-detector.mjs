@@ -20,10 +20,14 @@ const files = [
   ["app/lib/audio.ts", "app/lib/vendor/audio.ts"],
   ["public/drone_crnn.onnx", "public/drone_crnn.onnx"],
   ["public/drone-demo.wav", "public/drone-demo.wav"],
+  // Demo-station assets: the QR onboarding + clickable 3D drone (see /station).
+  ["public/drone-tone.wav", "public/drone-tone.wav"],
+  ["public/models/drone-sillyfear.glb", "public/models/drone-sillyfear.glb"],
 ];
 
 mkdirSync(join(root, "app/lib/vendor"), { recursive: true });
 mkdirSync(join(root, "public"), { recursive: true });
+mkdirSync(join(root, "public/models"), { recursive: true });
 
 let copied = 0;
 for (const [from, to] of files) {

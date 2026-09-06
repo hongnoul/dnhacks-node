@@ -17,8 +17,11 @@ import random
 import time
 from dataclasses import dataclass, field
 
+from pathlib import Path
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="SkyMesh mesh relay")
 
@@ -240,3 +243,13 @@ async def ws_endpoint(ws: WebSocket):
             if node_id and sess.nodes.get(node_id) and sess.nodes[node_id].ws is ws:
                 del sess.nodes[node_id]
                 await push_state(sess)
+
+
+# Serve the static export from the same origin as /ws, when one has been built
+# (`npm run build:static`). This is what makes phones work: getUserMedia requires
+# HTTPS, and an https:// page cannot open a ws:// socket to a different host — so
+# one origin means one certificate and one tunnel instead of two of each.
+# Mounted last so it never shadows /ws or /health.
+_STATIC = Path(__file__).parent.parent / "out"
+if _STATIC.is_dir():
+    app.mount("/", StaticFiles(directory=str(_STATIC), html=True), name="app")

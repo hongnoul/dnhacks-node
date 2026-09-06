@@ -331,3 +331,43 @@ fix must survive ±3 dB of noise.
 Worth knowing what that noise costs: ±3 dB is a ~41% distance error (20·log10), so
 **1.5–2 m of position error** at these ranges. That, not grid resolution, bounds what
 the demo can claim.
+
+---
+
+## 13. Tracking ml-demo's detection changes
+
+main retuned detection substantially (4 Hz scoring, trip 0.35 / release 0.25, a marginal
+trip at 0.22 over 3 ticks, EMA display smoothing with a 1.5 s peak hold) and dropped the
+AnalyserNode for latency. Three consequences:
+
+1. **Detection is stateful, so the verdict goes on the wire.** `detection.ts` mirrors
+   ml-demo's latch, and readings carry `d` alongside `p`. A peer cannot recompute the
+   verdict from `p` — hysteresis and the marginal counter depend on history — and if it
+   guessed, the mesh and the standalone demo would call the same audio differently. The
+   mesh now reports what each node *decided*, not what a threshold says about its score.
+2. **`p` on the wire stays raw.** Display uses the smoothed, peak-held value; fusion uses
+   the raw score, because smoothing would lag the evidence.
+3. **The level channel had to move.** `frame().bandLoudness` is gone with the
+   AnalyserNode, so `scoring.ts` computes RMS over the same window it hands the detector —
+   the true pre-normalisation level, one pass over an array already in hand. Same role as
+   before: the CRNN answers "is it a drone", the level answers "how close".
+
+## 14. The join station
+
+`/station` is ml-demo's `/tone` pointed at the mesh: QR on the left, clickable 3D drone on
+the right (vendored GLB, real DADS audio, visible two-blade props because the GLB's own
+discs are rotationally symmetric and read as motionless when spun).
+
+The QR is the part that differs. ml-demo's station links to a fixed apex URL because each
+phone is standalone; a mesh node has to land in *this* session on *this* host, so the link
+is built from `window.location.origin` plus the session at render time — which is what
+makes it work behind an ephemeral tunnel.
+
+### Serving phones at all
+
+`getUserMedia` requires HTTPS (Android too — only `localhost` is exempt), and an https://
+page cannot open a ws:// socket to another host. Two servers meant two origins and two
+tunnels. So the relay now serves the static export beside `/ws`: `npm run build:static`
+with `NEXT_PUBLIC_RELAY_URL=/ws`, mounted in `relay.py` after the routes so it never
+shadows them. One origin, one certificate, one tunnel — and closer to how this would
+actually deploy.

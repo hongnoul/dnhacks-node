@@ -14,18 +14,23 @@
     "test:fusion": "node --test tests/fusion.test.ts",
     "postinstall": "node vendor-detector.mjs",
     "prebuild": "node vendor-detector.mjs",
-    "vendor": "node vendor-detector.mjs"
+    "vendor": "node vendor-detector.mjs",
+    "build:static": "STATIC=1 NEXT_PUBLIC_RELAY_URL=/ws next build",
+    "serve": "server/.venv/bin/uvicorn relay:app --app-dir server --host 0.0.0.0 --port 8001"
   },
   "dependencies": {
     "next": "^15.4.6",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "onnxruntime-web": "1.18.0"
+    "onnxruntime-web": "1.18.0",
+    "three": "^0.185.1",
+    "react-qr-code": "^2.2.0"
   },
   "devDependencies": {
     "@types/node": "^22",
     "@types/react": "^19",
     "playwright": "^1.63.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@types/three": "^0.185.4"
   }
 }

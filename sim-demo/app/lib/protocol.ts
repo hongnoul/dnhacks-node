@@ -21,8 +21,17 @@ export interface MeshRecord {
 
 export interface Reading extends MeshRecord {
   type: "reading";
-  p: number; // drone likelihood, 0..1
-  logit: number; // log(p/(1-p)) — keeps dynamic range where p saturates (§6.2)
+  p: number; // raw CRNN score, 0..1 — fusion's input
+  /**
+   * ml-demo's latched detection verdict.
+   *
+   * On the wire because it is *stateful*: hysteresis plus a marginal-trip
+   * counter mean a peer cannot recover it by comparing p to a threshold, and if
+   * it tried, the mesh and the standalone demo would disagree about the same
+   * audio (detection.ts).
+   */
+  d: boolean;
+  logit: number; // dynamic range where p saturates (§6.2)
   snr_db: number | null;
 }
 

@@ -11,7 +11,7 @@ import { useMesh } from "./lib/useMesh.ts";
 import { MicScorer, SILENT, type Score } from "./lib/scoring.ts";
 import { RoomMap } from "./lib/RoomMap.tsx";
 import { ConfidenceGraph } from "./lib/ConfidenceGraph.tsx";
-import { DETECT_THRESHOLD, SCORE_INTERVAL_MS } from "./lib/detection.ts";
+import { SCORE_INTERVAL_MS } from "./lib/detection.ts";
 import { DEFAULT_ROOM } from "./lib/mesh.ts";
 
 export default function NodePage() {
@@ -56,9 +56,16 @@ export default function NodePage() {
       if (!scorer?.ready) return; // absent beats a false "heard nothing" (§6.1)
       const s = scorer.latest();
       setScore(s);
-      const isDetecting = s.p >= DETECT_THRESHOLD;
-      if (isDetecting && !wasDetecting.current) setDetections((n) => n + 1);
-      wasDetecting.current = isDetecting;
+      // The verdict is the scorer's latch (ml-demo's), not a threshold applied here.
+      if (s.detecting && !wasDetecting.current) {
+        setDetections((n) => n + 1);
+        try {
+          navigator.vibrate?.(200);
+        } catch {
+          /* unsupported */
+        }
+      }
+      wasDetecting.current = s.detecting;
       mesh.publishReading(s);
     }, SCORE_INTERVAL_MS);
     return () => clearInterval(id);
@@ -103,7 +110,7 @@ export default function NodePage() {
   }
 
   const status = view?.status.state ?? "connecting";
-  const detecting = score.p >= DETECT_THRESHOLD;
+  const detecting = score.detecting;
   const est = view?.estimate ?? null;
   const levels = new Map<string, number>(view ? [[view.nodeId, score.p]] : []);
 
@@ -141,7 +148,7 @@ export default function NodePage() {
               color: detecting ? "var(--hot)" : "var(--text)",
             }}
           >
-            {(score.p * 100).toFixed(0)}%
+            {(score.display * 100).toFixed(0)}%
           </span>
         </div>
         <ConfidenceGraph history={mesh?.history(view?.nodeId ?? "") ?? []} width={330} now={Date.now()} />

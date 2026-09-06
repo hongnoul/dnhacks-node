@@ -6,7 +6,7 @@
 
 import { chromium } from "playwright";
 
-const APP = process.env.APP_URL ?? "http://localhost:3000";
+const APP = process.env.APP_URL ?? "http://127.0.0.1:8001";
 const fail = [];
 const ok = (m) => console.log("  ✔", m);
 const bad = (m) => { fail.push(m); console.log("  ✖", m); };
@@ -18,7 +18,7 @@ ctx.on("weberror", (e) => errors.push(String(e.error())));
 
 console.log("admin console");
 const admin = await ctx.newPage();
-await admin.goto(`${APP}/admin`);
+await admin.goto(`${APP}/admin/`);
 await admin.waitForSelector("h1");
 await admin.waitForFunction(() => document.body.innerText.includes("relay connected"), { timeout: 8000 })
   .then(() => ok("relay connected")).catch(() => bad("relay never connected"));

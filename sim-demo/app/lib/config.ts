@@ -11,10 +11,18 @@ export function sessionId(): string {
 
 export function relayUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_RELAY_URL;
-  if (explicit) return explicit;
-  if (typeof window === "undefined") return "ws://localhost:8001/ws";
-  // Default to the relay beside the page, on its own port. Must be wss:// when
-  // the page is https:// — mixed content is blocked (ARCHITECTURE.md §4.5).
+  if (typeof window === "undefined") return explicit || "ws://localhost:8001/ws";
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
+
+  // A leading slash means same-origin: the relay is serving this page too, so
+  // one host (and one tunnel) covers both the app and the socket. This is the
+  // shape that works from a phone, where getUserMedia demands HTTPS and an
+  // https:// page may not open a ws:// socket to some other host.
+  if (explicit?.startsWith("/")) {
+    return `${proto}://${window.location.host}${explicit}`;
+  }
+  if (explicit) return explicit;
+
+  // Dev default: Next on :3000, relay beside it on :8001.
   return `${proto}://${window.location.hostname}:8001/ws`;
 }

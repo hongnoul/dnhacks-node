@@ -11,6 +11,8 @@ Two processes:
 
 Then:
 
+- **`/station`** — the laptop screen. QR to put phones on this session, plus a clickable
+  3D drone that plays real DADS audio so every phone hears one at once.
 - **`/admin`** — operator console. Admit nodes, place them, draw the topology, cut links.
 - **`/`** — a sensor node. One tap to join; needs mic permission.
 
@@ -18,13 +20,29 @@ Multi-tab testing: `?node=n03` pins identity per tab. `localStorage` is shared a
 of one origin, so without it every tab claims the same node id and the result looks exactly
 like a replication bug. `?session=<id>` isolates a run.
 
+## Phones
+
+`getUserMedia` needs HTTPS — on Android too, not just iOS; only `localhost` is exempt, so
+a LAN IP will not work. Serve the static build from the relay so the page and the socket
+share one origin, then tunnel that one port:
+
+    npm run build:static      # static export; relay serves it beside /ws
+    npm run serve             # relay on :8001, app included
+    cloudflared tunnel --url http://localhost:8001
+
+Open `<tunnel>/station/` on the laptop and have phones scan the QR. Because it is one
+origin, `wss://` resolves to the same host and no second tunnel is needed.
+
+Note the static build is a *build*: re-run `npm run build:static` after code changes.
+`npm run dev` on :3000 is still there for iterating.
+
 ## Demo script
 
 1. `/admin`, then open `/?node=n01` … `/?node=n06` and admit each.
 2. **two clusters + bridge**, then **auto-place**. The bridge is the cut edge.
-3. Play drone audio near a phone (`public/drone-demo.wav` works) — the on-device CRNN
-   fires, the DRONE DETECTED banner lights, and the console's per-node confidence
-   graphs spike.
+3. Click the drone on `/station` (or play `public/drone-demo.wav`) — the on-device CRNN
+   fires, the DRONE DETECTED banner lights, and the console's per-node confidence graphs
+   spike.
 
    With every node on one laptop mic they all hear the same thing at the same level,
    which constrains nothing: the console will say **"detecting, but not localised"**
@@ -58,7 +76,16 @@ not detection: what phones would face in the field but never see on one WiFi.
 
 ## Detection
 
-Detection is ml-demo's, not a re-implementation: `npm install` vendors `mel.ts`,
+Detection is ml-demo's, not a re-implementation, and it is **stateful**: hysteresis
+(trip 0.35, release 0.25) plus a marginal trip (3 straight ticks ≥ 0.22, for a distant
+drone that never reaches the trip point), scored at 4 Hz. `detection.ts` mirrors that
+latch, and the verdict travels on the wire as `d` — a peer cannot recover it by comparing
+`p` to a threshold, and if it tried, the mesh and the standalone demo would disagree about
+the same audio.
+
+Re-check `detection.ts` whenever ml-demo retunes.
+
+The vendoring: `npm install` vendors `mel.ts`,
 `detector.ts`, `audio.ts` and `drone_crnn.onnx` from `../ml-demo` via
 `vendor-detector.mjs`, so the CRNN and its bit-parity mel front end stay a single
 source of truth. Re-run `npm run vendor` after ml-demo changes.

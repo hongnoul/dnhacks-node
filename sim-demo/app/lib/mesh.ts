@@ -13,7 +13,7 @@ import { loadIdentity, type Identity } from "./identity.ts";
 import { fuse, type Estimate, type Placed, type Room, type NodeReading } from "./fusion.ts";
 import type { NewRecord } from "./protocol.ts";
 import type { Score } from "./scoring.ts";
-import { DETECT_THRESHOLD, GRAPH_WINDOW_MS } from "./detection.ts";
+import { GRAPH_WINDOW_MS } from "./detection.ts";
 import type { Point } from "./ConfidenceGraph.tsx";
 
 export const DEFAULT_ROOM: Room = { w: 12, h: 8 };
@@ -85,6 +85,7 @@ export class Mesh {
     this.gossip.publish({
       type: "reading",
       p: score.p,
+      d: score.detecting,
       logit: score.logit,
       snr_db: score.snrDb,
     } satisfies NewRecord);
@@ -118,17 +119,15 @@ export class Mesh {
     const cutoff = this.clock.now() - windowMs;
     const out: Point[] = [];
     for (const rec of this.log.ofType("reading")) {
-      const r = rec as unknown as { origin: string; t: number; p: number };
-      if (r.origin === node && r.t >= cutoff) out.push({ t: r.t, p: r.p });
+      const r = rec as unknown as { origin: string; t: number; p: number; d?: boolean };
+      if (r.origin === node && r.t >= cutoff) out.push({ t: r.t, p: r.p, d: !!r.d });
     }
     return out.sort((a, b) => a.t - b.t);
   }
 
-  /** Nodes currently over ml-demo's detection threshold. */
+  /** Nodes whose own latch says they are detecting. Their verdict, not ours. */
   detecting(): string[] {
-    return this.currentReadings()
-      .filter((r) => r.p >= DETECT_THRESHOLD)
-      .map((r) => r.node);
+    return this.currentReadings().filter((r) => r.detecting).map((r) => r.node);
   }
 
   /** Most recent reading per node, within the freshness window. */
@@ -136,11 +135,16 @@ export class Mesh {
     const now = this.clock.now();
     const latest = new Map<string, { t: number; r: NodeReading }>();
     for (const rec of this.log.ofType("reading")) {
-      const r = rec as unknown as { origin: string; t: number; p: number; snr_db: number | null };
+      const r = rec as unknown as {
+        origin: string; t: number; p: number; d?: boolean; snr_db: number | null;
+      };
       if (now - r.t > FRESH_MS) continue;
       const prev = latest.get(r.origin);
       if (!prev || r.t > prev.t) {
-        latest.set(r.origin, { t: r.t, r: { node: r.origin, p: r.p, snrDb: r.snr_db } });
+        latest.set(r.origin, {
+          t: r.t,
+          r: { node: r.origin, p: r.p, snrDb: r.snr_db, detecting: !!r.d },
+        });
       }
     }
     return [...latest.values()].map((e) => e.r);

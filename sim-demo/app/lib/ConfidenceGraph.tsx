@@ -24,6 +24,8 @@ import {
 export interface Point {
   t: number;
   p: number;
+  /** Latched verdict at that tick — marginal trips sit below the line but count. */
+  d?: boolean;
 }
 
 export function ConfidenceGraph({
@@ -100,7 +102,7 @@ export function ConfidenceGraph({
     let filling = false;
     for (const pt of vis) {
       const px = Math.max(padL, x(pt.t));
-      if (pt.p >= DETECT_THRESHOLD) {
+      if (pt.d ?? pt.p >= DETECT_THRESHOLD) {
         if (!filling) {
           ctx.moveTo(px, y(DETECT_THRESHOLD));
           filling = true;
@@ -125,7 +127,8 @@ export function ConfidenceGraph({
     for (let i = 1; i < vis.length; i++) {
       const a = vis[i - 1];
       const b = vis[i];
-      ctx.strokeStyle = b.p >= DETECT_THRESHOLD || a.p >= DETECT_THRESHOLD ? RED : GREEN;
+      const hot = (b.d ?? b.p >= DETECT_THRESHOLD) || (a.d ?? a.p >= DETECT_THRESHOLD);
+      ctx.strokeStyle = hot ? RED : GREEN;
       ctx.beginPath();
       ctx.moveTo(Math.max(padL, x(a.t)), y(a.p));
       ctx.lineTo(Math.max(padL, x(b.t)), y(b.p));
@@ -136,7 +139,7 @@ export function ConfidenceGraph({
     if (now - last.t < GRAPH_WINDOW_MS) {
       ctx.beginPath();
       ctx.arc(Math.max(padL, x(last.t)), y(last.p), compact ? 2.5 : 4, 0, Math.PI * 2);
-      ctx.fillStyle = last.p >= DETECT_THRESHOLD ? RED : GREEN;
+      ctx.fillStyle = (last.d ?? last.p >= DETECT_THRESHOLD) ? RED : GREEN;
       ctx.fill();
     }
 

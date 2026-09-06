@@ -34,8 +34,10 @@ export interface Placed {
 
 export interface NodeReading {
   node: string;
-  p: number; // 0..1
+  p: number; // raw CRNN score, 0..1
   snrDb?: number | null; // graded level — carries the range information
+  /** The node's own latched verdict (detection.ts). Absent for synthetic data. */
+  detecting?: boolean;
 }
 
 /** Detection probability vs distance. Fallback path, and used for `nSilent`. */
@@ -148,7 +150,11 @@ export const LOCALISED_MAX_FRACTION = 0.6;
  */
 export const MAX_RESIDUAL_SIGMAS = 3;
 
-const SILENT_BELOW = 0.2;
+// A node counts as silent when its own latch says it hears nothing. Falling
+// back to a bare threshold keeps synthetic test data working.
+const SILENT_BELOW = 0.22; // ml-demo's MARGINAL_FLOOR
+const hears = (r: NodeReading) =>
+  typeof r.detecting === "boolean" ? r.detecting : r.p >= SILENT_BELOW;
 
 export function fuse(opts: {
   room: Room;
@@ -251,8 +257,8 @@ export function fuse(opts: {
     y: mapY,
     spreadM,
     localised,
-    nReports: used.filter((e) => e.r.p >= SILENT_BELOW).length,
-    nSilent: used.filter((e) => e.r.p < SILENT_BELOW).length,
+    nReports: used.filter((e) => hears(e.r)).length,
+    nSilent: used.filter((e) => !hears(e.r)).length,
     graded,
   };
 }

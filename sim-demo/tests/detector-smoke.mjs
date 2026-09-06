@@ -8,7 +8,7 @@ import { chromium } from "playwright";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const APP = process.env.APP_URL ?? "http://localhost:3000";
+const APP = process.env.APP_URL ?? "http://127.0.0.1:8001";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const WAV = join(ROOT, "public", "drone-demo.wav");
 
@@ -68,7 +68,7 @@ const records = await page.evaluate(() => {
 records > 0 ? ok(`readings reaching the log (${records} records)`) : bad("no records published");
 
 const finalBanner = await page.evaluate(() => /DRONE DETECTED/.test(document.body.innerText));
-(banner || finalBanner) ? ok("detection banner matched ml-demo's 0.5 threshold")
+(banner || finalBanner) ? ok("banner fired via ml-demo's latch (trip 0.35 / marginal 0.22)")
                         : bad("confidence rose but the banner never fired");
 
 if (errors.length) { console.log("\npage errors:"); errors.slice(0, 5).forEach((e) => console.log("   ", e.split("\n")[0])); }
