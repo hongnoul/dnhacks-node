@@ -99,9 +99,12 @@ export default function TonePage() {
         const grounded = new THREE.Box3().setFromObject(model);
         model.position.y -= grounded.min.y;
         drone.add(model);
-        // Propeller discs: 4 flat meshes (thin in Y, wide in X/Z) at the
-        // corners. Detect by geometry: thin flat bounding boxes up high.
-        rotorsRef.current = [];
+        // Propellers: the GLB's own discs are radially symmetric opaque
+        // slabs, so spinning them is invisible. Instead: hide the discs,
+        // keep the spinner cones on their pivots, and add visible 2-blade
+        // props (dark blades + red tips) that spin around each motor shaft.
+        const discs: THREE.Mesh[] = [];
+        const shafts: THREE.Mesh[] = [];
         model.traverse((o) => {
           if (!(o instanceof THREE.Mesh)) return;
           o.geometry.computeBoundingBox();
@@ -110,28 +113,83 @@ export default function TonePage() {
           const sx = bb.max.x - bb.min.x;
           const sy = bb.max.y - bb.min.y;
           const sz = bb.max.z - bb.min.z;
-          const flat = sy < 0.02 && sx > 0.1 && sz > 0.1;
-          if (flat) {
-            // Wrap in a pivot at the disc center so it spins in place.
-            // Parent to the (scaled) model so the clone inherits its scale.
-            const pivot = new THREE.Group();
-            const world = new THREE.Vector3();
-            o.getWorldPosition(world);
-            model.worldToLocal(world);
-            pivot.position.copy(world);
-            const clone = o.clone();
-            clone.position.set(0, 0, 0);
-            // Re-center blade geometry on the pivot.
-            clone.geometry = o.geometry.clone();
-            clone.geometry.computeBoundingBox();
-            const c = clone.geometry.boundingBox!.getCenter(new THREE.Vector3());
-            clone.geometry.translate(-c.x, 0, -c.z);
-            o.visible = false;
-            pivot.add(clone);
-            model.add(pivot);
-            rotorsRef.current.push(pivot);
-          }
+          if (bb.min.y > 0.09 && sy < 0.02 && sx > 0.15 && sz > 0.15) discs.push(o);
+          else if (bb.min.y > 0.09 && sy < 0.05 && sx < 0.05 && sz < 0.05)
+            shafts.push(o);
         });
+        const bladeMat = new THREE.MeshStandardMaterial({
+          color: 0x1f2937,
+          roughness: 0.5,
+          metalness: 0.2,
+        });
+        const tipMat = new THREE.MeshStandardMaterial({
+          color: 0xef4444,
+          roughness: 0.5,
+          metalness: 0.1,
+        });
+        rotorsRef.current = [];
+        discs.forEach((disc) => {
+          // Spin axis = nearest motor shaft; fall back to the disc center.
+          const dc = disc.geometry.boundingBox!.getCenter(new THREE.Vector3());
+          let axis = dc;
+          let bestShaft: THREE.Mesh | null = null;
+          let best = Infinity;
+          shafts.forEach((shaft) => {
+            const c = shaft.geometry.boundingBox!.getCenter(new THREE.Vector3());
+            const d = (c.x - dc.x) ** 2 + (c.z - dc.z) ** 2;
+            if (d < best) {
+              best = d;
+              bestShaft = shaft;
+              axis = c;
+            }
+          });
+          if (bestShaft) shafts.splice(shafts.indexOf(bestShaft), 1);
+          disc.visible = false;
+          // Prop radius from the disc extent (~0.16 half-width).
+          const radius =
+            Math.max(
+              disc.geometry.boundingBox!.max.x - disc.geometry.boundingBox!.min.x,
+              disc.geometry.boundingBox!.max.z - disc.geometry.boundingBox!.min.z,
+            ) / 2;
+          const pivot = new THREE.Group();
+          pivot.position.set(axis.x, axis.y + 0.005, axis.z);
+          const bladeLen = radius * 0.92;
+          const bladeW = 0.035;
+          const bladeT = 0.006;
+          for (let b = 0; b < 2; b++) {
+            const blade = new THREE.Group();
+            const inner = new THREE.Mesh(
+              new THREE.BoxGeometry(bladeLen - 0.05, bladeT, bladeW),
+              bladeMat,
+            );
+            inner.position.x = 0.025 + (bladeLen - 0.05) / 2;
+            const tip = new THREE.Mesh(new THREE.BoxGeometry(0.05, bladeT, bladeW), tipMat);
+            tip.position.x = bladeLen - 0.025 + 0.025;
+            blade.add(inner, tip);
+            blade.rotation.y = b * Math.PI;
+            // Slight pitch so blades catch the light while spinning.
+            blade.rotation.z = 0.06;
+            pivot.add(blade);
+          }
+          const hub = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.014, 0.014, 0.02, 10),
+            bladeMat,
+          );
+          pivot.add(hub);
+          if (bestShaft) {
+            // Keep the original spinner cone centered on the pivot.
+            const cone: THREE.Mesh = bestShaft;
+            cone.geometry = cone.geometry.clone();
+            cone.geometry.translate(-axis.x, -axis.y, -axis.z);
+            pivot.add(cone);
+          }
+          model.add(pivot);
+          rotorsRef.current.push(pivot);
+        });
+        if (rotorsRef.current.length !== 4)
+          console.warn(`tone: expected 4 propellers, found ${rotorsRef.current.length}`);
+        (window as unknown as { __rotorCount?: number }).__rotorCount =
+          rotorsRef.current.length;
         setReady(true);
       },
       undefined,
