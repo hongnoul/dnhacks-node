@@ -9,10 +9,10 @@ import { MicCapture } from "./lib/audio";
 import { DroneDetector } from "./lib/detector";
 
 const SCORE_INTERVAL_MS = 250;
-const DETECT_THRESHOLD = 0.5;
-// Release below the trip point so a flickering 0.45/0.55 signal holds the
+const DETECT_THRESHOLD = 0.35;
+// Release below the trip point so a flickering 0.30/0.40 signal holds the
 // DETECTED pill instead of chattering. Lower = stickier (more sensitive).
-const RELEASE_THRESHOLD = 0.35;
+const RELEASE_THRESHOLD = 0.25;
 // Display smoothing: raw CRNN output jumps hard (0.02 → 1.0 between 1 s
 // windows). EMA alpha 0.6 keeps attack fast (~1 tick to cross 0.5 on a
 // step) while damping single-window flicker. Detection itself uses the raw
@@ -21,11 +21,11 @@ const DISPLAY_ALPHA = 0.6;
 // Max-hold: keep the displayed peak for this long so a brief 1.0 spike
 // (one 1 s window sliding past the drone) stays visible across ticks.
 const PEAK_HOLD_MS = 1500;
-// Marginal-trip: a distant drone may sit at 0.30-0.49 forever and never
-// cross 0.5. Trip the pill if the raw score holds above MARGINAL_FLOOR for
+// Marginal-trip: a distant drone may sit at 0.22-0.34 forever and never
+// cross 0.35. Trip the pill if the raw score holds above MARGINAL_FLOOR for
 // MARGINAL_TICKS straight ticks (~3 at 4 Hz × 250 ms ≈ 0.75 s of sustained
-// drone-like audio). Noise clips score <0.06 sustained, so 0.30 is safe.
-const MARGINAL_FLOOR = 0.3;
+// drone-like audio). Noise clips score <0.06 sustained, so 0.22 is safe.
+const MARGINAL_FLOOR = 0.22;
 const MARGINAL_TICKS = 3;
 
 // Graph: show the last 60 s, keep the whole session (4 Hz → 14400 pts/hour).
@@ -98,7 +98,7 @@ function drawGraph(canvas: HTMLCanvasElement, history: Point[], now: number) {
   ctx.stroke();
   ctx.restore();
   ctx.fillStyle = MUTED;
-  const tLabel = "threshold 50%";
+  const tLabel = `threshold ${Math.round(DETECT_THRESHOLD * 100)}%`;
   ctx.fillText(tLabel, w - padR - ctx.measureText(tLabel).width, y(DETECT_THRESHOLD) - 4);
 
   // Visible points (+ one before the window so the line enters from the edge)
@@ -280,10 +280,10 @@ export default function NodePage() {
             const next = [...prevHist, { t, p }];
             return next.length > MAX_POINTS ? next.slice(next.length - MAX_POINTS) : next;
           });
-          // Hysteresis: trip at 0.5, hold until below 0.35 — a flickering
-          // 0.45/0.55 signal stays DETECTED instead of chattering.
-          // Plus marginal-trip: 3 straight ticks >= 0.30 trips too (a
-          // distant drone that never quite reaches 0.5). Noise sits <0.06.
+          // Hysteresis: trip at 0.35, hold until below 0.25 — a flickering
+          // 0.30/0.40 signal stays DETECTED instead of chattering.
+          // Plus marginal-trip: 3 straight ticks >= 0.22 trips too (a
+          // distant drone that never quite reaches 0.35). Noise sits <0.06.
           const was = wasDetectingRef.current;
           marginalRef.current = raw >= MARGINAL_FLOOR ? marginalRef.current + 1 : 0;
           const detecting =
