@@ -346,3 +346,191 @@
   .emptyHint { top: auto; bottom: 45px; left: 8px; right: 8px; }
   .viewpointBanner { top: 76px; left: 8px; right: 8px; transform: none; white-space: normal; }
 }
+/* The four node states, named. They are distinct on the map already; without
+   this the only place they are explained is a hover tooltip, which is no help
+   while a run is playing. Left corner, opposite the advisor legend. */
+.stateLegend {
+  position: absolute; z-index: 500; bottom: 18px; left: 18px;
+  padding: 9px 11px;
+  border: 1px solid #314052; border-radius: 6px; background: #0d1421e8;
+  box-shadow: 0 8px 24px #00000035; color: #b6c4d3; font-size: 11px;
+}
+.stateLegendTitle {
+  margin: 0 0 6px; color: #e6edf3; font-size: 10px; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase;
+}
+.stateLegend ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.stateLegend li { display: flex; align-items: center; gap: 7px; font-size: 10px; }
+.stateLegend i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+/* Label on an acquisition connector. Leaflet's own tooltip chrome is a white
+   speech bubble, which is unreadable over the dark map. */
+.acquireLabel {
+  border: 1px solid #8a713a !important; border-radius: 3px !important;
+  padding: 1px 5px !important; box-shadow: none !important;
+  color: #ffe6a3 !important; background: #241d0fee !important;
+  font-size: 10px !important; font-weight: 700 !important; white-space: nowrap;
+}
+.acquireLabel::before { display: none !important; }
+
+/* Link length, drawn at the midpoint of every link. Placement is a distance
+   problem — the 100 m minimum spacing and the 150 m radio range are the two
+   rules the operator is working against — and until now the only place to read
+   a span was the selected node's inspector, one link at a time. */
+.linkLabel, .linkLabelOver {
+  border: 0 !important; border-radius: 3px !important;
+  padding: 0 4px !important; box-shadow: none !important;
+  font-size: 9px !important; font-weight: 700 !important;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  color: #bcd6ea !important; background: #0a121ccc !important;
+}
+.linkLabelOver { color: #ffc9a3 !important; background: #2a170fdd !important; }
+.linkLabel::before, .linkLabelOver::before { display: none !important; }
+
+/* Ground speed of the threat. Sits above the transport because it is a
+   property of the run, not of playback: it changes what the sensors get to
+   hear, where the transport row only changes how fast you watch it. */
+.speedControl {
+  margin-top: 10px; padding: 9px 10px;
+  border: 1px solid #1f2a38; border-radius: 5px; background: #0d1421;
+}
+.speedControlHead { display: flex; align-items: baseline; gap: 8px; }
+.speedControlHead label {
+  flex: 1; color: #8ea0b4; font-size: 10px; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase;
+}
+.speedControlHead strong { color: #e6edf3; font-size: 14px; font-variant-numeric: tabular-nums; }
+.speedControlHead span { color: #7f8fa3; font-size: 10px; font-variant-numeric: tabular-nums; }
+.speedSlider {
+  width: 100%; margin: 8px 0 0; height: 4px; padding: 0;
+  border-radius: 2px; background: #22303f; accent-color: #f4c95d;
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+}
+.speedSlider::-webkit-slider-thumb {
+  appearance: none; -webkit-appearance: none;
+  width: 14px; height: 14px; border: 0; border-radius: 50%;
+  background: #f4c95d; box-shadow: 0 0 0 3px #f4c95d33; cursor: pointer;
+}
+.speedSlider::-moz-range-thumb {
+  width: 14px; height: 14px; border: 0; border-radius: 50%;
+  background: #f4c95d; box-shadow: 0 0 0 3px #f4c95d33; cursor: pointer;
+}
+.speedNote { margin: 7px 0 0; color: #7f8fa3; font-size: 10px; line-height: 1.35; }
+
+
+/* "What is this" — the claim, the three steps, and a way to see all of it
+   without building the scenario by hand first. */
+.introPanel {
+  position: absolute; z-index: 600; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100% - 48px)); padding: 20px 22px 18px;
+  border: 1px solid #33455a; border-radius: 8px; background: #0b1220f2;
+  box-shadow: 0 18px 50px #00000060; color: #b6c4d3;
+}
+.introClose {
+  position: absolute; top: 10px; right: 12px;
+  border: 0; padding: 2px 6px; color: #6f8399; background: transparent;
+  cursor: pointer; font: inherit; font-size: 18px; line-height: 1;
+}
+.introClose:hover { color: #d6e3ed; }
+.introKicker {
+  margin: 0 0 6px; color: #6f8399; font-size: 10px; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase;
+}
+.introTitle { margin: 0 0 10px; color: #e6edf3; font-size: 19px; font-weight: 700; line-height: 1.25; }
+.introLede { margin: 0; font-size: 12px; line-height: 1.55; }
+.introSteps { margin: 12px 0 0; padding-left: 18px; display: grid; gap: 5px; font-size: 12px; line-height: 1.45; }
+.introSteps b { color: #e6edf3; }
+.introNote {
+  margin: 12px 0 0; padding-top: 11px; border-top: 1px solid #1e2a38;
+  color: #8ea0b4; font-size: 11px; line-height: 1.5;
+}
+.introNote b { color: #b6c4d3; }
+.introActions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 15px; }
+.introPrimary {
+  border: 1px solid #e4b94f; border-radius: 5px; padding: 9px 16px;
+  color: #101820; background: #f4c95d; cursor: pointer;
+  font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .03em;
+}
+.introPrimary:hover { background: #ffda73; }
+
+/* Legend swatches. Different shapes, because the distinction the legend is
+   there to make is shape as well as colour. */
+.stateLegend .swatchLine { width: 12px; height: 2px; border-radius: 1px; flex: none; }
+.stateLegend .swatchDash {
+  width: 12px; height: 0; flex: none;
+  border-top: 2px dashed currentColor;
+}
+.stateLegend .swatchRing {
+  width: 10px; height: 10px; border: 1px dashed; border-radius: 50%; flex: none;
+}
+.stateLegend .swatchFix {
+  width: 10px; height: 10px; flex: none; border-radius: 50%;
+  border: 2px solid #ffe2a0; background: #0a0f1a;
+}
+.stateLegend p + ul { margin-bottom: 8px; }
+.stateLegend p:not(:first-child) { margin-top: 9px; }
+
+/* Permanent labels naming the route's ends and the mesh's fused fix, so the
+   three amber-on-dark glyphs stop being interchangeable. */
+.routeLabel, .fixLabel {
+  border: 0 !important; border-radius: 3px !important;
+  padding: 1px 5px !important; box-shadow: none !important;
+  font-size: 9px !important; font-weight: 700 !important;
+  letter-spacing: .04em; white-space: nowrap;
+  color: #ffe0a0 !important; background: #1a1408e8 !important;
+}
+.fixLabel { color: #fff0cc !important; background: #2a2110ee !important; font-variant-numeric: tabular-nums; }
+.routeLabel::before, .fixLabel::before { display: none !important; }
+
+/* "Heard it, cannot place it" — a weaker claim than a fix, and it needs to
+   read as one rather than as a failure. */
+.fixStatus {
+  display: flex; flex-direction: column; gap: 3px;
+  margin-top: 7px; padding: 8px 9px;
+  border: 1px solid #4a5568; border-radius: 4px;
+  color: #cbd7e4; background: #171f2b;
+}
+.fixStatus span { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.fixStatus em { color: #8ea0b4; font-size: 10px; font-style: normal; line-height: 1.35; }
+
+/* Placement advice for the drawn ingress. Teal throughout, so it never reads
+   as part of the amber threat picture or the cyan localisation field — it is a
+   proposal about the future, not a report about the run. */
+.adviceBox {
+  margin-top: 10px; padding: 10px 11px;
+  border: 1px solid #21493f; border-radius: 5px; background: #0b1a17;
+}
+.adviceHead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.adviceHead span { color: #6d8a83; font-size: 9px; font-variant-numeric: tabular-nums; }
+.adviceList { margin: 9px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.adviceItem {
+  display: flex; align-items: flex-start; gap: 9px; width: 100%; text-align: left;
+  border: 1px solid #1d3b34; border-radius: 4px; padding: 8px 9px;
+  color: #cfe6df; background: #0e2420; cursor: pointer; font: inherit;
+}
+.adviceItem:hover { border-color: #3f7f70; background: #12302a; }
+.adviceRank {
+  flex: none; display: grid; place-items: center;
+  width: 19px; height: 19px; border-radius: 50%;
+  color: #08201d; background: #5ce1c6; font-size: 10px; font-weight: 800;
+}
+.adviceBody { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.adviceBody b { color: #eafaf5; font-size: 11px; font-weight: 700; }
+.adviceBody em { color: #8fb3ab; font-size: 10px; font-style: normal; line-height: 1.4; }
+.adviceBar { display: block; height: 3px; margin-top: 3px; border-radius: 2px; background: #17362f; }
+.adviceBar u { display: block; height: 100%; border-radius: 2px; background: #5ce1c6; }
+.adviceScore {
+  flex: none; color: #5ce1c6; font-size: 11px; font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.adviceFootnote { margin: 9px 0 0; color: #6d8a83; font-size: 9px; line-height: 1.45; }
+
+/* Rank badge label on the map. Teal to match the proposal markers. */
+.adviceLabel {
+  border: 0 !important; border-radius: 3px !important;
+  padding: 1px 5px !important; box-shadow: none !important;
+  font-size: 9px !important; font-weight: 700 !important; white-space: nowrap;
+  color: #9ff0dd !important; background: #08201de8 !important;
+}
+.adviceLabel::before { display: none !important; }

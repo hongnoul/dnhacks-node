@@ -63,6 +63,18 @@ export const SCORE_SIGMA = 0.08;
 /** Spread on the level channel, dB. sim-demo measured 4 dB between like phones. */
 export const SNR_SIGMA_DB = 4;
 
+/**
+ * How long the snapshot keeps reporting a node as detecting after it releases.
+ *
+ * Display only. SCORE_SIGMA against MARGINAL_FLOOR means a node at the edge of
+ * range trips and releases roughly once a second — the correct verdict each
+ * time, and unreadable as a colour. This mirrors PEAK_HOLD_MS in
+ * app/lib/detection.ts, which solves the same problem for the confidence
+ * readout: the latch stays honest, the pixels stop chattering. Nothing that
+ * reasons about detection — records, fusion, contactsSeenBy — may use it.
+ */
+export const DETECT_HOLD_MS = 1_500;
+
 export type NodeLifecycle = "booting" | "listening";
 
 export interface SimLink {
@@ -115,6 +127,8 @@ class SimNode {
   lastDigestAt = 0;
   /** Latest verdict this node reached about its own microphone. */
   detecting = false;
+  /** Last time that verdict was true. Feeds the display-only hold. */
+  lastDetectingAt = -Infinity;
   p = 0;
 
   constructor(spec: SimNodeSpec, at: number) {
@@ -139,14 +153,25 @@ export interface SimSnapshot {
     lifecycle: NodeLifecycle;
     /** This node's own verdict about what it can hear. */
     detecting: boolean;
+    /** The same verdict, held DETECT_HOLD_MS past its release. For drawing only. */
+    detectingHeld: boolean;
     p: number;
     /** Records held in this node's replica. */
     records: number;
     /** Distinct nodes this one currently believes are detecting, itself included. */
     contacts: string[];
   }[];
-  /** Records currently on the wire, for the ripple. */
-  inFlight: { from: string; to: string; progress: number }[];
+  /**
+   * Records currently on the wire, for the ripple.
+   *
+   * `carriesDetection` is what makes the ripple mean anything. Every node
+   * publishes every 250 ms whether it heard something or not — silence is
+   * evidence (§6.1) — so almost every link is carrying *something* almost all
+   * of the time, and a highlight on "a record is in flight" is permanently on.
+   * This flags the ones that carry news somebody heard a drone, which is the
+   * event worth watching spread.
+   */
+  inFlight: { from: string; to: string; progress: number; carriesDetection: boolean }[];
 }
 
 /**
@@ -161,6 +186,8 @@ export type SimEvent =
 
 export interface WorldOptions {
   seed?: number;
+  /** Threat ground speed, m/s. Defaults to DRONE_SPEED_MPS. */
+  droneSpeedMps?: number;
   /** Per-hop delay applied to every link unless overridden. */
   latencyMs?: number;
   /** Per-hop drop probability. */
@@ -175,6 +202,17 @@ export class SimWorld {
   private wire: InFlight[] = [];
   private route: Waypoint[] = [];
   private totalM = 0;
+  /**
+   * Metres flown, accumulated per tick rather than derived from the clock.
+   *
+   * timeMs * speed would be equivalent while the speed is fixed, but the
+   * operator can change it mid-run — and recomputing from the clock would then
+   * teleport the drone to wherever the *new* speed says it should have got to
+   * by now. Integrating forward means a speed change is a change of pace from
+   * where it currently is, which is the only thing that could be meant.
+   */
+  private travelledM = 0;
+  private droneSpeedMps: number;
   private rng: () => number;
   private defaultLatency: number;
   private defaultLoss: number;
@@ -195,6 +233,7 @@ export class SimWorld {
 
   constructor(opts: WorldOptions = {}) {
     this.rng = makeRng(opts.seed ?? 1);
+    this.droneSpeedMps = opts.droneSpeedMps ?? DRONE_SPEED_MPS;
     this.defaultLatency = opts.latencyMs ?? DEFAULT_LATENCY_MS;
     this.defaultLoss = opts.loss ?? 0;
   }
@@ -236,6 +275,20 @@ export class SimWorld {
     this.totalM = routeLengthM(route);
   }
 
+  /**
+   * Set the threat's ground speed. Takes effect from here forward.
+   *
+   * Not clamped: the bounds belong to the control that offers the choice, and
+   * a test is entitled to fly something absurd.
+   */
+  setDroneSpeed(mps: number): void {
+    this.droneSpeedMps = mps;
+  }
+
+  get droneSpeed(): number {
+    return this.droneSpeedMps;
+  }
+
   private adjacent(a: string, b: string): boolean {
     return (this.adjacency.get(a) ?? []).includes(b);
   }
@@ -248,6 +301,7 @@ export class SimWorld {
 
   reset(): void {
     this.timeMs = 0;
+    this.travelledM = 0;
     this.wire = [];
     this.events = [];
     this.announced.clear();
@@ -263,6 +317,7 @@ export class SimWorld {
   /** Advance one fixed timestep. */
   tick(): void {
     this.timeMs += TICK_MS;
+    this.travelledM += (TICK_MS / 1000) * this.droneSpeedMps;
     this.deliver();
     this.score();
     this.antiEntropy();
@@ -299,9 +354,8 @@ export class SimWorld {
 
   private dronePosition(): Waypoint | null {
     if (this.route.length < 2) return null;
-    const travelled = (this.timeMs / 1000) * DRONE_SPEED_MPS;
-    if (travelled > this.totalM) return null;
-    return pointAlongRoute(this.route, travelled);
+    if (this.travelledM > this.totalM) return null;
+    return pointAlongRoute(this.route, this.travelledM);
   }
 
   private score(): void {
@@ -337,10 +391,11 @@ export class SimWorld {
           kind: "detect",
           node: node.id,
           timeMs: this.timeMs,
-          travelledM: (this.timeMs / 1000) * DRONE_SPEED_MPS,
+          travelledM: this.travelledM,
         });
       }
       node.detecting = verdict.detecting;
+      if (verdict.detecting) node.lastDetectingAt = this.timeMs;
       node.p = p;
 
       const record: Reading = {
@@ -455,7 +510,7 @@ export class SimWorld {
   }
 
   snapshot(running: boolean): SimSnapshot {
-    const travelled = (this.timeMs / 1000) * DRONE_SPEED_MPS;
+    const travelled = this.travelledM;
     return {
       timeMs: this.timeMs,
       running,
@@ -467,6 +522,7 @@ export class SimWorld {
         id: n.id,
         lifecycle: n.lifecycle,
         detecting: n.detecting,
+        detectingHeld: this.timeMs - n.lastDetectingAt < DETECT_HOLD_MS,
         p: n.p,
         records: n.log.size,
         contacts: this.contactsSeenBy(n.id),
@@ -480,6 +536,10 @@ export class SimWorld {
             from: f.from,
             to: f.to,
             progress: Math.min(1, Math.max(0, 1 - (f.arriveAt - this.timeMs) / span)),
+            // The message carries a detection if any reading in it says so —
+            // the origin's own latched verdict, travelling on the wire (§13).
+            carriesDetection:
+              f.msg.m === "records" && f.msg.r.some((r) => (r as Reading).d === true),
           };
         }),
     };

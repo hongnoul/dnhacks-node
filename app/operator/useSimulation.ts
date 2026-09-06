@@ -11,7 +11,15 @@ import type { NodeConnection, OperatorNode } from "./types";
 import { SimWorld, TICK_MS, type SimEvent, type SimSnapshot } from "./sim/world";
 import type { Waypoint } from "./attackRoute";
 
-export const SPEEDS = [1, 4, 16] as const;
+/**
+ * Playback multipliers.
+ *
+ * 1x is the default because the run is meant to be followed: at 4x a node's
+ * time in earshot collapses to a few seconds and the contact spreading through
+ * the mesh reads as nodes changing colour for no reason. 4x is still there for
+ * skipping ahead, and 0.5x for watching a single acquisition.
+ */
+export const SPEEDS = [0.5, 1, 2, 4] as const;
 export type Speed = (typeof SPEEDS)[number];
 
 /**
@@ -27,6 +35,8 @@ export function useSimulation(
   nodes: OperatorNode[],
   connections: NodeConnection[],
   route: Waypoint[],
+  /** Threat ground speed, m/s. Owned by the caller, like the topology. */
+  droneSpeedMps: number,
   onEvents: (events: SimEvent[]) => void
 ) {
   const worldRef = useRef<SimWorld | null>(null);
@@ -35,7 +45,7 @@ export function useSimulation(
 
   const [snapshot, setSnapshot] = useState<SimSnapshot>(() => world.snapshot(false));
   const [running, setRunning] = useState(false);
-  const [speed, setSpeed] = useState<Speed>(4);
+  const [speed, setSpeed] = useState<Speed>(1);
 
   // onEvents is rebuilt every render by the caller; hold it in a ref so the
   // animation effect does not tear down and restart on every frame.
@@ -60,6 +70,15 @@ export function useSimulation(
     setSnapshot(world.snapshot(running));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, route]);
+
+  // Changes from here forward: the world integrates distance rather than
+  // deriving it from the clock, so dragging this mid-run changes the drone's
+  // pace instead of jumping it somewhere new.
+  useEffect(() => {
+    world.setDroneSpeed(droneSpeedMps);
+    setSnapshot(world.snapshot(running));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, droneSpeedMps]);
 
   useEffect(() => {
     if (!running) return;

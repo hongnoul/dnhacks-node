@@ -9,7 +9,8 @@ import { EstimateLayer } from "./EstimateLayer";
 import { SPEEDS, useSimulation } from "./useSimulation";
 import { estimateFrom, type NodeEstimate } from "./sim/estimate";
 import type { SimEvent } from "./sim/world";
-import { DRONE_SPEED_MPS, pointAlongRoute, routeCoverage, routeLengthM, type Waypoint } from "./attackRoute";
+import { adviseForRoute, type RouteSuggestion } from "./routeAdvisor";
+import { DRONE_SPEED_MPS, MAX_DRONE_SPEED_MPS, MIN_DRONE_SPEED_MPS, pointAlongRoute, routeCoverage, routeLengthM, type Waypoint } from "./attackRoute";
 import {
   DRONE_DETECTION_RADIUS_M,
   MAX_LINK_DISTANCE_M,
@@ -26,7 +27,7 @@ import {
   type SuggestResult,
 } from "./placement";
 import styles from "./operator.module.css";
-import { ActionButton, OperationsHeader } from "../lib/DesignSystem";
+import { ActionButton } from "../lib/DesignSystem";
 
 type MapMode = "idle" | "placing" | "connecting" | "route";
 type DronePhase = "idle" | "drawing" | "ready";
@@ -53,6 +54,37 @@ const MAP_CENTER: [number, number] = [38.9012, -77.0402];
  *  module CSS), so the link hit area has to opt back in by a name CSS Modules
  *  will not hash. */
 const LINK_HIT_CLASS = "skymesh-link-hit";
+/**
+ * Wall-clock hold on the link highlight, ms.
+ *
+ * A hop is 50 ms — one TICK_MS — so a record carrying a detection is on a link
+ * for a single frame and the pulse would be gone before the eye caught it.
+ * This is a render concern only: the world keeps exact timing, the highlight
+ * just lingers and fades so a one-tick burst is perceptible.
+ */
+const LINK_FLASH_MS = 400;
+/**
+ * How long an acquisition connector stays on the map, in *simulated* ms.
+ *
+ * Simulated rather than wall-clock so it re-renders naturally with each
+ * snapshot, respects the playback speed, and does not quietly decay while the
+ * run is paused.
+ */
+const ACQUIRE_FADE_MS = 2_500;
+/**
+ * Margin around the sensors that the fused estimate is solved over.
+ *
+ * Was one detection radius, which is too tight: the posterior is normalised
+ * over this grid and its argmax searched inside it, so a source near the edge
+ * had its distribution sliced off by the boundary — the estimate rendered as a
+ * hard-edged rectangle, and the "fix" was pinned to the edge of the box rather
+ * than to where the levels actually pointed. Detection is a smooth curve on
+ * range, not a hard cutoff at DRONE_DETECTION_RADIUS_M, so a node genuinely
+ * hears things from well beyond it and the grid has to have room for the tail.
+ */
+const ESTIMATE_MARGIN_M = DRONE_DETECTION_RADIUS_M * 2.5;
+/** Finer than the 32x32 default, to hold resolution over the wider area. */
+const ESTIMATE_GRID = { nx: 48, ny: 48 };
 // The placement rules live in placement.ts so the hover preview and the advisor
 // cannot drift apart — one definition of "legal spot", used by both.
 export { MIN_NODE_DISTANCE_M, MAX_LINK_DISTANCE_M, MIN_CONNECTIONS, DRONE_DETECTION_RADIUS_M };
@@ -157,6 +189,8 @@ export default function OperatorMap() {
   const [placementCandidate, setPlacementCandidate] = useState<PlacementCandidate>(null);
   const [advisorOn, setAdvisorOn] = useState(false);
   const [tilesUnavailable, setTilesUnavailable] = useState(false);
+  /** Placement advice for the drawn ingress, as opposed to for the area. */
+  const [routeAdvisorOn, setRouteAdvisorOn] = useState(false);
   /**
    * First node of a link being drawn.
    *
@@ -176,6 +210,26 @@ export default function OperatorMap() {
    */
   const [viewpoint, setViewpoint] = useState<string | null>(null);
   const [route, setRoute] = useState<Waypoint[]>([]);
+  /**
+   * The threat's ground speed, m/s. A property of the run, not of playback.
+   *
+   * Changing it changes the simulation: a slower drone sits in a node's
+   * earshot for longer and is acquired further out, a faster one can cross a
+   * blind stretch before anything latches. Playback speed, next to it, only
+   * changes how fast you watch that happen.
+   */
+  const [droneSpeedMps, setDroneSpeedMps] = useState(DRONE_SPEED_MPS);
+  /** Link lengths are the operator's main placement feedback; on by default. */
+  const [showLinkLengths, setShowLinkLengths] = useState(true);
+  /**
+   * The "what is this" panel, up on arrival.
+   *
+   * An empty map with a Place node button says nothing about what the tool is
+   * for or what the demo proves, and building the scenario by hand is four
+   * gestures before anything moves. This states the claim and offers to set
+   * the whole thing up.
+   */
+  const [showIntro, setShowIntro] = useState(true);
   const mapRef = useRef<LeafletMap | null>(null);
   /**
    * Live position of the node under the cursor.
@@ -192,18 +246,33 @@ export default function OperatorMap() {
   dragPreviewRef.current = dragPreview;
   const eventSeq = useRef(0);
   const [events, setEvents] = useState<ContactEvent[]>([]);
+  /**
+   * Where the drone was when each node first heard it.
+   *
+   * A node turning amber is the visible effect; this draws the cause next to
+   * it. SimWorld emits exactly one "detect" per node per run — the `announced`
+   * set dedupes the fringe latch's chatter at the source — so this list is
+   * bounded by the node count and cannot spam.
+   */
+  const [acquisitions, setAcquisitions] = useState<{ node: string; at: number; travelledM: number; point: Waypoint }[]>([]);
 
   const onSimEvents = (batch: SimEvent[]) => {
     for (const e of batch) {
       if (e.kind === "detect") {
         const n = nodes.find((x) => x.id === e.node);
+        if (route.length > 1) {
+          setAcquisitions((current) => [
+            ...current.filter((a) => a.node !== e.node),
+            { node: e.node, at: e.timeMs, travelledM: e.travelledM, point: pointAlongRoute(route, e.travelledM) },
+          ]);
+        }
         if (n) logContact("detection", "acoustic contact", { node: n.name, detail: `acquired ${Math.round(e.travelledM)} m into the run` });
       } else {
         logContact("consensus", `contact held by ${e.count} of ${e.total} node${e.total === 1 ? "" : "s"}`, { detail: `t+${(e.timeMs / 1000).toFixed(1)} s` });
       }
     }
   };
-  const sim = useSimulation(nodes, connections, route, onSimEvents);
+  const sim = useSimulation(nodes, connections, route, droneSpeedMps, onSimEvents);
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
   const selectedConnections = useMemo(() => connections.filter((connection) => connection.sourceId === selectedNodeId || connection.targetId === selectedNodeId), [connections, selectedNodeId]);
   const activeNodes = nodes.filter((node) => node.status === "online" || node.status === "degraded");
@@ -280,7 +349,27 @@ export default function OperatorMap() {
     () => routeCoverage(route, shownNodes.filter((n) => n.status !== "offline")),
     [route, shownNodes]
   );
-  const hearing = sim.snapshot.nodes.filter((n) => n.detecting).length;
+  // detectingHeld, to match the markers. Reading the raw latch here while the
+  // map holds it puts "INBOUND — UNOBSERVED" next to a map full of amber nodes
+  // every time a fringe sensor releases for a window.
+  /**
+   * Where to put the next sensor, for *this* run.
+   *
+   * Deliberately separate from the CRLB advisor above: that one asks where a
+   * fix gets sharpest over an area, this one asks what would have heard the
+   * ingress the operator just drew, and they routinely disagree. Keyed on
+   * `nodes` rather than the derived shownNodes so dragging a sensor does not
+   * re-solve the search on every frame.
+   */
+  const routeAdvice = useMemo(() => {
+    if (!routeAdvisorOn || route.length < 2) return null;
+    return adviseForRoute(
+      route,
+      nodes.filter((n) => n.status !== "offline").map((n) => ({ id: n.id, lat: n.lat, lon: n.lon }))
+    );
+  }, [routeAdvisorOn, route, nodes]);
+
+  const hearing = sim.snapshot.nodes.filter((n) => n.detectingHeld).length;
   const droneStatusText = sim.running
     ? hearing
       ? `TRACKED BY ${hearing} NODE${hearing === 1 ? "" : "S"}`
@@ -288,7 +377,7 @@ export default function OperatorMap() {
     : sim.snapshot.done
       ? "RUN COMPLETE"
       : dronePhase === "ready"
-        ? `${Math.round(coverage.lengthM)} m route · ${Math.round(coverage.lengthM / DRONE_SPEED_MPS)} s`
+        ? `${Math.round(coverage.lengthM)} m route · ${Math.round(coverage.lengthM / droneSpeedMps)} s`
         : "CLICK TO ADD WAYPOINTS";
   /**
    * What each sensor is hearing right now, 0..1.
@@ -309,10 +398,10 @@ export default function OperatorMap() {
   const view = useMemo<{ estimate: NodeEstimate | null; contacts: string[]; records: number }>(() => {
     if (shownNodes.length === 0) return { estimate: null, contacts: [], records: 0 };
     const positions = new Map(shownNodes.map((n) => [n.id, { lat: n.lat, lon: n.lon }]));
-    const area = areaAround(shownNodes, DRONE_DETECTION_RADIUS_M);
+    const area = areaAround(shownNodes, ESTIMATE_MARGIN_M);
     if (viewpoint) {
       return {
-        estimate: estimateFrom(sim.world.freshReadings(viewpoint), positions, area),
+        estimate: estimateFrom(sim.world.freshReadings(viewpoint), positions, area, ESTIMATE_GRID),
         contacts: sim.world.contactsSeenBy(viewpoint),
         records: sim.world.recordCount(viewpoint),
       };
@@ -327,7 +416,7 @@ export default function OperatorMap() {
       }
     }
     return {
-      estimate: estimateFrom([...union.values()], positions, area),
+      estimate: estimateFrom([...union.values()], positions, area, ESTIMATE_GRID),
       contacts: [...union.values()].filter((r) => r.d).map((r) => r.origin).sort(),
       records: Math.max(0, ...shownNodes.map((n) => sim.world.recordCount(n.id))),
     };
@@ -338,15 +427,73 @@ export default function OperatorMap() {
 
   const detectingNodeIds = view.contacts;
 
+  /**
+   * Whether the drone's audible footprint currently covers a listening sensor.
+   *
+   * The circle swallowing a node is the cause of that node lighting up, so it
+   * should say so at the moment it happens rather than sit as faint decoration.
+   */
+  const footprintOnNode = useMemo(() => {
+    if (!dronePosition) return false;
+    return shownNodes.some((node) => {
+      if (node.status === "offline") return false;
+      if (simNodes.get(node.id)?.lifecycle !== "listening") return false;
+      return distanceM(dronePosition[0], dronePosition[1], node.lat, node.lon) <= DRONE_DETECTION_RADIUS_M;
+    });
+  }, [dronePosition, shownNodes, simNodes]);
+
+  /**
+   * Acquisitions still worth drawing, brightest first out of the drone.
+   *
+   * Aged in simulated time so the fade tracks playback speed and holds while
+   * paused.
+   */
+  const liveAcquisitions = useMemo(
+    () => acquisitions
+      .map((a) => ({ ...a, fade: 1 - (sim.snapshot.timeMs - a.at) / ACQUIRE_FADE_MS }))
+      .filter((a) => a.fade > 0),
+    [acquisitions, sim.snapshot.timeMs]
+  );
+
   // Route drawing and sensor placement both need raw map clicks.
   const linksClickable = mode === "idle" || mode === "connecting";
 
-  /** Links carrying a record right now, straight off the in-flight queue. */
+  /**
+   * Links carrying news of a detection, 1 fading to 0 over LINK_FLASH_MS.
+   *
+   * Not "links carrying a record": every node publishes every window whether it
+   * heard anything or not, so that set is nearly the whole graph nearly all of
+   * the time and a highlight on it is permanently on. Filtering on
+   * carriesDetection turns the pulse back into an event — it is off until
+   * somebody hears something, then travels outward as the contact does.
+   */
+  const linkFlashRef = useRef(new Map<string, number>());
+  /** Bumped by the fade timer so the highlight keeps decaying once ticks stop. */
+  const [flashTick, setFlashTick] = useState(0);
   const carryingLinks = useMemo(() => {
-    const set = new Set<string>();
-    for (const f of sim.snapshot.inFlight) set.add(linkKey(f.from, f.to));
-    return set;
-  }, [sim.snapshot]);
+    const now = performance.now();
+    const flashes = linkFlashRef.current;
+    for (const f of sim.snapshot.inFlight) {
+      if (f.carriesDetection) flashes.set(linkKey(f.from, f.to), now);
+    }
+    const live = new Map<string, number>();
+    for (const [key, at] of flashes) {
+      const age = now - at;
+      if (age < LINK_FLASH_MS) live.set(key, 1 - age / LINK_FLASH_MS);
+      else flashes.delete(key);
+    }
+    return live;
+    // flashTick is the fade clock; sim.snapshot is the tick signal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sim.snapshot, flashTick]);
+
+  // Snapshots stop arriving the moment the run pauses or ends, so without this
+  // the last flash would freeze on the map at whatever brightness it had.
+  useEffect(() => {
+    if (sim.running || carryingLinks.size === 0) return;
+    const id = window.setTimeout(() => setFlashTick((n) => n + 1), 80);
+    return () => window.clearTimeout(id);
+  }, [sim.running, carryingLinks.size, flashTick]);
 
   const holders = sim.snapshot.nodes.filter((n) => n.contacts.length > 0).length;
   const alertStatusText =
@@ -356,6 +503,19 @@ export default function OperatorMap() {
   // First contact per node per run is deduped at the source (detectedNodeIdsRef),
   // so the log needs no second filter.
   const visibleEvents = events;
+
+  /**
+   * Reset the world and the things drawn on top of it.
+   *
+   * The connectors and the link flashes belong to a particular run; leaving
+   * them behind after a reset would show causes for detections that no longer
+   * exist.
+   */
+  function resetRun() {
+    sim.reset();
+    setAcquisitions([]);
+    linkFlashRef.current.clear();
+  }
 
   function logContact(kind: ContactKind, message: string, opts: { node?: string; detail?: string } = {}) {
     setEvents((current) =>
@@ -436,6 +596,73 @@ export default function OperatorMap() {
     fresh.forEach((n) => logContact("online", "came online", { node: n.name }));
   }
 
+  /**
+   * The whole scenario in one click: array, ingress, framing, go.
+   *
+   * Building it by hand is the point of the tool, but it is four separate
+   * gestures before anything happens — and at the default zoom a hand-drawn
+   * route comes out kilometres long, so a newcomer's first run is a drone
+   * crawling across empty map for a minute. This lays down the same ring
+   * seedRing does, draws an ingress that actually crosses it, frames both, and
+   * starts the run.
+   *
+   * Only offered from an empty map (see the intro panel), so it can replace
+   * state outright without discarding a network somebody built.
+   */
+  function runWholeDemo() {
+    const centre = mapRef.current?.getCenter();
+    if (!centre) return;
+    const frame = makeFrame(centre.lat, centre.lng);
+
+    // 120 m radius puts neighbours 141 m apart — inside the 150 m radio range,
+    // so the ring comes up connected rather than as five islands.
+    const fresh: OperatorNode[] = [];
+    for (let i = 0; i < 5; i++) {
+      const angle = (2 * Math.PI * i) / 5;
+      const [lat, lon] = toLatLon(frame, Math.cos(angle) * 120, Math.sin(angle) * 120);
+      const n = ++nodeSeq.current;
+      fresh.push({ id: `node-${n}`, name: `Sensor ${n}`, lat, lon, status: "online", lastSeen: Date.now() });
+    }
+    const links: NodeConnection[] = [];
+    for (let i = 0; i < fresh.length; i++) {
+      for (let j = i + 1; j < fresh.length; j++) {
+        if (distanceM(fresh[i].lat, fresh[i].lon, fresh[j].lat, fresh[j].lon) > MAX_LINK_DISTANCE_M) continue;
+        links.push({ id: `link-${fresh[i].id}-${fresh[j].id}`, sourceId: fresh[i].id, targetId: fresh[j].id, status: "active" });
+      }
+    }
+
+    // A blind lead-in, a crossing, an exit. The lead-in matters: it is the
+    // stretch where nothing is lit, which is what makes the moment the array
+    // acquires the drone read as an event rather than the map's resting state.
+    // ~10 s of it before anything can hear the drone. That lead-in is doing
+    // real work: it is the stretch where no link is lit, which is what makes
+    // the moment the array acquires the contact read as an event rather than
+    // as the map's resting state.
+    const demoRoute = [
+      toLatLon(frame, -450, 120),
+      toLatLon(frame, 0, -20),
+      toLatLon(frame, 200, 55),
+    ] as Waypoint[];
+
+    setNodes(fresh);
+    setConnections(links);
+    setRoute(demoRoute);
+    setDronePhase("ready");
+    setSelectedNodeId(null);
+    setViewpoint(null);
+    setMode("idle");
+    setShowIntro(false);
+    resetRun();
+    fresh.forEach((n) => logContact("online", "came online", { node: n.name }));
+    // Frame the array and the whole ingress; a hand-drawn route at this zoom
+    // would otherwise run off the edges.
+    mapRef.current?.fitBounds(
+      [...demoRoute, ...fresh.map((n) => [n.lat, n.lon] as Waypoint)],
+      { padding: [80, 80], maxZoom: 17 }
+    );
+    sim.play();
+  }
+
   function removeLink(linkId: string) {
     const link = connections.find((c) => c.id === linkId);
     if (!link) return;
@@ -497,6 +724,11 @@ export default function OperatorMap() {
     placeNodeAt(lat, lon, neighbourIds, `suggested position ${rank}`);
   }
 
+  /** Take a route recommendation, keeping the reason it was made in the log. */
+  function acceptRouteSuggestion(s: RouteSuggestion) {
+    placeNodeAt(s.lat, s.lon, s.neighbours, `for the ingress · ${s.headline.toLowerCase()}`);
+  }
+
   function handleMapMove(event: LeafletMouseEvent) {
     if (dragIdRef.current) { dragNodeTo(event.latlng.lat, event.latlng.lng); return; }
     if (mode !== "placing") return;
@@ -541,7 +773,7 @@ export default function OperatorMap() {
 
   function drawRoute() {
     if (mode === "route") { finishRoute(); return; }
-    sim.reset();
+    resetRun();
     setRoute([]);
     setDronePhase("drawing");
     setMode("route");
@@ -558,7 +790,7 @@ export default function OperatorMap() {
       return;
     }
     setDronePhase("ready");
-    sim.reset();
+    resetRun();
   }
 
   function undoWaypoint() {
@@ -598,7 +830,6 @@ export default function OperatorMap() {
 
   return (
     <>
-    <OperationsHeader />
     <main className={styles.shell}>
       <header className={styles.header}>
         <div><p className={styles.eyebrow}>Simulation · synthetic sensors</p><h1 className={styles.title}>Network simulation</h1><p className={styles.modeNotice}>Planning sandbox. No microphone, live sensors, or relay connection.</p></div>
@@ -610,6 +841,8 @@ export default function OperatorMap() {
           <div className={styles.toolbar}>
             <ActionButton className={mode === "placing" ? styles.buttonActive : styles.button} onClick={togglePlacementMode} type="button">{mode === "placing" ? "Cancel placement" : "Place node"}</ActionButton>
             <ActionButton className={mode === "connecting" ? styles.buttonActive : styles.button} onClick={toggleLinkMode} type="button">{mode === "connecting" ? "Done linking" : "Link nodes"}</ActionButton>
+            <ActionButton className={showLinkLengths ? styles.buttonActive : styles.button} onClick={() => setShowLinkLengths((on) => !on)} type="button" aria-pressed={showLinkLengths}>Link lengths</ActionButton>
+            <ActionButton className={showIntro ? styles.buttonActive : styles.button} onClick={() => setShowIntro((on) => !on)} type="button" aria-pressed={showIntro}>What is this?</ActionButton>
           </div>
           {mode !== "idle" && <div className={styles.mapHint}>{mode === "placing" ? placementCandidate ? <><strong>{placementStatus === "invalid" ? `${Math.round(placementCandidate.distances[0]?.distanceM ?? 0)} m — too close` : placementStatus === "warning" ? `${eligiblePlacementNodes.length}/${MIN_CONNECTIONS} required neighbors` : `Valid placement — ${eligiblePlacementNodes.length} available links`}</strong><span className={styles.placementDistances}>{placementCandidate.distances.slice(0, 3).map(({ node, distanceM }) => `${node.name}: ${Math.round(distanceM)} m`).join(" · ")}</span></> : "Move across the map to preview placement constraints." : mode === "route" ? (route.length === 0 ? "Click to set the launch point, then click each waypoint along the ingress." : `${route.length} waypoint${route.length === 1 ? "" : "s"} · ${Math.round(coverage.lengthM)} m · ${Math.round(coverage.covered * 100)}% observed — finish when done`) : linkFrom ? `Linking from ${nodes.find((n) => n.id === linkFrom)?.name ?? linkFrom} — click another sensor to link or unlink.` : "Click a sensor, then click another to link or unlink the pair."}</div>}
           <MapContainer center={MAP_CENTER} zoom={15} className={styles.map} zoomControl={false}>
@@ -618,11 +851,19 @@ export default function OperatorMap() {
             {connections.map((connection) => {
               const points = connectionPoints(connection, shownNodes);
               if (!points) return null;
-              // A link is carrying the contact when it joins consecutive hop
-              // layers that the ripple has already reached.
-              // Lit because a record is physically on this link right now, not
-              // because an animation decided it should be.
-              const carrying = carryingLinks.has(linkKey(connection.sourceId, connection.targetId));
+              // Lit because a record saying somebody heard a drone is
+              // physically on this link right now, not because an animation
+              // decided it should be. `flash` fades it out over LINK_FLASH_MS
+              // so a single 50 ms hop is still something you can see.
+              const flash = carryingLinks.get(linkKey(connection.sourceId, connection.targetId)) ?? 0;
+              const carrying = flash > 0;
+              // Measured from the drawn positions, so the number tracks a
+              // sensor being dragged rather than lagging until mouse-up.
+              const span = Math.round(distanceM(points[0][0], points[0][1], points[1][0], points[1][1]));
+              // Over-range links are legal — the operator may have drawn one
+              // deliberately — but the label should say so rather than read as
+              // an ordinary hop.
+              const overRange = span > MAX_LINK_DISTANCE_M;
               return <Fragment key={connection.id}>
                 {/* A fat invisible polyline under the 2 px line. Without it a link
                     is almost impossible to hit with a mouse, and "delete it in
@@ -633,11 +874,15 @@ export default function OperatorMap() {
                   <Polyline positions={points} interactive
                     pathOptions={{ className: LINK_HIT_CLASS, color: "#ffffff", opacity: 0, weight: 16 }}
                     eventHandlers={{ click: () => removeLink(connection.id), contextmenu: (e) => { e.originalEvent.preventDefault(); removeLink(connection.id); } }}>
-                    <Tooltip sticky>click to remove this link</Tooltip>
+                    <Tooltip sticky>{span} m{overRange ? ` · over the ${MAX_LINK_DISTANCE_M} m range` : ""} · click to remove</Tooltip>
                   </Polyline>
                 )}
                 <Polyline positions={points} interactive={false}
-                  pathOptions={{ className: carrying ? styles.alertRouteLine : styles.mapDecoration, color: carrying ? "#ffd166" : connection.status === "degraded" ? "#e3a93b" : "#4bc4ff", dashArray: !carrying && connection.status === "degraded" ? "6 8" : undefined, opacity: carrying ? 1 : .72, weight: carrying ? 4 : 2 }} />
+                  pathOptions={{ className: carrying ? styles.alertRouteLine : styles.mapDecoration, color: carrying ? "#ffd166" : connection.status === "degraded" ? "#e3a93b" : "#4bc4ff", dashArray: !carrying && connection.status === "degraded" ? "6 8" : undefined, opacity: carrying ? .72 + .28 * flash : .72, weight: carrying ? 2 + 3 * flash : 2 }}>
+                  {showLinkLengths && (
+                    <Tooltip permanent direction="center" className={overRange ? styles.linkLabelOver : styles.linkLabel}>{span} m</Tooltip>
+                  )}
+                </Polyline>
               </Fragment>;
             })}
             {dragPreview && <Circle center={[dragPreview.lat, dragPreview.lon]} radius={DRONE_DETECTION_RADIUS_M} pathOptions={{ className: styles.mapDecoration, interactive: false, color: "#4bc4ff", fillColor: "#4bc4ff", fillOpacity: .06, weight: 1, dashArray: "4 7" }} />}
@@ -648,7 +893,11 @@ export default function OperatorMap() {
                 // Three distinct things, and the difference is the whole point:
                 // what this node hears itself, what it has been *told* about,
                 // and whether it is still booting.
-                const hearing = !!s?.detecting;
+                // detectingHeld, not detecting: a node at the edge of range
+                // trips and releases about once a second — the right verdict
+                // each time, and a strobe as a colour. The verdict on the wire
+                // and everything derived from it stays the true latched one.
+                const hearing = !!s?.detectingHeld;
                 const informed = !hearing && (s?.contacts.length ?? 0) > 0;
                 const booting = s?.lifecycle === "booting";
                 const isViewpoint = node.id === viewpoint;
@@ -669,6 +918,26 @@ export default function OperatorMap() {
             )}
             {advisor && <PlacementLayer grid={advisor.grid} suggestions={advisor.result.suggestions} nodes={shownNodes} showField onAccept={(s) => acceptSuggestion(s.lat, s.lon, s.neighbours, s.rank)} />}
             <PlacementPreview candidate={placementCandidate} status={placementStatus} />
+            {/* Each recommendation drawn where it would go, with the ground it
+                would newly hear. The circle is the point: you can see it
+                swallow the blind stretch before accepting anything. */}
+            {routeAdvice?.suggestions.map((s) => (
+              <Fragment key={`ra-${s.rank}`}>
+                <Circle center={[s.lat, s.lon]} radius={DRONE_DETECTION_RADIUS_M}
+                  pathOptions={{ className: styles.mapDecoration, interactive: false, color: "#5ce1c6", fillColor: "#5ce1c6", fillOpacity: s.rank === 1 ? .1 : .05, weight: s.rank === 1 ? 2 : 1, dashArray: "5 6" }} />
+                {s.neighbours.map((id) => {
+                  const n = shownNodes.find((x) => x.id === id);
+                  return n ? <Polyline key={`ra-${s.rank}-${id}`} positions={[[s.lat, s.lon], [n.lat, n.lon]]}
+                    pathOptions={{ className: styles.mapDecoration, interactive: false, color: "#5ce1c6", dashArray: "3 6", opacity: .6, weight: 1 }} /> : null;
+                })}
+                <CircleMarker center={[s.lat, s.lon]} radius={9}
+                  pathOptions={{ className: styles.mapDecoration, interactive: false, color: "#5ce1c6", fillColor: "#08201d", fillOpacity: .92, weight: 3 }}>
+                  <Tooltip permanent direction="top" offset={[0, -10]} className={styles.adviceLabel}>
+                    {s.rank} · {s.badge}
+                  </Tooltip>
+                </CircleMarker>
+              </Fragment>
+            ))}
             {route.length > 1 && (
               // Drawn per coverage run rather than as one line: the percentage
               // says how much of the ingress is observed, this says which part.
@@ -679,10 +948,36 @@ export default function OperatorMap() {
             )}
             {route.map((wp, i) => (
               <CircleMarker key={`wp-${i}`} center={wp} radius={i === route.length - 1 && route.length > 1 ? 7 : 5} pathOptions={{ className: styles.mapDecoration, interactive: false, color: "#f4c95d", fillColor: "#0a0f1a", fillOpacity: .9, weight: 2 }}>
-                <Tooltip direction="top" offset={[0, -8]}>{i === 0 ? "Launch" : i === route.length - 1 ? "Target" : `Waypoint ${i}`}</Tooltip>
+                {/* Named on the map rather than on hover: a dark dot with a
+                    gold ring is also what the fused fix looks like, and three
+                    of them on one screen meaning different things is what
+                    makes the picture unreadable. */}
+                <Tooltip permanent={i === 0 || (i === route.length - 1 && route.length > 1)}
+                  direction="top" offset={[0, -9]} className={styles.routeLabel}>
+                  {i === 0 ? "Launch" : i === route.length - 1 && route.length > 1 ? "Target" : `Waypoint ${i}`}
+                </Tooltip>
               </CircleMarker>
             ))}
-            {dronePosition && <><Circle center={dronePosition} radius={DRONE_DETECTION_RADIUS_M} pathOptions={{ className: styles.mapDecoration, color: "#f4c95d", fillColor: "#f4c95d", fillOpacity: .05, weight: 1, dashArray: "4 7" }} /><Marker position={dronePosition} icon={droneIcon}><Tooltip direction="top" offset={[0, -16]}>Simulated drone</Tooltip></Marker></>}
+            {/* Why a node lit: the drone was here, this far into the run, and
+                that sensor heard it. One connector per node per run — SimWorld
+                emits a single "detect" event each — fading over simulated time
+                so it tracks the playback speed and holds while paused. */}
+            {liveAcquisitions.map((a) => {
+              const node = shownNodes.find((n) => n.id === a.node);
+              if (!node) return null;
+              return <Fragment key={`acq-${a.node}`}>
+                <Polyline positions={[a.point, [node.lat, node.lon]]} pathOptions={{ className: styles.mapDecoration, interactive: false, color: "#ffd166", dashArray: "5 5", opacity: a.fade, weight: 2 }} />
+                <CircleMarker center={a.point} radius={4} pathOptions={{ className: styles.mapDecoration, interactive: false, color: "#ffd166", fillColor: "#ffd166", fillOpacity: a.fade, opacity: a.fade, weight: 1 }}>
+                  <Tooltip permanent direction="top" offset={[0, -6]} className={styles.acquireLabel}>
+                    {node.name} · {Math.round(a.travelledM)} m in
+                  </Tooltip>
+                </CircleMarker>
+              </Fragment>;
+            })}
+            {/* The audible footprint. Warm and solid while it covers a
+                listening sensor, because that overlap is the cause of the node
+                going amber and it should be the thing you notice. */}
+            {dronePosition && <><Circle center={dronePosition} radius={DRONE_DETECTION_RADIUS_M} pathOptions={{ className: styles.mapDecoration, color: footprintOnNode ? "#ffb347" : "#f4c95d", fillColor: footprintOnNode ? "#ffb347" : "#f4c95d", fillOpacity: footprintOnNode ? .17 : .09, weight: footprintOnNode ? 3 : 1.5, dashArray: footprintOnNode ? undefined : "4 7" }} /><Marker position={dronePosition} icon={droneIcon}><Tooltip direction="top" offset={[0, -16]}>Simulated drone</Tooltip></Marker></>}
           </MapContainer>
           {viewpoint && (
             <div className={styles.viewpointBanner}>
@@ -690,9 +985,72 @@ export default function OperatorMap() {
               <ActionButton onClick={() => setViewpoint(null)} type="button">operator view</ActionButton>
             </div>
           )}
-          {nodes.length === 0 && mode === "idle" && (
+          {showIntro && mode === "idle" && (
+            <div className={styles.introPanel}>
+              <ActionButton className={styles.introClose} onClick={() => setShowIntro(false)} type="button" aria-label="Close">×</ActionButton>
+              <p className={styles.introKicker}>What this is</p>
+              <h2 className={styles.introTitle}>A drone-detection net with no server in it.</h2>
+              <p className={styles.introLede}>
+                Counter-UAS radar runs $100k a site and is a single thing to kill. SkyMesh is
+                the opposite bet: many cheap, identical phones that each hear the drone
+                themselves and gossip what they heard to their neighbours. Every node holds
+                its own copy of the picture, so there is no headquarters for an alert to
+                reach — and no one node whose loss stops it.
+              </p>
+              <ol className={styles.introSteps}>
+                <li><b>Place</b> sensors and wire them into a mesh — the map shows the spacing and range rules as you go.</li>
+                <li><b>Draw</b> an ingress a drone would really fly, and see what fraction of it the array would hear.</li>
+                <li><b>Watch</b> which sensor hears it first, and the contact spread outward hop by hop.</li>
+              </ol>
+              <p className={styles.introNote}>
+                The run is a real timed simulation, not an animation: per-node replicas,
+                50 ms links, gossip, and a detection latch that can and does disagree
+                between nodes. Open any sensor and pick <b>See what this node sees</b> to
+                draw the map from its replica instead of the operator&rsquo;s.
+              </p>
+              <div className={styles.introActions}>
+                {nodes.length === 0 ? (
+                  <>
+                    <ActionButton className={styles.introPrimary} onClick={runWholeDemo} type="button">▶ Run the whole demo</ActionButton>
+                    <ActionButton className={styles.linkAction} onClick={() => { setShowIntro(false); seedRing(); }} type="button">just place 5 sensors</ActionButton>
+                    <ActionButton className={styles.linkAction} onClick={() => { setShowIntro(false); addSensorNode(); }} type="button">build it myself</ActionButton>
+                  </>
+                ) : (
+                  <ActionButton className={styles.introPrimary} onClick={() => setShowIntro(false)} type="button">Got it</ActionButton>
+                )}
+              </div>
+            </div>
+          )}
+          {/* The four node states are already distinct on the map and named
+              only in a hover tooltip, which is no use while watching a run. */}
+          {nodes.length > 0 && (
+            <div className={styles.stateLegend}>
+              <p className={styles.stateLegendTitle}>Sensor state</p>
+              <ul>
+                <li><i style={{ background: "#65778a" }} />booting</li>
+                <li><i style={{ background: "#39d98a" }} />listening</li>
+                <li><i style={{ background: "#ffd166" }} />hears the drone</li>
+                <li><i style={{ background: "#b9a3ff" }} />holds a relayed contact</li>
+              </ul>
+              {/* Everything else on the map. Without this the amber shapes all
+                  read alike: a waypoint, a fused fix and the drone's audible
+                  footprint are three different claims in the same palette. */}
+              <p className={styles.stateLegendTitle}>Map layers</p>
+              <ul>
+                <li><b className={styles.swatchLine} style={{ background: "#4bc4ff" }} />link, with its span in metres</li>
+                <li><b className={styles.swatchLine} style={{ background: "#ffd166" }} />link carrying a detection</li>
+                <li><b className={styles.swatchLine} style={{ background: "#39d98a" }} />route the array would hear</li>
+                <li><b className={styles.swatchDash} style={{ color: "#e3a93b" }} />route it would not</li>
+                <li><span className={styles.swatchRing} style={{ borderColor: "#f4c95d" }} />drone + what it is audible within</li>
+                <li><span className={styles.swatchFix} />fused fix, and how wide it is</li>
+              </ul>
+            </div>
+          )}
+          {/* Dismissing the explanation should not leave a blank map with no
+              way forward; "What is this?" in the toolbar brings it back. */}
+          {!showIntro && nodes.length === 0 && mode === "idle" && (
             <div className={styles.emptyHint}>
-              No sensors. Use <b>Place node</b> above, or <ActionButton className={styles.linkAction} onClick={() => seedRing()} type="button">seed a ring of 5</ActionButton>.
+              No sensors. Use <b>Place node</b> above, <ActionButton className={styles.linkAction} onClick={() => seedRing()} type="button">seed a ring of 5</ActionButton>, or <ActionButton className={styles.linkAction} onClick={runWholeDemo} type="button">run the whole demo</ActionButton>.
             </div>
           )}
           {advisor && (
@@ -729,6 +1087,27 @@ export default function OperatorMap() {
               </div>
             )}
             {dronePhase === "ready" || sim.snapshot.timeMs > 0 ? (
+              <div className={styles.speedControl}>
+                <div className={styles.speedControlHead}>
+                  <label htmlFor="drone-speed">Drone speed</label>
+                  <strong>{droneSpeedMps} m/s</strong>
+                  <span>{Math.round(droneSpeedMps * 3.6)} km/h</span>
+                </div>
+                <input id="drone-speed" type="range" className={styles.speedSlider}
+                  min={MIN_DRONE_SPEED_MPS} max={MAX_DRONE_SPEED_MPS} step={1} value={droneSpeedMps}
+                  onChange={(e) => setDroneSpeedMps(Number(e.target.value))} />
+                {/* How fast the threat actually flies, not how fast you watch
+                    it. Coverage is geometry and does not move; the time to
+                    cross it does, and so does whether a node gets enough
+                    windows to latch on the way past. */}
+                <p className={styles.speedNote}>
+                  {route.length > 1
+                    ? `${Math.round(coverage.lengthM)} m run · ${Math.round(coverage.lengthM / droneSpeedMps)} s at this speed`
+                    : "Ground speed of the threat — playback speed below is only how fast you watch it."}
+                </p>
+              </div>
+            ) : null}
+            {dronePhase === "ready" || sim.snapshot.timeMs > 0 ? (
               <div className={styles.transport}>
                 <ActionButton className={styles.transportPlay} onClick={sim.running ? sim.pause : sim.play} type="button">
                   {sim.running ? "❚❚ Pause" : sim.snapshot.done ? "▶ Replay" : "▶ Run"}
@@ -738,13 +1117,13 @@ export default function OperatorMap() {
                     <ActionButton key={x} className={sim.speed === x ? styles.speedActive : styles.speed} onClick={() => sim.setSpeed(x)} type="button">{x}×</ActionButton>
                   ))}
                 </div>
-                <ActionButton className={styles.scenarioButton} onClick={sim.reset} type="button"><span>↺</span>Reset</ActionButton>
+                <ActionButton className={styles.scenarioButton} onClick={resetRun} type="button"><span>↺</span>Reset</ActionButton>
                 <span className={styles.transportClock}>t+{(sim.snapshot.timeMs / 1000).toFixed(1)} s</span>
               </div>
             ) : null}
             <div className={styles.scenarioRow}>
               {mode === "route" && route.length > 0 && <ActionButton className={styles.scenarioButton} onClick={undoWaypoint} type="button"><span>↶</span>Undo</ActionButton>}
-              {dronePhase !== "idle" && mode !== "route" && <ActionButton className={styles.scenarioButton} onClick={() => { sim.reset(); setDronePhase("idle"); setRoute([]); }} type="button"><span>×</span>Clear</ActionButton>}
+              {dronePhase !== "idle" && mode !== "route" && <ActionButton className={styles.scenarioButton} onClick={() => { resetRun(); setDronePhase("idle"); setRoute([]); }} type="button"><span>×</span>Clear</ActionButton>}
               <ActionButton className={advisorOn ? styles.scenarioButtonActive : styles.scenarioButton} onClick={toggleAdvisor} type="button"><span>◎</span>{advisorOn ? "Hide advice" : "Suggest placement"}</ActionButton>
             </div>
             {advisor && (
@@ -773,8 +1152,64 @@ export default function OperatorMap() {
                 )}
               </>
             )}
+            {route.length > 1 && (
+              <ActionButton className={routeAdvisorOn ? styles.scenarioButtonActive : styles.scenarioButton}
+                onClick={() => setRouteAdvisorOn((on) => !on)} type="button" style={{ width: "100%", marginTop: 8 }}>
+                <span>◈</span>{routeAdvisorOn ? "Hide ingress advice" : "Where should sensors go for this run?"}
+              </ActionButton>
+            )}
+            {routeAdvice && (
+              <div className={styles.adviceBox}>
+                <div className={styles.adviceHead}>
+                  <p className={styles.sectionKicker}>Placement for this ingress</p>
+                  <span>{routeAdvice.feasibleCount} legal spots searched</span>
+                </div>
+                {routeAdvice.suggestions.length === 0 ? (
+                  <p className={styles.advisorLegendNote}>
+                    {routeAdvice.baselineCoverage >= 0.999
+                      ? "This run is already observed end to end. Another sensor would sharpen the fix, not find the drone sooner — the area advisor is the one to ask for that."
+                      : "No legal spot meaningfully improves this run. Every candidate is either within " +
+                        `${MIN_NODE_DISTANCE_M} m of an existing sensor, or too far from the track to hear it.`}
+                  </p>
+                ) : (
+                  <ol className={styles.adviceList}>
+                    {routeAdvice.suggestions.map((s) => (
+                      <li key={s.rank}>
+                        <ActionButton className={styles.adviceItem} type="button" onClick={() => acceptRouteSuggestion(s)}>
+                          <span className={styles.adviceRank}>{s.rank}</span>
+                          <span className={styles.adviceBody}>
+                            <b>{s.headline}</b>
+                            <em>{s.detail}</em>
+                            <i className={styles.adviceBar} aria-hidden>
+                              <u style={{ width: `${Math.round(s.confidence * 100)}%` }} />
+                            </i>
+                          </span>
+                          <span className={styles.adviceScore}>{Math.round(s.confidence * 100)}%</span>
+                        </ActionButton>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                <p className={styles.adviceFootnote}>
+                  Ranked by warning time first, then how much of the run is observed, then
+                  the widest blind stretch closed — each spot scored with the higher-ranked
+                  ones already in place. A search over legal positions, not a model.
+                </p>
+              </div>
+            )}
             {nodes.length > 0 && <div className={styles.connectionHealth}><span>Network connectivity</span><strong data-connected={networkConnected}>{networkConnected ? "Connected" : "Partitioned"}</strong></div>}
             {dronePhase !== "idle" && <div className={styles.droneStatus}><span>{droneStatusText}</span>{detectingNodeIds.length > 0 && <b>{detectingNodeIds.length} detecting</b>}</div>}
+            {/* A mesh can hear a drone and still not be able to say where it
+                is — and that is a different, weaker claim than a fix. Said in
+                words because the honest picture for it is not a marker. */}
+            {view.estimate && view.estimate.nReports > 0 && !view.estimate.localised && (
+              <div className={styles.fixStatus}>
+                <span>{view.estimate.nReports} detecting · no fix</span>
+                <em>{view.estimate.edgePinned
+                  ? "bearing only — the source is outside the area this array can solve over"
+                  : "the levels are consistent with more than one position"}</em>
+              </div>
+            )}
             {alertStatusText && <div className={styles.alertStatus} data-phase={sim.running ? "routing" : "delivered"}><span>{alertStatusText}</span></div>}
           </section>
           <section className={styles.activitySection}>

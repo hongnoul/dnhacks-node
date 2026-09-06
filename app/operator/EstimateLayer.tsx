@@ -8,7 +8,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Circle, CircleMarker, ImageOverlay } from "react-leaflet";
+import { Circle, CircleMarker, ImageOverlay, Tooltip } from "react-leaflet";
 import type { NodeEstimate } from "./sim/estimate";
 import styles from "./operator.module.css";
 
@@ -20,6 +20,27 @@ const RAMP: [number, number, number][] = [
   [255, 226, 160],
 ];
 const MAX_ALPHA = 165;
+/**
+ * Fraction of the peak below which the posterior is painted as nothing.
+ *
+ * The grid is deliberately wider than the array so the distribution is not
+ * sliced off by its own boundary, which means most cells now sit far out in a
+ * tail worth ~0. Drawn with the square-root stretch that tail still tints, and
+ * a warm haze over the entire map reads as "the mesh thinks the drone is
+ * everywhere" — the opposite of what a peaked posterior means. The colour ramp
+ * keeps the full stretch; only the opacity is floored.
+ */
+const ALPHA_FLOOR = 0.18;
+/**
+ * Fraction of the grid over which the image fades out at its own edges.
+ *
+ * A posterior built from censored (silent) observations has no compact
+ * support — it keeps rising away from the sensors — so there is no grid wide
+ * enough to contain it, and painting it as a rectangle draws a hard border
+ * that is an artefact of the box rather than anything the mesh believes. The
+ * vignette says "continues past here" instead of "ends here".
+ */
+const EDGE_FADE = 0.18;
 
 function ramp(t: number): [number, number, number] {
   const x = t * (RAMP.length - 1);
@@ -56,11 +77,18 @@ function toDataUrl(est: NodeEstimate): string {
       // a linear ramp hides all of it.
       const t = peak > 0 ? Math.sqrt(est.posterior[src * est.nx + ix] / peak) : 0;
       const [r, g, b] = ramp(t);
+      // Ramps from nothing at ALPHA_FLOOR to full at the peak, so the drawn
+      // extent is the part of the belief worth looking at rather than the
+      // whole grid it was solved on.
+      const shown = t <= ALPHA_FLOOR ? 0 : (t - ALPHA_FLOOR) / (1 - ALPHA_FLOOR);
+      const fx = Math.min(ix, est.nx - 1 - ix) / (est.nx * EDGE_FADE);
+      const fy = Math.min(src, est.ny - 1 - src) / (est.ny * EDGE_FADE);
+      const vignette = Math.min(1, fx, fy);
       const o = (iy * est.nx + ix) * 4;
       img.data[o] = r;
       img.data[o + 1] = g;
       img.data[o + 2] = b;
-      img.data[o + 3] = Math.round(alpha * t);
+      img.data[o + 3] = Math.round(alpha * shown * vignette);
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -88,7 +116,15 @@ export function EstimateLayer({ estimate }: { estimate: NodeEstimate }) {
           <Circle center={[estimate.lat, estimate.lon]} radius={estimate.spreadM}
             pathOptions={{ className: styles.mapDecoration, interactive: false, color: "#ffe2a0", fillColor: "#ffe2a0", fillOpacity: .06, weight: 1, dashArray: "4 6" }} />
           <CircleMarker center={[estimate.lat, estimate.lon]} radius={6}
-            pathOptions={{ className: styles.mapDecoration, interactive: false, color: "#ffe2a0", fillColor: "#0a0f1a", fillOpacity: .9, weight: 3 }} />
+            pathOptions={{ className: styles.mapDecoration, interactive: false, color: "#ffe2a0", fillColor: "#0a0f1a", fillOpacity: .9, weight: 3 }}>
+            {/* Says what it is. Unlabelled, this glyph is indistinguishable
+                from a route waypoint, and the dashed ring around it from the
+                drone's audible footprint — three amber-on-dark shapes meaning
+                three unrelated things. */}
+            <Tooltip permanent direction="right" offset={[9, 0]} className={styles.fixLabel}>
+              fused fix · ±{Math.round(estimate.spreadM)} m
+            </Tooltip>
+          </CircleMarker>
         </>
       )}
     </>

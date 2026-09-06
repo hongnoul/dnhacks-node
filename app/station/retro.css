@@ -84,3 +84,30 @@
   .retro-console-header h1 { font-size: 18px; }
   .retro-console-header a { display: inline-block; padding: 12px 8px; }
 }
+
+/* The way through to the planning sandbox, and the sandbox's own shell.
+   Styled from the same raised-panel idiom as the dashboard cards so the portal
+   reads as part of the console rather than a link bolted onto the end. */
+.simulation-portal { max-width: 1700px; margin: 14px auto 0; padding: 16px; }
+.simulation-portal-points {
+  margin: 10px 0 0; padding-left: 20px; display: grid; gap: 4px;
+  color: var(--dim); font-size: 13px; line-height: 1.45;
+}
+.simulation-portal-action {
+  display: inline-block; margin-top: 14px; padding: 10px 16px;
+  background: var(--retro-title); color: white; text-decoration: none;
+  border: 2px solid; border-color: white #343434 #343434 white;
+  box-shadow: inset -1px -1px var(--retro-shadow);
+  font: bold 13px/1.4 var(--retro-font);
+}
+.simulation-portal-action:hover { background: #0000a0; color: white; }
+.simulation-portal-action:active {
+  border-color: #343434 white white #343434;
+  box-shadow: inset 1px 1px var(--retro-shadow);
+}
+
+/* The sandbox wears the console's title bar, then hands the whole viewport to
+   the map. Its own shell is dark by design — a command view, not a document —
+   so the retro theme stops at the title bar rather than washing it out. */
+.simulation-console { min-height: 100dvh; background: var(--retro-title); }
+.simulation-console .retro-console-header { max-width: none; margin: 0; border-width: 0 0 2px; }

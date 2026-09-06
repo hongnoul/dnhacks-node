@@ -96,8 +96,18 @@ export interface NodeEstimate {
   nReports: number;
   nSilent: number;
   /**
-   * False when the posterior is too broad, or when no source at the peak would
-   * explain the levels actually reported.
+   * True when the peak sits on the edge of the solved grid.
+   *
+   * Then the box has cut the distribution off rather than contained it, and
+   * the argmax is wherever the boundary happened to fall. Exposed so the UI
+   * can say "off that way, further than we can solve" instead of drawing a
+   * position.
+   */
+  edgePinned: boolean;
+  /**
+   * False when the posterior is too broad, when its peak is pinned to the edge
+   * of the grid, or when no source at the peak would explain the levels
+   * actually reported.
    *
    * This is where a demo lies most easily: several nodes hearing the same thing
    * at the same level constrain nothing, the posterior goes nearly flat, and the
@@ -215,6 +225,21 @@ export function estimateFrom(
   const rms = n > 0 ? Math.sqrt(sq / n) : Infinity;
   const nReports = used.filter((e) => e.r.d).length;
 
+  /**
+   * Is the peak against the wall of the grid?
+   *
+   * A silent node is a censored observation: it bounds the source *away* from
+   * itself, and that pushes probability outward with nothing to stop it. So a
+   * mesh that is mostly quiet has a posterior with no compact support, and the
+   * argmax lands wherever the grid happens to end. The residual test cannot
+   * catch this — one detecting node fits its own annulus perfectly at any
+   * point along it, including the corner — and neither can the spread test,
+   * because truncation is what makes the retained mass look compact. Without
+   * this the map draws a confident marker hundreds of metres from the source,
+   * on the boundary of a box the operator cannot even see.
+   */
+  const edgePinned = bx === 0 || by === 0 || bx === nx - 1 || by === ny - 1;
+
   return {
     nx,
     ny,
@@ -227,7 +252,11 @@ export function estimateFrom(
     nSilent: used.length - nReports,
     // Both tests have to pass: consistent AND actually constrained. One graded
     // reading fits its own annulus perfectly while the posterior covers the map.
+    edgePinned,
     localised:
-      n > 0 && rms <= MAX_RESIDUAL_SIGMAS * SNR_SIGMA_DB && spreadM < LOCALISED_MAX_FRACTION * areaRadiusM,
+      n > 0 &&
+      !edgePinned &&
+      rms <= MAX_RESIDUAL_SIGMAS * SNR_SIGMA_DB &&
+      spreadM < LOCALISED_MAX_FRACTION * areaRadiusM,
   };
 }
