@@ -78,6 +78,9 @@ origin, `wss://` resolves to the same host and no second tunnel is needed.
 Note the static build is a *build*: re-run `npm run build:static` after code changes.
 `npm run dev` on :3000 is still there for iterating.
 
+Changes to `server/relay.py` also require restarting the relay. For simulation
+alerts, update both the frontend and relay, then reload the station and nodes.
+
 ## Demo script
 
 1. `/station`, then open `/?node=n01` … `/?node=n06` and admit each.
@@ -104,6 +107,11 @@ deployment those hops are radio links (ARCHITECTURE.md §4.0).
     npm test                        # unit + integration (scenario, fusion, mesh, integration)
     node tests/ui-smoke.mjs         # browser smoke; relay + dev must be running
     node tests/detector-smoke.mjs   # CRNN fires on synthesised drone audio
+    APP_URL=http://localhost:3000 node tests/simulation-alerts-ui.mjs
+
+The simulation browser test drives two joined nodes and real dashboard controls,
+including acknowledgements, drone cancellation/replay, blast recovery, and mobile
+layout. `npm test` also covers the simulation protocol and the real relay boundary.
 
 ## What the console shows
 
@@ -123,8 +131,9 @@ map and rewired from mock state to live mesh primitives:
   6 m link range, 2 neighbours). Clicking a valid spot logs it; no mock node is
   created — a real phone is still admitted and placed via gossip records.
 - **simulate drone** — click a start and destination, then start flight. The ✦
-  marker and halo are a visual hint only, never a record; nodes inside the halo
-  trigger an alert routed hop-by-hop to the command post (this console).
+  marker and halo are a visual hint only, never a reading. Entering the halo emits
+  a simulation proximity notice once per node per flight. The highlighted
+  hop-by-hop path is a route animation, not a delivery receipt.
 - **simulate impact** — click the map to cut every link touching nodes in the
   3 m blast radius; links restore after 8 s. Real partition, not a mock flag.
 - **disable random node** — isolates one node for 6 s, then it rejoins.
@@ -141,6 +150,35 @@ first, capped at six. Repeat halo detections dedupe to one line per node.
 
 Clicking a node opens an **inspector**: heartbeat (fresh readings vs silent),
 position, confidence, and per-link up/cut state.
+
+### Interactive simulation alerts on nodes
+
+1. Open `/station/?session=demo` and `/?session=demo&node=n01` in separate tabs
+   (use different `node` IDs for additional tabs). Join and admit the node.
+2. Auto-place participants, then run **simulate impact**, a manual drone flight,
+   or **replay scenario**. Interference and random isolation also send notices.
+3. The node's purple **Simulation channel** expands with a **SIMULATION / DEMO
+   ONLY** label, phase, time, room position when relevant, and whether that node
+   is affected. It works with an unavailable microphone or minimized sensor.
+4. Press **Acknowledge** on the node. Only the relay's confirmation marks it
+   acknowledged, and the dashboard lists the acknowledging node and count.
+
+This channel shares the WebSocket but uses `ctrl: "simulation"` and
+`ctrl: "simulation_ack"`, not gossip payloads. The relay accepts notices from
+admin-role connections only and sends them to currently admitted sensor nodes in
+the same session. Like the rest of this demo's admin controls, the role is **not
+authenticated**. Do not treat this as a production security boundary.
+
+Simulation notices intentionally bypass emulated latency, loss, and link cuts,
+so a participant can see why their mesh is partitioned. An acknowledgement means
+the participant saw the demo. It does **not** prove a radio route delivered an
+alert. These notices never change CRNN scores, detection counts, confidence
+history, gossip records, or fused estimates.
+
+History is in memory, capped at 40 notices and two minutes. The node shows the
+latest phase of each run, so completion, restoration, and cancellation supersede
+earlier phases. Re-admitting an original recipient replays its recent notices and
+ACKs. New participants do not receive past demos. Relay restarts clear history.
 
 ## Detection
 

@@ -15,6 +15,7 @@ import type { NewRecord } from "./protocol.ts";
 import type { Score } from "./scoring.ts";
 import { GRAPH_WINDOW_MS } from "./detection.ts";
 import type { Point } from "./ConfidenceGraph.tsx";
+import { mergeSimulationAlert, type SimulationAlert } from "./simulationChannel.ts";
 
 export const DEFAULT_ROOM: Room = { w: 12, h: 8 };
 
@@ -34,6 +35,8 @@ export interface MeshView {
   liveNodes: string[];
   clock: { rootId: string; offsetMs: number; hops: number };
   stats: { sent: number; received: number; duplicates: number; forwarded: number };
+  /** Out-of-band operator demos, explicitly excluded from the replicated log. */
+  simulationAlerts: SimulationAlert[];
 }
 
 export class Mesh {
@@ -46,6 +49,7 @@ export class Mesh {
 
   private status: LinkStatus = { state: "connecting" };
   private listeners = new Set<() => void>();
+  private simulationAlerts: SimulationAlert[] = [];
 
   constructor(opts: {
     url: string;
@@ -65,6 +69,10 @@ export class Mesh {
       this.emit();
     });
     this.gossip.onChange(() => this.emit());
+    this.link.onSimulation((alert) => {
+      this.simulationAlerts = mergeSimulationAlert(this.simulationAlerts, alert);
+      this.emit();
+    });
   }
 
   start(): void {
@@ -91,6 +99,11 @@ export class Mesh {
       logit: score.logit,
       snr_db: score.snrDb,
     } satisfies NewRecord);
+  }
+
+  acknowledgeSimulation(id: string): boolean {
+    if (this.status.state !== "active") return false;
+    return this.link.acknowledgeSimulation(id);
   }
 
   /** Admin only: node placement, injected as a record so it gossips (§3.3). */
@@ -175,6 +188,7 @@ export class Mesh {
         hops: this.clock.hopsToRoot,
       },
       stats: this.gossip.stats,
+      simulationAlerts: this.simulationAlerts.filter(a => a.expiresAt > Date.now()),
     };
   }
 

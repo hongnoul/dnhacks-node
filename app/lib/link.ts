@@ -6,6 +6,8 @@
 // the identical protocol (ARCHITECTURE.md §4.0.1). Swapping one for the other is
 // a new implementation of this interface, not a rewrite.
 
+import { isSimulationAlert, type SimulationAlert } from "./simulationChannel.ts";
+
 export interface Link {
   send(to: string, payload: unknown): void;
   onMessage(cb: (from: string, payload: unknown) => void): void;
@@ -26,6 +28,7 @@ export class RelayedLink implements Link {
   private msgCb: (from: string, payload: unknown) => void = () => {};
   private nbrCb: (n: string[]) => void = () => {};
   private statusCb: (s: LinkStatus) => void = () => {};
+  private simulationCb: (alert: SimulationAlert) => void = () => {};
   private backoffMs = 500;
   private closed = false;
 
@@ -67,6 +70,9 @@ export class RelayedLink implements Link {
         return;
       }
       switch (msg.ctrl) {
+        case "simulation":
+          if (isSimulationAlert(msg.alert)) this.simulationCb(msg.alert);
+          break;
         case "pending":
           this.statusCb({ state: "pending", nodeId: msg.node });
           break;
@@ -111,6 +117,16 @@ export class RelayedLink implements Link {
   }
   onStatus(cb: (s: LinkStatus) => void): void {
     this.statusCb = cb;
+  }
+
+  onSimulation(cb: (alert: SimulationAlert) => void): void {
+    this.simulationCb = cb;
+  }
+
+  acknowledgeSimulation(id: string): boolean {
+    if (this.ws?.readyState !== WebSocket.OPEN) return false;
+    this.ws.send(JSON.stringify({ ctrl: "simulation_ack", id }));
+    return true;
   }
 
   close(): void {

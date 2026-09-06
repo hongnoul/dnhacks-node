@@ -1,4 +1,4 @@
-// config.ts — where the relay lives.
+// config.ts — one relay URL for gossip, admin controls, and simulation alerts.
 
 export const DEFAULT_SESSION = "default";
 

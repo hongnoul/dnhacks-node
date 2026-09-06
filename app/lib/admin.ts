@@ -8,6 +8,8 @@
 
 "use client";
 
+import { isSimulationAlert, mergeSimulationAlert, type SimulationAlert, type SimulationNotice } from "./simulationChannel.ts";
+
 export interface RelayLinkState {
   a: string;
   b: string;
@@ -33,6 +35,7 @@ export class AdminChannel {
   public state: RelayState = { nodes: [], topology: {}, links: [] };
   public forwards: Forward[] = [];
   public connected = false;
+  public simulationAlerts: SimulationAlert[] = [];
 
   private ws: WebSocket | null = null;
   private cb: () => void = () => {};
@@ -69,6 +72,9 @@ export class AdminChannel {
         // it by design — so this is *all* mesh traffic, not just records.
         this.forwards.push({ from: m.from, to: m.to, dropped: m.dropped, at: Date.now() });
         if (this.forwards.length > 120) this.forwards.splice(0, this.forwards.length - 120);
+      } else if (m.ctrl === "simulation" && isSimulationAlert(m.alert)) {
+        this.simulationAlerts = mergeSimulationAlert(this.simulationAlerts, m.alert);
+        this.cb();
       }
     };
     ws.onclose = () => {
@@ -90,6 +96,12 @@ export class AdminChannel {
   }
   setLink(a: string, b: string, patch: Partial<RelayLinkState>): void {
     this.send({ ctrl: "set_link", a, b, ...patch });
+  }
+  publishSimulation(notice: SimulationNotice): boolean {
+    // Never queue old scenarios for a later connection and claim they are live.
+    if (this.ws?.readyState !== WebSocket.OPEN) return false;
+    this.ws.send(JSON.stringify({ ctrl: "simulation", notice }));
+    return true;
   }
   close(): void {
     this.closed = true;

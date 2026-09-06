@@ -13,8 +13,10 @@
 
 import asyncio
 import json
+import math
 import random
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -36,6 +38,8 @@ app.add_middleware(
 
 DEFAULT_LATENCY_MS = 50
 DEFAULT_LOSS = 0.0
+SIMULATION_TTL_MS = 120_000
+SIMULATION_HISTORY_LIMIT = 40
 
 
 @dataclass
@@ -60,6 +64,8 @@ class Session:
     topology: dict[str, list[str]] = field(default_factory=dict)
     links: dict[tuple[str, str], LinkState] = field(default_factory=dict)
     counter: int = 0
+    # Ephemeral demo notices, never gossip records or fusion evidence.
+    simulation_alerts: list[dict] = field(default_factory=list)
 
     def next_id(self) -> str:
         self.counter += 1
@@ -124,6 +130,63 @@ async def push_neighbours(sess: Session, node_id: str) -> None:
         await send_json(
             node.ws, {"ctrl": "neighbours", "neighbours": sess.neighbours(node_id)}
         )
+
+
+def recent_simulations(sess: Session) -> list[dict]:
+    now = int(time.time() * 1000)
+    sess.simulation_alerts = [a for a in sess.simulation_alerts if a["expiresAt"] > now][-SIMULATION_HISTORY_LIMIT:]
+    return sess.simulation_alerts
+
+
+def simulation_notice(value) -> Optional[dict]:
+    """Whitelist demo metadata. Sender cannot set IDs, recipients or ACKs."""
+    if not isinstance(value, dict):
+        return None
+    if value.get("kind") not in ("impact", "drone", "interference", "isolation"):
+        return None
+    if value.get("phase") not in ("started", "contact", "completed", "cancelled", "restored"):
+        return None
+    for key, limit in (("runId", 128), ("message", 500)):
+        if not isinstance(value.get(key), str) or not 0 < len(value[key]) <= limit:
+            return None
+    ids = value.get("affectedNodes")
+    if not isinstance(ids, list) or len(ids) > 1024 or any(not isinstance(n, str) or not 0 < len(n) <= 128 for n in ids):
+        return None
+    notice = {key: value[key] for key in ("runId", "kind", "phase", "message")}
+    notice["affectedNodes"] = list(dict.fromkeys(ids))
+    if "position" in value:
+        p = value["position"]
+        if not isinstance(p, dict) or any(type(p.get(k)) not in (int, float) or not math.isfinite(p[k]) for k in ("x", "y")):
+            return None
+        notice["position"] = {"x": p["x"], "y": p["y"]}
+    return notice
+
+
+async def broadcast_simulation(sess: Session, alert: dict) -> None:
+    # Intentionally out-of-band: even a node whose simulated radio links were
+    # cut can see what the operator did. This is NOT successful mesh delivery.
+    envelope = {"ctrl": "simulation", "alert": alert}
+    await notify_admins(sess, envelope)
+    for node_id in alert["recipients"]:
+        node = sess.nodes.get(node_id)
+        if node and node.admitted:
+            await send_json(node.ws, envelope)
+
+
+async def publish_simulation(sess: Session, value) -> None:
+    notice = simulation_notice(value)
+    if notice is None:
+        return
+    now = int(time.time() * 1000)
+    alert = {
+        **notice, "id": uuid.uuid4().hex, "createdAt": now,
+        "expiresAt": now + SIMULATION_TTL_MS,
+        "recipients": [n.node_id for n in sess.nodes.values() if n.admitted and n.node_id != "admin"],
+        "acknowledgedBy": [],
+    }
+    recent_simulations(sess).append(alert)
+    sess.simulation_alerts = sess.simulation_alerts[-SIMULATION_HISTORY_LIMIT:]
+    await broadcast_simulation(sess, alert)
 
 
 async def deliver(sess: Session, src: str, dst: str, payload) -> None:
@@ -197,6 +260,8 @@ async def ws_endpoint(ws: WebSocket):
                 sess.admins.add(ws)
                 is_admin = True
                 await send_json(ws, {"ctrl": "state", **sess.snapshot()})
+                for alert in recent_simulations(sess):
+                    await send_json(ws, {"ctrl": "simulation", "alert": alert})
 
             elif ctrl == "admit" and is_admin and sess:
                 target = sess.nodes.get(msg["node"])
@@ -211,6 +276,24 @@ async def ws_endpoint(ws: WebSocket):
                         },
                     )
                     await push_state(sess)
+                    # Replay only to original recipients after re-admission,
+                    # not to new participants joining an already finished demo.
+                    for alert in recent_simulations(sess):
+                        if target.node_id in alert["recipients"]:
+                            await send_json(target.ws, {"ctrl": "simulation", "alert": alert})
+
+            elif ctrl == "simulation" and is_admin and sess:
+                await publish_simulation(sess, msg.get("notice"))
+
+            elif ctrl == "simulation_ack" and sess and node_id:
+                node = sess.nodes.get(node_id)
+                if node and node.ws is ws and node.admitted:
+                    for alert in recent_simulations(sess):
+                        if alert["id"] == msg.get("id") and node_id in alert["recipients"]:
+                            if node_id not in alert["acknowledgedBy"]:
+                                alert["acknowledgedBy"].append(node_id)
+                            await broadcast_simulation(sess, alert)
+                            break
 
             elif ctrl == "set_topology" and is_admin and sess:
                 sess.topology = {k: list(v) for k, v in msg["edges"].items()}

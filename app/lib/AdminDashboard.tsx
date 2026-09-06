@@ -24,6 +24,7 @@ const GeographicMap = dynamic(() => import("./GeographicMap"), { ssr: false, loa
 import { ConfidenceGraph } from "./ConfidenceGraph.tsx";
 import { DETECT_THRESHOLD } from "./detection.ts";
 import { DEFAULT_ROOM } from "./mesh.ts";
+import { SIMULATION_LABELS, type SimulationNotice } from "./simulationChannel.ts";
 import {
   DRONE_DETECTION_RADIUS_M,
   FLIGHT_DURATION_MS,
@@ -44,6 +45,7 @@ import {
 } from "./scenario.ts";
 
 const ADMIN_ID = "admin";
+const simulationRunId = () => globalThis.crypto?.randomUUID?.() ?? `sim-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 /** Map interaction modes, ported from Avery's OperatorMap (Leaflet → RoomMap). */
 type MapMode = "idle" | "placing" | "impact" | "droneStart" | "droneDestination";
@@ -108,6 +110,14 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
   const alertTimerRef = useRef<number | null>(null);
   const replayTimerRef = useRef<number | null>(null);
   const detectedRef = useRef<Set<string>>(new Set());
+  const droneRunRef = useRef<string | null>(null);
+  const interferenceRunRef = useRef<string | null>(null);
+
+  function announce(notice: SimulationNotice) {
+    if (!chanRef.current?.publishSimulation(notice)) {
+      log("Simulation notice not sent: control channel disconnected", "warning");
+    }
+  }
 
   function log(message: string, tone: ActivityEvent["tone"] = "info") {
     // Several actions can log in one millisecond. Unique keys prevent React
@@ -327,8 +337,11 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
       return;
     }
     if (mode === "impact") {
+      const runId = simulationRunId();
       const ids = nodesWithinRadius({ x, y }, positions, IMPACT_RADIUS_M);
       setImpact({ x, y, ids });
+      announce({ runId, kind: "impact", phase: "started", affectedNodes: ids, position: { x, y },
+        message: `Simulated blast impact. ${ids.length} node${ids.length === 1 ? "" : "s"} in the impact area. Affected links restore after 8 seconds.` });
       // Cut every link touching an affected node: the outage is demonstrated
       // by real partition, not by flipping a mock status flag.
       const pairs: [string, string][] = [];
@@ -347,6 +360,8 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
       window.setTimeout(() => {
         cutLinks(pairs, true);
         setImpact(null);
+        announce({ runId, kind: "impact", phase: "restored", affectedNodes: ids, position: { x, y },
+          message: "Blast simulation ended. Impact links restored." });
         if (ids.length) log("Impact links restored", "success");
       }, 8_000);
     }
@@ -360,6 +375,11 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
   }
 
   function resetDrone() {
+    if (droneRunRef.current) {
+      announce({ runId: droneRunRef.current, kind: "drone", phase: "cancelled", affectedNodes: [...detectedRef.current],
+        message: "Drone simulation cancelled by the operator." });
+      droneRunRef.current = null;
+    }
     if (flightRef.current !== null) window.cancelAnimationFrame(flightRef.current);
     if (alertTimerRef.current !== null) window.clearTimeout(alertTimerRef.current);
     if (replayTimerRef.current !== null) window.clearTimeout(replayTimerRef.current);
@@ -386,12 +406,17 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
   /** Which positioned nodes fall inside the drone halo — a hint, not a verdict. */
   function updateSimDetections(p: { x: number; y: number }) {
     const ids = nodesWithinRadius(p, positions, DRONE_DETECTION_RADIUS_M);
+    const newIds = ids.filter(id => !detectedRef.current.has(id));
     setSimDetecting(ids);
     for (const id of ids) {
       if (detectedRef.current.has(id)) continue;
       detectedRef.current.add(id);
       log(`${id} inside simulated drone halo`, "warning");
       if (!alertRoute) beginAlertRoute(id);
+    }
+    if (newIds.length && droneRunRef.current) {
+      announce({ runId: droneRunRef.current, kind: "drone", phase: "contact", affectedNodes: [...detectedRef.current], position: p,
+        message: `Simulated drone halo reached ${newIds.join(", ")}. This is a proximity simulation, not an audio detection.` });
     }
   }
 
@@ -430,6 +455,10 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
     setAlertRoute(null);
     setSimDetecting([]);
     setDronePhase("flying");
+    const runId = simulationRunId();
+    droneRunRef.current = runId;
+    announce({ runId, kind: "drone", phase: "started", affectedNodes: [], position: droneStart,
+      message: "Simulated drone flight started. Watch for proximity updates as it crosses the participant map." });
     log("Simulated drone flight started", "warning");
     const start = droneStart;
     const dest = droneDest;
@@ -443,6 +472,9 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
       } else {
         flightRef.current = null;
         setDronePhase("complete");
+        announce({ runId, kind: "drone", phase: "completed", affectedNodes: [...detectedRef.current], position: dest,
+          message: "Simulated drone flight complete. No neural-network detection was generated by this demo." });
+        droneRunRef.current = null;
         log("Simulated drone flight complete", "success");
       }
     };
@@ -452,9 +484,18 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
   function setInterferenceOn(on: boolean) {
     setInterference(on);
     if (on) {
+      const runId = interferenceRunRef.current ?? simulationRunId();
+      interferenceRunRef.current = runId;
+      announce({ runId, kind: "interference", phase: "started", affectedNodes: [...new Set(sensorLinks.flatMap(l => [l.a, l.b]))],
+        message: "Simulated radio interference enabled: 500 ms latency and 20% loss on sensor links." });
       sensorLinks.forEach((l) => chan?.setLink(l.a, l.b, { latency_ms: 500, loss: 0.2 }));
       log("Interference on — 500 ms, 20% loss on all links", "warning");
     } else {
+      if (interferenceRunRef.current) {
+        announce({ runId: interferenceRunRef.current, kind: "interference", phase: "restored", affectedNodes: [...new Set(sensorLinks.flatMap(l => [l.a, l.b]))],
+          message: "Radio interference cleared. Sensor links restored to nominal." });
+        interferenceRunRef.current = null;
+      }
       sensorLinks.forEach((l) => chan?.setLink(l.a, l.b, { latency_ms: 50, loss: 0, up: true }));
       log("Links restored to nominal", "success");
     }
@@ -473,6 +514,10 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
     log("Replay started: drone flight under interference", "warning");
     const start = { x: DEFAULT_ROOM.w * 0.1, y: DEFAULT_ROOM.h / 2 };
     const dest = { x: DEFAULT_ROOM.w * 0.9, y: DEFAULT_ROOM.h / 2 };
+    const runId = simulationRunId();
+    droneRunRef.current = runId;
+    announce({ runId, kind: "drone", phase: "started", affectedNodes: [], position: start,
+      message: "Scenario replay started: simulated drone flight under radio interference." });
     setDroneStart(start);
     setDroneDest(dest);
     setDronePos(start);
@@ -492,6 +537,9 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
         flightRef.current = null;
         setDronePhase("complete");
         log("Replay flight complete", "success");
+        announce({ runId, kind: "drone", phase: "completed", affectedNodes: [...detectedRef.current], position: dest,
+          message: "Replay drone flight complete. Radio interference will clear shortly." });
+        droneRunRef.current = null;
         replayTimerRef.current = window.setTimeout(() => {
           setInterferenceOn(false);
           setReplaying(false);
@@ -509,6 +557,9 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
     });
     if (!ids.length) return;
     const id = ids[Math.floor(Math.random() * ids.length)];
+    const runId = simulationRunId();
+    announce({ runId, kind: "isolation", phase: "started", affectedNodes: [id],
+      message: `${id} temporarily isolated by the operator. Sensor links restore after 6 seconds.` });
     const pairs: [string, string][] = (state.topology[id] ?? [])
       .filter((nb) => nb !== ADMIN_ID)
       .map((nb) => [id, nb]);
@@ -516,6 +567,8 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
     log(`${id} temporarily isolated`, "critical");
     window.setTimeout(() => {
       cutLinks(pairs, true);
+      announce({ runId, kind: "isolation", phase: "restored", affectedNodes: [id],
+        message: `${id} rejoined after the node isolation simulation.` });
       log(`${id} rejoined`, "success");
     }, 6_000);
   }
@@ -541,15 +594,16 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
           : null;
   const alertStatus =
     alertRoute?.phase === "routing"
-      ? `Relaying alert… hop ${alertRoute.reachedIndex} of ${alertRoute.path.length - 1}`
+      ? `Simulated route… hop ${alertRoute.reachedIndex} of ${alertRoute.path.length - 1}`
       : alertRoute?.phase === "delivered"
-        ? `Alert delivered — ${alertRoute.path.length - 1} hops`
+        ? `Simulated route complete — ${alertRoute.path.length - 1} hops`
         : alertRoute?.phase === "lost"
           ? "NETWORK PATH LOST"
           : null;
   const selectedNeighbours = selected ? (state.topology[selected] ?? []).filter((n) => n !== ADMIN_ID) : [];
   const selectedPos = selected ? positions.get(selected) : undefined;
   const selectedLive = selected ? (view?.liveNodes ?? []).includes(selected) : false;
+  const recentNotices = (chan?.simulationAlerts ?? []).filter(a => a.expiresAt > Date.now()).slice(0, 6);
 
 
   return (
@@ -763,6 +817,7 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
               </ActionButton>
               <ActionButton
                 className={mode === "impact" ? "primary" : ""}
+                disabled={!!impact}
                 onClick={() => {
                   if (mode === "impact") {
                     setMode("idle");
@@ -822,10 +877,22 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
               </div>
             )}
             <p className="dim" style={{ fontSize: 12, marginBottom: 0 }}>
-              Demo layer: the drone halo is a visual hint, never a record. Impact and
-              isolation cut real relay links, so partitions here are partitions
-              everywhere.
+              Demo only. Joined nodes receive a separate simulation alert, never a
+              microphone reading. Impact and isolation cut mesh links. Simulation
+              notices use the control channel and still arrive during those cuts.
             </p>
+            <section aria-label="Node simulation acknowledgements" style={{ marginTop: 12, fontSize: 12 }}>
+              <strong>Node simulation channel · {chan?.connected ? "connected" : "disconnected"}</strong>
+              <p className="dim">Live to admitted nodes in this session. Acknowledgements confirm a participant saw the demo, not mesh delivery. Notices expire after 2 minutes.</p>
+              {recentNotices.length === 0 ? <p className="dim">Run a scenario to notify participants.</p> : <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: 8 }}>
+                {recentNotices.map(a => <li key={a.id} data-simulation-id={a.id}>
+                  <b>{SIMULATION_LABELS[a.kind]} · {a.phase}</b><br />
+                  <span>{a.acknowledgedBy.length}/{a.recipients.length} acknowledged</span>
+                  {a.acknowledgedBy.length > 0 && <span> · {a.acknowledgedBy.join(", ")}</span>}
+                  {a.recipients.length === 0 && <span className="dim"> · no admitted recipients</span>}
+                </li>)}
+              </ul>}
+            </section>
           </div>
 
           <div className="panel" data-section="activity">

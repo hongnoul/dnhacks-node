@@ -7,6 +7,7 @@ import type { Score } from "./scoring";
 import { ConfidenceGraph } from "./ConfidenceGraph";
 import { RoomMap } from "./RoomMap";
 import { MeshHelp } from "./MeshHelp";
+import { SimulationAlerts } from "./SimulationAlerts.tsx";
 import { TrajectoryHero } from "./TrajectoryHero";
 import QRCode from "react-qr-code";
 import HardwareLauncher from "../hardware/HardwareLauncher";
@@ -132,6 +133,8 @@ export function SensorDesktop({ mesh, view, score, detections, micError }: {
   if (!ready) return <main className={styles.desktop}><TrajectoryHero /></main>;
   return <main className={styles.desktop}>
     <TrajectoryHero />
+    <SimulationAlerts alerts={view?.simulationAlerts ?? []} nodeId={view?.nodeId ?? ""}
+      connected={view?.status.state === "active"} onAcknowledge={id => mesh?.acknowledgeSimulation(id) ?? false} />
     {!minimized && <section ref={windowRef} style={sensorDrag.style} tabIndex={-1} aria-label="SkyMesh sensor window" className={`${styles.window} ${closing ? styles.closing : ""}`}>
       <header {...sensorDrag.handlers} className={styles.titlebar}>
         <span>▧ SkyMesh · Sensor</span>
