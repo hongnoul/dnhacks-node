@@ -11,11 +11,12 @@ Two processes:
 
 Then:
 
-- **`/station`** — the laptop screen. QR to put phones on this session, a clickable 3D
-  drone playing real DADS audio, and wind/music selections as false-positive stress
-  tests: play those loud and detection should stay quiet, which is more convincing than
-  only ever showing it succeed.
-- **`/admin`** — operator console. Admit nodes, place them, draw the topology, cut links.
+- **`/station`** — the operator console (laptop screen). Left sidebar: QR to put
+  phones on this session, a clickable 3D drone playing real DADS audio, and
+  wind/music selections as false-positive stress tests: play those loud and
+  detection should stay quiet, which is more convincing than only ever showing
+  it succeed. Right: the dashboard — admit nodes, place them, draw the
+  topology, cut links. (`/admin` redirects here for old bookmarks.)
 - **`/`** — a sensor node. One tap to join; needs mic permission.
 
 Multi-tab testing: `?node=n03` pins identity per tab. `localStorage` is shared across tabs
@@ -40,7 +41,7 @@ Note the static build is a *build*: re-run `npm run build:static` after code cha
 
 ## Demo script
 
-1. `/admin`, then open `/?node=n01` … `/?node=n06` and admit each.
+1. `/station`, then open `/?node=n01` … `/?node=n06` and admit each.
 2. **two clusters + bridge**, then **auto-place**. The bridge is the cut edge.
 3. Click the drone on `/station` (or play `public/drone-demo.wav`) — the on-device CRNN
    fires, the DRONE DETECTED banner lights, and the console's per-node confidence graphs

@@ -16,9 +16,9 @@ const ctx = await browser.newContext({ permissions: [] });
 const errors = [];
 ctx.on("weberror", (e) => errors.push(String(e.error())));
 
-console.log("admin console");
+console.log("operator console");
 const admin = await ctx.newPage();
-await admin.goto(`${APP}/admin/`);
+await admin.goto(`${APP}/station/`);
 await admin.waitForSelector("h1");
 await admin.waitForFunction(() => document.body.innerText.includes("relay connected"), { timeout: 8000 })
   .then(() => ok("relay connected")).catch(() => bad("relay never connected"));

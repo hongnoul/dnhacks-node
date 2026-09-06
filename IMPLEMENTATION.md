@@ -93,7 +93,7 @@ costs one integer. Do both. This is the single worst bug available in this desig
 test (`node tests/ui-smoke.mjs`, needs the relay and `next dev` running).
 
     npm run relay     # FastAPI relay on :8001
-    npm run dev       # node at /, operator console at /admin
+    npm run dev       # node at /, operator console at /station
     npm test          # 24 unit + integration tests
 
 Each phase ends in something demonstrable. Stop anywhere and you still have a demo.
@@ -352,11 +352,14 @@ AnalyserNode for latency. Three consequences:
    the true pre-normalisation level, one pass over an array already in hand. Same role as
    before: the CRNN answers "is it a drone", the level answers "how close".
 
-## 14. The join station
+## 14. The operator console
 
-`/station` is ml-demo's `/tone` pointed at the mesh: QR on the left, clickable 3D drone on
-the right (vendored GLB, real DADS audio, visible two-blade props because the GLB's own
-discs are rotationally symmetric and read as motionless when spun).
+`/station` is the single laptop screen: join QR plus clickable 3D drone in the
+left sidebar (vendored GLB, real DADS audio, visible two-blade props because
+the GLB's own discs are rotationally symmetric and read as motionless when
+spun), and the admin dashboard — admission, map, topology, link health — on
+the right. Previously two pages (`/station` + `/admin`); `/admin` now
+redirects to `/station` preserving `?session`.
 
 The QR is the part that differs. ml-demo's station links to a fixed apex URL because each
 phone is standalone; a mesh node has to land in *this* session on *this* host, so the link
