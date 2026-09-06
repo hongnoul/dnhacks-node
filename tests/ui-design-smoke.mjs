@@ -15,6 +15,16 @@ try {
     assert.equal(await page.getByRole('heading', { name: 'Drone audio demo' }).count(), 1);
     assert.equal(await page.getByText('Simulation', { exact: true }).count(), 1);
     assert.equal(await page.locator('.metric').count(), 4);
+    for (const heading of ['Join the mesh', 'Mesh overview', 'Sensor confidence', 'Network topology', 'Scenario activity', 'Sensor directory']) {
+      assert(await page.getByRole('heading', { name: heading, exact: true }).isVisible(), heading);
+    }
+    for (const label of ['Admitted sensors', 'Listening now', 'Detecting nodes', 'Replicated records', 'Room coordinates', 'Live readings', 'Your mesh starts with one phone.']) {
+      assert(await page.getByText(label, { exact: true }).isVisible(), label);
+    }
+    assert(await page.getByText('Raw microphone audio stays on each phone.', { exact: false }).isVisible());
+    assert.equal(await page.locator('.console-sidebar svg title').textContent(), 'Scan to join this SkyMesh session');
+    assert.equal(await page.locator('.console-sidebar .brand strong').textContent(), 'SkyMesh');
+
     assert.equal(await page.locator('body').evaluate(el => getComputedStyle(el).fontFamily.includes('monospace')), false);
     assert.equal(await page.locator('.metric strong').first().evaluate(el => getComputedStyle(el).fontFamily.includes('monospace')), true);
     assert.equal(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(8, 15, 23)');

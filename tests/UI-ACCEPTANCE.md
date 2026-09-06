@@ -28,3 +28,24 @@ Concrete improvements: small-phone post-join charts and maps now fit the viewpor
 Audit correction: the first UI commit unintentionally replaced the existing smoke test. The follow-up restores it with updated text selectors and viewport-safe map clicks. Design-specific assertions now live separately in ui-design-smoke.mjs.
 
 Limits: no physical phone camera scan, real microphone drone classification, audio playback listening, participant study, or subjective aesthetic preference testing. All requirements have evidence above, but comprehensive verification of every visual state and human usability remains partial.
+
+## Output-level traceability supplement
+
+Additional assertions in `ui-design-smoke.mjs` passed at all four viewport widths:
+- Station brand: `SkyMesh` text and raw-audio privacy note.
+- Join card: heading, session URL, visible QR, and QR SVG accessible title.
+- Dashboard headings: Mesh overview, Sensor confidence, Network topology, Scenario activity, Sensor directory.
+- Summary outputs: Admitted sensors, Listening now, Detecting nodes, Replicated records.
+- Map/source labels: Room coordinates and Live readings.
+- Empty state: Your mesh starts with one phone.
+
+Changed-file mapping:
+- `globals.css`: computed palette/font assertions, grid columns, minimum target heights, focus outline and document overflow assertions.
+- `station/page.tsx`: brand/privacy assertions, QR/demo visibility, responsive grid assertions.
+- `JoinCard.tsx`: accessible title, QR visibility, session URL assertions.
+- `AdminDashboard.tsx`: all new heading/metric/source-label/empty-state assertions plus real relay and scenario smoke.
+- `page.tsx`: onboarding heading/steps/button/privacy/focus assertions plus actual join, own mesh picture and replica convergence.
+- `RoomMap.tsx`: visible dimensions, post-join small-phone fit, actual start/destination pointer interactions.
+- `ConfidenceGraph.tsx`: accessible label and small-phone fit, rendered per-node canvases in admitted session.
+
+For the approved UI-change scope, requirement-to-check mapping is complete. This does not expand the claim to physical audio accuracy, participant preference, performance benchmarking, or every possible combination of application state. Those are outside this UI acceptance result.
