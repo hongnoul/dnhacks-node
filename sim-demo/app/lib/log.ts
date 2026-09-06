@@ -25,6 +25,9 @@ export class Log {
   /** Seqs held above the contiguous mark, waiting for the gap to close. */
   private ahead = new Map<StreamId, Set<number>>();
 
+  /** Cached sort, invalidated on add. See sorted(). */
+  private sortedCache: MeshRecord[] | null = null;
+
   get size(): number {
     return this.records.size;
   }
@@ -38,6 +41,7 @@ export class Log {
     const key = keyOf(r);
     if (this.records.has(key)) return false;
     this.records.set(key, r);
+    this.sortedCache = null;
 
     const stream = streamOf(r);
     const ahead = this.ahead.get(stream) ?? new Set<number>();
@@ -79,11 +83,27 @@ export class Log {
   }
 
   /**
-   * Sorted by key, which is what makes fusion deterministic across replicas:
-   * same records in, same estimate out, regardless of arrival order (§10).
+   * Total order over records, which is what makes fusion deterministic across
+   * replicas: same records in, same estimate out, regardless of arrival order
+   * (§10), and what makes last-writer-wins on `node_config` mean *last* (§3.3).
+   *
+   * Compare the fields numerically. Comparing the string key sorts seq 10 before
+   * seq 2, so LWW picked the 9th write of a value and a node dragged ten times
+   * on the map jumped back to where it was on the ninth.
+   *
+   * Cached because /admin calls ofType() many times a second over a log that
+   * only ever grows; re-sorting each time degrades the console within minutes.
    */
   sorted(): MeshRecord[] {
-    return this.all().sort((a, b) => (keyOf(a) < keyOf(b) ? -1 : 1));
+    if (!this.sortedCache) {
+      this.sortedCache = this.all().sort(
+        (a, b) =>
+          (a.origin < b.origin ? -1 : a.origin > b.origin ? 1 : 0) ||
+          a.boot - b.boot ||
+          a.seq - b.seq
+      );
+    }
+    return this.sortedCache;
   }
 
   ofType<T extends MeshRecord>(type: T["type"]): T[] {

@@ -212,6 +212,17 @@ async def ws_endpoint(ws: WebSocket):
 
             elif ctrl == "set_topology" and is_admin and sess:
                 sess.topology = {k: list(v) for k, v in msg["edges"].items()}
+                # Drop link state for edges the new topology does not contain.
+                # Keeping it meant a link cut under one preset stayed silently
+                # down after switching to another that re-created the same pair.
+                wanted = {
+                    (a, b) if a < b else (b, a)
+                    for a, ns in sess.topology.items()
+                    for b in ns
+                }
+                for key in list(sess.links):
+                    if key not in wanted:
+                        del sess.links[key]
                 # Instantiate link state up front. Creating it lazily on first
                 # forward would leave the operator with nothing to cut until
                 # traffic happened to flow, which is exactly backwards.

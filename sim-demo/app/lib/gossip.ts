@@ -54,6 +54,14 @@ export class Gossip {
   private passive: boolean;
   /** Anti-entropy period. Lowered in tests so convergence is not timer-bound. */
   private digestMs: number;
+  /**
+   * Mesh time source. Records are read back against mesh time by every peer
+   * (freshness windows, graph windows), so stamping them with local time makes
+   * a node that is 4 s behind the root have 100% of its readings discarded as
+   * stale — and a node ahead have readings that never expire. Injected because
+   * the Clock is built on top of Gossip, not beside it.
+   */
+  private now: () => number = () => Date.now();
 
   constructor(
     link: Link,
@@ -85,6 +93,11 @@ export class Gossip {
     this.changeCb = cb;
   }
 
+  /** Set once the Clock exists. Until then records carry local time. */
+  setClock(now: () => number): void {
+    this.now = now;
+  }
+
   /** Lets other modules (clock sync) share the one message loop. */
   registerHandler(m: string, fn: (from: string, msg: any) => void): void {
     this.handlers.set(m, fn);
@@ -102,7 +115,7 @@ export class Gossip {
       origin: this.id.nodeId,
       boot: this.id.boot,
       seq: ++this.seq,
-      t: Date.now(),
+      t: this.now(),
     };
     this.log.add(r);
     this.broadcast({ m: "records", r: [r] });

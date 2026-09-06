@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Estimate, Placed, Room } from "./fusion.ts";
 
 export interface RoomMapProps {
@@ -38,6 +38,12 @@ export function RoomMap(props: RoomMapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const dragging = useRef<string | null>(null);
+  /** Where the drag started, to tell a click from a drag. */
+  const dragFrom = useRef<{ x: number; y: number } | null>(null);
+  const moved = useRef(false);
+  /** Local preview while dragging, so the map tracks the finger at 60 Hz
+   *  without publishing a replicated record per pointermove. */
+  const [preview, setPreview] = useState<Placed | null>(null);
 
   const w = props.width ?? room.w * PX_PER_M;
   const h = (w / room.w) * room.h;
@@ -121,10 +127,34 @@ export function RoomMap(props: RoomMapProps) {
         onPointerMove={(e) => {
           if (!dragging.current || !props.onMove) return;
           const pt = pointFromEvent(e);
-          if (pt) props.onMove(dragging.current, pt.x, pt.y);
+          if (!pt) return;
+          const from = dragFrom.current;
+          if (from && Math.hypot(pt.x - from.x, pt.y - from.y) > 0.15) moved.current = true;
+          // Preview only. Publishing here would put ~120 replicated records on
+          // the wire for one drag.
+          setPreview({ node: dragging.current, x: pt.x, y: pt.y });
         }}
-        onPointerUp={() => (dragging.current = null)}
-        onPointerLeave={() => (dragging.current = null)}
+        onPointerUp={() => {
+          const node = dragging.current;
+          const at = preview;
+          dragging.current = null;
+          dragFrom.current = null;
+          if (node && moved.current && at && props.onMove) {
+            // One record, on release.
+            props.onMove(node, at.x, at.y);
+          } else if (node && !moved.current) {
+            // No movement: it was a click, so it means "pick", not "place".
+            props.onPick?.(node);
+          }
+          moved.current = false;
+          setPreview(null);
+        }}
+        onPointerLeave={() => {
+          dragging.current = null;
+          dragFrom.current = null;
+          moved.current = false;
+          setPreview(null);
+        }}
       >
         {/* one-metre grid */}
         {Array.from({ length: Math.floor(room.w) + 1 }, (_, i) => (
@@ -191,7 +221,8 @@ export function RoomMap(props: RoomMapProps) {
           </>
         )}
 
-        {[...positions.values()].map((p) => {
+        {[...positions.values()].map((placed) => {
+          const p = preview && preview.node === placed.node ? preview : placed;
           const [cx, cy] = toPx(p.x, p.y);
           const level = levels?.get(p.node) ?? 0;
           const isSel = props.selected === p.node;
@@ -201,8 +232,17 @@ export function RoomMap(props: RoomMapProps) {
               style={{ cursor: props.onMove ? "grab" : "pointer" }}
               onPointerDown={(e) => {
                 (e.target as Element).releasePointerCapture?.(e.pointerId);
-                if (props.onMove) dragging.current = p.node;
-                props.onPick?.(p.node);
+                // Do NOT pick here. pointerdown used to both start a drag and
+                // fire onPick, so dragging two nodes in sequence silently
+                // toggled the topology edge between them. onPick now fires on
+                // pointerup, and only when nothing moved.
+                if (props.onMove) {
+                  dragging.current = p.node;
+                  dragFrom.current = { x: p.x, y: p.y };
+                  moved.current = false;
+                } else {
+                  props.onPick?.(p.node);
+                }
               }}
             >
               {level > 0.02 && (

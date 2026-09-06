@@ -29,7 +29,9 @@ const MODEL_SRC = "/models/drone-sillyfear.glb";
 // false-positive stress tests: play them loud and the CRNN should stay quiet,
 // which is a more convincing demo than only ever showing it succeed.
 const SOUNDS = [
-  { id: "drone", label: "drone", kind: "audio", src: "/drone-tone.wav",
+  // drone-demo.wav, not drone-tone.wav: higher pitched, and the prop harmonics
+  // sit where the CRNN is most confident.
+  { id: "drone", label: "drone", kind: "audio", src: "/drone-demo.wav",
     note: "Real DADS drone audio. Detection should trip within about a second." },
   { id: "wind", label: "wind", kind: "embed", src: "https://www.youtube.com/embed/sT5f1jBJHng",
     note: "Externality test: broadband noise. Detection should stay quiet." },
@@ -296,7 +298,7 @@ export default function StationPage() {
           background: "radial-gradient(circle at 50% 40%, #16202c, #0b0f14)",
         }}
       />
-      <audio ref={audioRef} src="/drone-tone.wav" preload="auto" />
+      <audio ref={audioRef} src="/drone-demo.wav" preload="auto" />
     </main>
   );
 }

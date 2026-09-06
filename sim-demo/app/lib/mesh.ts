@@ -57,6 +57,8 @@ export class Mesh {
     this.link = new RelayedLink(opts.url, opts.session, this.id.nodeId);
     this.gossip = new Gossip(this.link, this.log, this.id, opts.passive ?? false);
     this.clock = new Clock(this.gossip, this.link, this.id.nodeId, !(opts.passive ?? false));
+    // Records are compared against mesh time everywhere they are read.
+    this.gossip.setClock(() => this.clock.now());
 
     this.link.onStatus((s) => {
       this.status = s;

@@ -85,6 +85,41 @@ describe("log", () => {
     assert.equal(log.vv()["n01:1"], 3, "filling the gap advances to 3");
   });
 
+  test("orders records numerically, not by string key", () => {
+    // Regression: keys were compared as strings, so seq 10 sorted before seq 2.
+    // Last-writer-wins on node_config therefore picked the *ninth* write, and a
+    // node dragged ten times on the map snapped back to its ninth position.
+    // The old suite missed it by never going past seq 2.
+    const log = new Log();
+    for (let seq = 1; seq <= 12; seq++) {
+      log.add({
+        type: "node_config", origin: "n01", boot: 1, seq, t: seq,
+        node: "n01", x: seq, y: 0, enabled: true,
+      });
+    }
+    assert.deepEqual(
+      log.sorted().map((r) => r.seq),
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    );
+    assert.equal((log.ofType("node_config").at(-1) as any).x, 12, "LWW must pick the last write");
+  });
+
+  test("orders boots numerically too", () => {
+    const log = new Log();
+    for (const boot of [9, 10, 11, 2]) {
+      log.add({ type: "reading", origin: "n01", boot, seq: 1, t: boot, p: 0 });
+    }
+    assert.deepEqual(log.sorted().map((r) => r.boot), [2, 9, 10, 11]);
+  });
+
+  test("the sort cache invalidates on add", () => {
+    const log = new Log();
+    log.add({ type: "reading", origin: "n01", boot: 1, seq: 1, t: 1, p: 0 });
+    assert.equal(log.sorted().length, 1);
+    log.add({ type: "reading", origin: "n01", boot: 1, seq: 2, t: 2, p: 0 });
+    assert.equal(log.sorted().length, 2, "cached sort must not go stale");
+  });
+
   test("since() returns exactly what a peer lacks", () => {
     const log = new Log();
     for (let s = 1; s <= 5; s++)

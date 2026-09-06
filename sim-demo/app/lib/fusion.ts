@@ -64,11 +64,21 @@ export interface RangeModel {
 }
 
 export const DEFAULT_MODEL: SensorModel = { d0: 4.0, w: 1.5, pmin: 0.02, pmax: 0.98 };
+/**
+ * Levels are absolute dBFS (scoring.ts), so the reference is "what a drone
+ * measures at 1 m" and the floor is "quiet room". Placeholders: fit them in the
+ * actual room (§8.1) before trusting a fused position.
+ */
 export const DEFAULT_RANGE: RangeModel = {
-  snrRefDb: 30,
+  snrRefDb: -20, // dBFS at 1 m
   dRefM: 1,
+  // Measurement noise in dB. This is the knob that decides how sharp a fix can
+  // be, so it should reflect reality rather than optimism: 4 dB fits phones of
+  // the same model in one room. Cross-device gain differences are larger, and
+  // are exactly what the §8.1 calibration pass is for — raise this until it
+  // matches what you actually measure, and accept the wider posterior.
   sigmaDb: 4,
-  floorDb: 0,
+  floorDb: -55, // at or below: heard nothing
 };
 
 export function detectionProb(d: number, m: SensorModel = DEFAULT_MODEL): number {
@@ -133,10 +143,7 @@ export interface Estimate {
   localised: boolean;
 }
 
-/**
- * Fraction of the room's equivalent radius beyond which a fix is meaningless.
- * Only used on the ungraded path, where there are no residuals to check.
- */
+/** Fraction of the room's equivalent radius beyond which a fix is meaningless. */
 export const LOCALISED_MAX_FRACTION = 0.6;
 
 /**
@@ -187,9 +194,16 @@ export function fuse(opts: {
       let ll = 0;
       for (const { r, pos } of used) {
         const d = Math.hypot(cx - pos.x, cy - pos.y);
+        // A node whose own latch says it hears nothing is a *censored*
+        // observation — it bounds the distance from below rather than measuring
+        // it. Feeding its ambient room level in as a range measurement would
+        // place a phantom source at whatever distance that noise implies, which
+        // is the common case: real ambient sits well above the nominal floor,
+        // so the censored branch almost never fired on its own.
+        const silent = r.detecting === false;
         const lik =
           typeof r.snrDb === "number"
-            ? snrLikelihood(r.snrDb, d, range)
+            ? snrLikelihood(silent ? range.floorDb : r.snrDb, d, range)
             : // Fallback: soft detection evidence. Coarse by construction.
               r.p * detectionProb(d, model) + (1 - r.p) * (1 - detectionProb(d, model));
         ll += Math.log(Math.max(lik, 1e-12));
@@ -237,13 +251,19 @@ export function fuse(opts: {
       if (typeof r.snrDb !== "number") continue;
       const d = Math.hypot(mapX - pos.x, mapY - pos.y);
       // A censored reading only says "below the floor"; it cannot be residual-checked.
-      if (r.snrDb <= range.floorDb) continue;
+      if (r.detecting === false || r.snrDb <= range.floorDb) continue;
       const resid = r.snrDb - expectedSnr(d, range);
       sq += resid * resid;
       n++;
     }
     const rms = n > 0 ? Math.sqrt(sq / n) : Infinity;
-    localised = n > 0 && rms <= MAX_RESIDUAL_SIGMAS * range.sigmaDb;
+    // Residuals alone are not enough: a single graded reading fits its own
+    // annulus perfectly (residual 0) while the posterior covers most of the
+    // room. Both tests have to pass — consistent AND actually constrained.
+    localised =
+      n > 0 &&
+      rms <= MAX_RESIDUAL_SIGMAS * range.sigmaDb &&
+      spreadM < LOCALISED_MAX_FRACTION * roomRadiusM;
   } else {
     localised = spreadM < LOCALISED_MAX_FRACTION * roomRadiusM;
   }

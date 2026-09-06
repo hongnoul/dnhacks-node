@@ -16,9 +16,13 @@ const PING_INTERVAL_MS = 5_000;
 const BURST = 5;
 export const WINDOW_MS = 500;
 
+/** How long a min-RTT sample stays authoritative before a worse one may replace it. */
+const SAMPLE_TTL_MS = 60_000;
+
 interface Sample {
   offset: number; // peer clock − my clock
   rtt: number;
+  at: number;
 }
 
 export class Clock {
@@ -90,7 +94,15 @@ export class Clock {
   }
 
   private ping(): void {
-    for (const n of this.link.neighbours) {
+    const live = new Set(this.link.neighbours);
+    // Forget peers that are no longer adjacent. Without this a cut link keeps
+    // its stale offset forever and nodes follow a time root through a neighbour
+    // they cannot reach.
+    for (const peer of [...this.best.keys()]) if (!live.has(peer)) this.best.delete(peer);
+    for (const peer of [...this.peerRoot.keys()]) if (!live.has(peer)) this.peerRoot.delete(peer);
+    if (this.best.size === 0 && this.peerRoot.size === 0) this.recompute();
+
+    for (const n of live) {
       this.gossip.send(n, { m: "ping", id: this.nextId++, t1: Date.now() } as never);
     }
   }
@@ -101,9 +113,13 @@ export class Clock {
     const offset = (t2 - t1 + (t3 - t4)) / 2;
     const rtt = t4 - t1 - (t3 - t2);
 
-    // Keep the minimum-RTT sample: the least queueing delay is the least biased.
+    // Keep the minimum-RTT sample — least queueing delay, least bias — but let
+    // it expire, or the offset freezes after the opening burst and never tracks
+    // crystal drift.
     const prev = this.best.get(from);
-    if (!prev || rtt < prev.rtt) this.best.set(from, { offset, rtt });
+    if (!prev || rtt < prev.rtt || t4 - prev.at > SAMPLE_TTL_MS) {
+      this.best.set(from, { offset, rtt, at: t4 });
+    }
 
     // Ignore a peer's own id as a root candidate when it is not eligible, but
     // still follow whatever root it has adopted.

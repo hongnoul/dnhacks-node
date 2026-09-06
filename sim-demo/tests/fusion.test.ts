@@ -124,6 +124,38 @@ describe("fusion — graded (snr_db present)", () => {
     }
   });
 
+  test("one graded reading fits perfectly but localises nothing", () => {
+    // Regression: `localised` came from residuals alone. A single reading sits
+    // on its own annulus with residual 0, so the UI drew a confident marker over
+    // a room-wide ring. Consistency and constraint are different questions.
+    const est = fuse({
+      room, positions: perimeter,
+      readings: [
+        { node: "n01", p: 0.9, snrDb: expectedSnr(4) },
+        { node: "n02", p: 0.9, snrDb: null },
+      ],
+    })!;
+    assert.equal(est.graded, true);
+    assert.equal(est.localised, false, `spread was ${est.spreadM.toFixed(2)} m`);
+  });
+
+  test("a silent node bounds distance instead of measuring it", () => {
+    // Regression: a node whose latch says it hears nothing still contributed its
+    // ambient level as a range measurement, planting a phantom source at
+    // whatever distance the room noise implied.
+    const positions = new Map([at("n01", 1, 4), at("n02", 11, 4)]);
+    const ambient = expectedSnr(3); // loud-ish room, well above the nominal floor
+    const est = fuse({
+      room, positions,
+      readings: [
+        { node: "n01", p: 0.02, snrDb: ambient, detecting: false },
+        { node: "n02", p: 0.95, snrDb: expectedSnr(2), detecting: true },
+      ],
+    })!;
+    assert.ok(est.x > 6, `silence should push right, got x=${est.x.toFixed(1)}`);
+    assert.equal(est.nSilent, 1);
+  });
+
   test("posterior is a normalised distribution", () => {
     const est = fuse({
       room, positions: perimeter,

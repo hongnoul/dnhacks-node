@@ -371,3 +371,55 @@ tunnels. So the relay now serves the static export beside `/ws`: `npm run build:
 with `NEXT_PUBLIC_RELAY_URL=/ws`, mounted in `relay.py` after the routes so it never
 shadows them. One origin, one certificate, one tunnel — and closer to how this would
 actually deploy.
+
+---
+
+## 15. Review pass
+
+A review of the full branch found eleven issues. All are fixed; the two that
+mattered most were silent and would have shown up as "the demo is just flaky".
+
+**Record keys were compared as strings.** `sorted()` put seq 10 before seq 2, so
+last-writer-wins on `node_config` resolved to the *ninth* write: a node dragged ten times
+on the map snapped back to where it was on the ninth. The existing tests never went past
+seq 2, so they passed. Keys now compare `(origin, boot, seq)` numerically, and the sort
+is cached and invalidated on add — /admin was re-sorting an unbounded log ~80x/s.
+
+**Records were stamped in local time.** `gossip.publish()` used `Date.now()` while
+`currentReadings()` and `history()` filter against mesh time. A phone 4 s behind the time
+root had *every* reading discarded as stale by every peer; one ahead had readings that
+never expired. The clock module was effectively decorative. The Clock is now injected into
+Gossip (`setClock`) after construction.
+
+The rest, briefly:
+
+- Fusion decided `localised` from residuals alone. One graded reading fits its own
+  annulus perfectly while the posterior covers the room, so the marker came back. Now
+  requires both consistency *and* constraint.
+- A node whose latch said "nothing" still contributed its ambient level as a range
+  measurement, planting a phantom source. Silence is now treated as censored.
+- Dragging a node published a `node_config` per pointermove — ~120 replicated records per
+  drag. Now previews locally and commits one record on release.
+- pointerdown both started a drag and fired `onPick`, so dragging two nodes in sequence
+  silently toggled the topology edge between them. `onPick` now fires on pointerup, only
+  if nothing moved.
+- The Clock never pruned peers or expired its min-RTT sample, so offsets froze after the
+  opening burst and nodes followed roots through unreachable neighbours.
+- `set_topology` left stale `LinkState`, so a link cut under one preset stayed down after
+  switching presets.
+- A failed `scorer.start()` leaked the loaded ONNX session and the mic track.
+
+### The level channel, twice corrected
+
+The noise floor started at a fixed −75 dB and rose ~0.04 dB/s, taking ~10 minutes to reach
+a real room's ambient — so two nodes that joined at different times reported levels offset
+by 10 dB or more, which fusion reads as a 4x distance ratio.
+
+Seeding the floor from the first window fixed the warm-up and broke something worse: with
+a drone already audible at join, the floor seeds onto the drone and reports 0 dB. Any
+adaptive floor has that failure — it converges onto exactly the signal you care about.
+
+So the level is now **absolute dBFS**, with no floor at all. Comparable between nodes by
+construction, no warm-up, nothing to absorb. It assumes similar mic sensitivity across
+devices; that assumption is what §8.1's calibration pass measures, and `sigmaDb` is the
+knob to widen when it does not hold.

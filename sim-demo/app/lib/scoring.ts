@@ -36,7 +36,19 @@ export interface Score {
   detecting: boolean;
   /** log(p/(1−p)) — dynamic range where p saturates. */
   logit: number;
-  /** Window level above the tracked noise floor. The range channel. */
+  /**
+   * Absolute window level in dBFS. The range channel.
+   *
+   * NOT relative to a tracked noise floor. Two adaptive floors are two different
+   * references, so levels stop being comparable between nodes — and fusion
+   * compares them (§6.2). A floor also absorbs exactly the signal you care
+   * about: seeded while a drone is already audible, or after ~30 s of continuous
+   * one, it converges onto the drone and reports 0 dB.
+   *
+   * Absolute is comparable and has no warm-up. It does assume similar mic
+   * sensitivity across devices; per-device gain calibration is the proper fix
+   * and is the same measurement §8.1 already calls for.
+   */
   snrDb: number | null;
 }
 
@@ -49,9 +61,6 @@ export const SILENT: Score = {
 };
 
 const WINDOW_S = 1.0;
-const FLOOR_INIT_DB = -75;
-const FLOOR_FALL = 0.25; // track down to quiet quickly
-const FLOOR_RISE = 0.01; // creep up slowly, so a sustained drone is not absorbed
 
 export interface Scorer {
   start(): Promise<void>;
@@ -66,7 +75,6 @@ export class MicScorer implements Scorer {
   private latch = new DetectionLatch();
   private timer: ReturnType<typeof setInterval> | null = null;
   private busy = false;
-  private floorDb = FLOOR_INIT_DB;
   private score: Score = SILENT;
   private loaded = false;
 
@@ -79,7 +87,6 @@ export class MicScorer implements Scorer {
     await this.detector.load();
     await this.mic.start();
     this.latch.reset();
-    this.floorDb = FLOOR_INIT_DB;
     this.loaded = true;
     this.timer = setInterval(() => void this.tick(), SCORE_INTERVAL_MS);
   }
@@ -116,18 +123,13 @@ export class MicScorer implements Scorer {
       const raw = await this.detector.score(samples, this.mic.sampleRate);
       const v = this.latch.push(raw);
 
-      this.floorDb =
-        levelDb < this.floorDb
-          ? this.floorDb + (levelDb - this.floorDb) * FLOOR_FALL
-          : this.floorDb + FLOOR_RISE;
-
       const clamped = Math.min(Math.max(raw, 1e-6), 1 - 1e-6);
       this.score = {
         p: v.raw,
         display: v.display,
         detecting: v.detecting,
         logit: Math.log(clamped / (1 - clamped)),
-        snrDb: levelDb - this.floorDb,
+        snrDb: levelDb,
       };
     } catch {
       // A failed window is not a detection. Keep the last score rather than

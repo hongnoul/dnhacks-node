@@ -33,6 +33,10 @@ export default function NodePage() {
       await scorer.start();
       scorerRef.current = scorer;
     } catch (e) {
+      // start() may have loaded the model and opened the mic before failing.
+      // Without this the wasm session and the mic track leak for the life of
+      // the tab, and iOS keeps the recording indicator lit.
+      scorer.stop();
       // A node that cannot score is still a valid node — it just contributes no
       // evidence, and silence from it is not mistaken for a quiet room because
       // it publishes nothing at all.
