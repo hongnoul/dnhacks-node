@@ -7,6 +7,7 @@
 "use client";
 
 import styles from "./join.module.css";
+import { AsciiLogo } from "./lib/AsciiLogo";
 
 import { useEffect, useRef, useState } from "react";
 import { useMesh } from "./lib/useMesh.ts";
@@ -113,7 +114,7 @@ export default function NodePage() {
             </p>
           </div>
           <div className={styles.brand}>
-            <img src="/skymesh-logo.svg" width="810" height="810" alt="SkyMesh robot logo" className={styles.logo} />
+            <AsciiLogo className={styles.logo} />
             <span className={styles.wordmark}>SKYMESH</span>
             <span className={styles.brandCaption}>PERSONAL SENSOR NODE</span>
           </div>

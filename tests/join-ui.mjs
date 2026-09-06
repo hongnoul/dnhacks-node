@@ -1,7 +1,6 @@
 // UI_BASE_URL=http://localhost:3107 node tests/join-ui.mjs
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { readFile } from 'node:fs/promises';
 const base = process.env.UI_BASE_URL ?? 'http://localhost:3000';
 const browser = await chromium.launch({ headless: true });
 try {
@@ -17,8 +16,10 @@ try {
     assert.equal(await title.evaluate(e => getComputedStyle(e).color), 'rgb(0, 0, 207)');
     assert.equal(await page.locator('section').evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(192, 192, 192)');
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    const logo = page.getByAltText('SkyMesh robot logo');
-    assert(await logo.evaluate(e => e.complete && e.naturalWidth > 0));
+    const logo = page.getByRole('img', { name: 'SkyMesh robot logo in ASCII art' });
+    assert(await logo.isVisible());
+    assert.match(await logo.textContent(), /^[ #+.\n]+$/);
+    assert((await logo.textContent()).split('\n').length >= 20);
     const button = page.getByRole('button', { name: 'Enable microphone & join' });
     assert((await button.boundingBox()).height >= 48);
     assert.equal(await button.evaluate(e => getComputedStyle(e).borderRadius), '0px');
@@ -26,10 +27,17 @@ try {
     await page.keyboard.press('Tab');
     assert(await button.evaluate(e => e === document.activeElement));
     assert.equal(await button.evaluate(e => getComputedStyle(e).outlineStyle), 'dotted');
+    await button.hover();
+    assert.equal(await button.evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(192, 192, 192)');
+    assert.equal(await button.evaluate(e => getComputedStyle(e).borderTopColor), 'rgb(255, 255, 255)');
+    assert.equal(await button.evaluate(e => getComputedStyle(e).borderBottomColor), 'rgb(52, 52, 52)');
+    assert.equal(await button.evaluate(e => getComputedStyle(e).transitionDuration), '0s');
+    await page.mouse.down();
+    assert.equal(await button.evaluate(e => getComputedStyle(e).borderTopColor), 'rgb(52, 52, 52)');
+    await page.mouse.move(0, 0);
+    await page.mouse.up();
     if (process.env.JCODE_SCRATCH_DIR) await page.screenshot({ path: `${process.env.JCODE_SCRATCH_DIR}/join-${width}.png`, fullPage: true });
   }
-  const logoResponse = await page.request.get(`${base}/skymesh-logo.svg`);
-  assert.equal(await logoResponse.text(), await readFile(new URL('../public/skymesh-logo.svg', import.meta.url), 'utf8'));
   // Hold model loading to verify a single disabled action, then simulate failure.
   let release;
   const held = new Promise(resolve => { release = resolve; });
@@ -42,7 +50,7 @@ try {
   release();
   await page.getByText(/Detector unavailable:/).waitFor({ timeout: 30000 });
   assert(await page.getByRole('heading', { name: /^Node / }).isVisible());
-  assert.equal(await page.getByAltText('SkyMesh robot logo').count(), 0);
+  assert.equal(await page.getByRole('img', { name: 'SkyMesh robot logo in ASCII art' }).count(), 0);
   assert.deepEqual(errors, []);
-  console.log('PASS: four responsive sizes, exact SVG asset, retro colors, keyboard focus, loading state, and failed-detector join fallback.');
+  console.log('PASS: four responsive sizes, ASCII logo, classic hover and pressed bevel, retro colors, keyboard focus, loading state, and failed-detector join fallback.');
 } finally { await browser.close(); }

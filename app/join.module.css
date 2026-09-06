@@ -13,7 +13,7 @@
 .dialog {
   width: min(100%, 720px);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 168px;
+  grid-template-columns: minmax(0, 1fr) 210px;
   gap: 24px;
   padding: 28px;
   background: #c0c0c0;
@@ -51,9 +51,14 @@
   color: #000;
   font: 700 15px Arial, Helvetica, sans-serif;
   cursor: pointer;
+  transition: none;
   min-height: 48px;
 }
-.screen .joinButton:hover:not(:disabled) { background: #d0d0d0; }
+.screen .joinButton:hover:not(:disabled) {
+  background: #c0c0c0;
+  border-color: #fff #343434 #343434 #fff;
+  color: #000;
+}
 .screen .joinButton:active:not(:disabled) { border-color: #343434 #fff #fff #343434; box-shadow: inset 1px 1px #808080; }
 .screen .joinButton:focus-visible { outline: 2px dotted #000; outline-offset: -6px; }
 .screen .joinButton:disabled { color: #555; cursor: wait; opacity: 1; }
@@ -69,14 +74,14 @@
   border-color: #808080 #eee #eee #808080;
   background: linear-gradient(135deg, #eee, #aaa);
 }
-.logo { display: block; width: 100%; height: auto; }
+.logo { display: block; margin: 0; padding: 0; color: #000; background: transparent; font: 7.5px/10px "Courier New", monospace; white-space: pre; letter-spacing: 0; overflow: visible; }
 .wordmark { margin-top: 20px; font-size: 20px; font-weight: 700; letter-spacing: 2px; }
 .brandCaption { margin-top: 8px; font: 9px/1.5 monospace; text-align: center; }
 @media (max-width: 560px) {
   .screen { padding: 24px 16px; }
   .dialog { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 24px 20px; }
   .brand { grid-row: 1; flex-direction: row; gap: 12px; padding: 4px 12px; }
-  .logo { width: 68px; }
+  .logo { font-size: 5px; line-height: 6px; flex-shrink: 0; }
   .wordmark { margin: 0; font-size: 18px; }
   .brandCaption { display: none; }
   .title { margin-bottom: 18px; }
