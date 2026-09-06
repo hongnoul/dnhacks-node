@@ -102,7 +102,7 @@
 .workspace { grid-template-columns: minmax(0, 1fr) 360px; height: calc(100vh - 76px); }
 .mapArea { min-height: 520px; border-right: 1px solid #1b2736; }
 .map { background: #111b28; }
-.mapTiles { filter: brightness(.62) saturate(.65) contrast(1.08); }
+.mapTiles { filter: brightness(.88) saturate(1.05) contrast(1.05); }
 .toolbar { top: 20px; left: 20px; gap: 5px; padding: 5px; border-color: #35475c; border-radius: 7px; background: #0b121de8; box-shadow: 0 10px 30px #00000040; }
 .button, .buttonActive { border-color: #34465b; border-radius: 4px; padding: 9px 12px; color: #b9c8d8; background: #111c2a; font-size: 11px; letter-spacing: .01em; }
 .button:hover, .buttonActive { border-color: #5cc8f5; color: #f3fbff; background: #15344a; }

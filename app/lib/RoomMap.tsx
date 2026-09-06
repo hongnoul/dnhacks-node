@@ -141,7 +141,7 @@ export function RoomMap(props: RoomMapProps) {
           inset: 0,
           width: "100%", height: "100%",
           borderRadius: 8,
-          background: props.geographic ? "rgba(15, 25, 35, .12)" : "#0e1620",
+          background: props.geographic ? "rgba(10, 18, 28, .38)" : "#0e1620",
           border: "1px solid var(--line)",
         }}
       />
@@ -206,10 +206,10 @@ export function RoomMap(props: RoomMapProps) {
       >
         {/* one-metre grid */}
         {Array.from({ length: Math.floor(room.w) + 1 }, (_, i) => (
-          <line key={`v${i}`} x1={toPx(i, 0)[0]} y1={0} x2={toPx(i, 0)[0]} y2={h} stroke={props.geographic ? "rgba(80, 150, 200, .25)" : "#1b2735"} />
+          <line key={`v${i}`} x1={toPx(i, 0)[0]} y1={0} x2={toPx(i, 0)[0]} y2={h} stroke={props.geographic ? "rgba(255, 255, 255, .35)" : "#1b2735"} />
         ))}
         {Array.from({ length: Math.floor(room.h) + 1 }, (_, i) => (
-          <line key={`hh${i}`} x1={0} y1={toPx(0, i)[1]} x2={w} y2={toPx(0, i)[1]} stroke={props.geographic ? "rgba(80, 150, 200, .25)" : "#1b2735"} />
+          <line key={`hh${i}`} x1={0} y1={toPx(0, i)[1]} x2={w} y2={toPx(0, i)[1]} stroke={props.geographic ? "rgba(255, 255, 255, .35)" : "#1b2735"} />
         ))}
 
         {edges.map(([a, b]) => {

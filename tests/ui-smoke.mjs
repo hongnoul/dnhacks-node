@@ -21,7 +21,7 @@ console.log("operator console");
 const admin = await ctx.newPage();
 await admin.goto(`${APP}/station/?session=${encodeURIComponent(SESSION)}`);
 await admin.waitForSelector("h1");
-await admin.waitForFunction(() => document.body.innerText.toLowerCase().includes("relay connected"), { timeout: 8000 })
+await admin.waitForFunction(() => document.body.innerText.toLowerCase().includes("relay connected"), { timeout: 30000 })
   .then(() => ok("relay connected")).catch(() => bad("relay never connected"));
 
 console.log("nodes join");

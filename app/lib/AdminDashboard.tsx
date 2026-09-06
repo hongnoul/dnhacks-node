@@ -563,7 +563,7 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
 
       <div className="dashboard-grid">
         <div className="panel map-card" id="participant-map" tabIndex={-1}>
-          <div className="card-heading"><h2>Participant map</h2><span className="map-coordinate-label">Real participants · geographic basemap</span></div>
+          <div className="card-heading"><h2>Participant map</h2><span className="map-coordinate-label">Real participants · satellite</span></div>
           <div className="map-toolbar">
             <ActionButton className={linking ? "primary" : ""} onClick={() => { setLinking(!linking); setPendingEdge(null); }}>{linking ? "Done linking" : "Link participants"}</ActionButton>
             <span className="dim">{admitted.length} participants · {unplaced.size} awaiting placement</span>

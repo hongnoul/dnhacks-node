@@ -606,14 +606,14 @@ export default function OperatorMap() {
       </header>
       <div className={styles.workspace}>
         <section className={styles.mapArea} aria-label="Interactive sensor map">
-          {tilesUnavailable && <p className={styles.tileNotice} role="status">Basemap unavailable. Placement and simulation still work on the blank map.</p>}
+          {tilesUnavailable && <p className={styles.tileNotice} role="status">Satellite imagery unavailable. Placement and simulation still work on the blank map.</p>}
           <div className={styles.toolbar}>
             <ActionButton className={mode === "placing" ? styles.buttonActive : styles.button} onClick={togglePlacementMode} type="button">{mode === "placing" ? "Cancel placement" : "Place node"}</ActionButton>
             <ActionButton className={mode === "connecting" ? styles.buttonActive : styles.button} onClick={toggleLinkMode} type="button">{mode === "connecting" ? "Done linking" : "Link nodes"}</ActionButton>
           </div>
           {mode !== "idle" && <div className={styles.mapHint}>{mode === "placing" ? placementCandidate ? <><strong>{placementStatus === "invalid" ? `${Math.round(placementCandidate.distances[0]?.distanceM ?? 0)} m — too close` : placementStatus === "warning" ? `${eligiblePlacementNodes.length}/${MIN_CONNECTIONS} required neighbors` : `Valid placement — ${eligiblePlacementNodes.length} available links`}</strong><span className={styles.placementDistances}>{placementCandidate.distances.slice(0, 3).map(({ node, distanceM }) => `${node.name}: ${Math.round(distanceM)} m`).join(" · ")}</span></> : "Move across the map to preview placement constraints." : mode === "route" ? (route.length === 0 ? "Click to set the launch point, then click each waypoint along the ingress." : `${route.length} waypoint${route.length === 1 ? "" : "s"} · ${Math.round(coverage.lengthM)} m · ${Math.round(coverage.covered * 100)}% observed — finish when done`) : linkFrom ? `Linking from ${nodes.find((n) => n.id === linkFrom)?.name ?? linkFrom} — click another sensor to link or unlink.` : "Click a sensor, then click another to link or unlink the pair."}</div>}
           <MapContainer center={MAP_CENTER} zoom={15} className={styles.map} zoomControl={false}>
-            <TileLayer eventHandlers={{ tileerror: () => setTilesUnavailable(true) }} className={styles.mapTiles} attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <TileLayer eventHandlers={{ tileerror: () => setTilesUnavailable(true) }} className={styles.mapTiles} attribution="Imagery &copy; Esri, Maxar, Earthstar Geographics" url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
             <MapInteractions onMapClick={handleMapClick} onMapMove={handleMapMove} onMapUp={endNodeDrag} mapRef={mapRef} />
             {connections.map((connection) => {
               const points = connectionPoints(connection, shownNodes);

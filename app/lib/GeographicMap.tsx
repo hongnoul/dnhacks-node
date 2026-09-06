@@ -79,10 +79,10 @@ export default function GeographicMap(props: RoomMapProps) {
     <p className="map-anchor-note">{configured ? "Operator-set map anchor" : "Illustrative map anchor · Washington, DC"}. Participant coordinates are room-relative, not phone GPS. Pan outside the outlined participant area.</p>
     <div className="geographic-map" style={{ height: Math.max(220, Math.min(620, (props.width ?? 720) * 2 / 3 - 100)) }}>
       <MapContainer center={[anchor.lat, anchor.lon]} zoom={18} minZoom={3} maxZoom={22} scrollWheelZoom className="live-geographic-map" attributionControl>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' maxNativeZoom={19} maxZoom={22} eventHandlers={{ tileerror: () => setTileError(true) }} />
+        <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" attribution="Imagery &copy; Esri, Maxar, Earthstar Geographics" maxNativeZoom={19} maxZoom={22} eventHandlers={{ tileerror: () => setTileError(true) }} />
         <ParticipantOverlay {...props} anchor={anchor} fitSequence={fitSequence} overviewSequence={overviewSequence} />
       </MapContainer>
-      {tileError && <p className="map-tile-warning" role="status">Basemap tiles unavailable. Participant positions and scenario controls still work. Check network access to OpenStreetMap.</p>}
+      {tileError && <p className="map-tile-warning" role="status">Satellite tiles unavailable. Participant positions and scenario controls still work. Check network access to Esri World Imagery.</p>}
     </div>
   </div>;
 }
