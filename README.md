@@ -11,9 +11,9 @@ Dedicated counter-UAS radar costs $100k+ per site and creates a single point of 
 SkyMesh is one app:
 
 - **Phone node (`/`)** — live microphone → TypeScript mel-spectrogram → CRNN via ONNX Runtime Web → drone confidence. Audio never leaves the phone; only likelihood records are shared.
-- **Operator console (`/station`)** — laptop screen under the `SkyMesh / Operations` header. The left sidebar holds the compact join QR and the clickable 3D drone/audio demo; the right side renders the admin dashboard (node admission, room map, topology/link controls, confidence graphs, fused localization). A `FitBoard` wrapper (`app/lib/FitBoard.tsx`) scales the whole board down to fit the viewport, so all seven sections (sensor confidence, network topology, scenario controls, scenario activity, link emulation, sensor directory, sensor inspector) plus QR and drone canvas are visible at once. There is no panel switcher and no pagination: every admitted sensor, link row, and retained activity event renders in full. Link emulation is shown by default, and the inspector shows a placeholder until a sensor is selected on the map.
-- **Network simulation (`/operator`)** — separate planning sandbox with geographic node placement, information-based placement advice, coverage overlays, attack routes, timed lossy gossip, and per-node estimates. The shared Carbon header switches between live sensors and simulation while preserving the session parameter. Synthetic sensors never connect to the live relay or microphone. External OpenStreetMap tiles are optional: a warning appears on tile failure, and placement/simulation remain usable on a blank basemap.
-- **Admin compatibility (`/admin`)** — redirects to `/station` preserving the session.
+- **Unified workspace (`/station`)** — a dominant room map with real admitted participants. The right-hand control column contains onboarding, participant directory, scenario controls, inspector, topology, confidence, activity, and link emulation. It scrolls independently on desktop and stacks below the map on phones. No FitBoard scaling, panel switching, or pagination.
+- **Scenario controls** — flight overlays, impact, interference, isolation, and replay operate on the same participant topology. Synthetic drone overlays never create microphone readings. Link-failure controls intentionally affect the real session relay.
+- **Compatibility (`/admin`, `/operator`)** — both redirect to the unified `/station` page with the session preserved. There is no separate fake-node simulator in the navigation.
 - **Relay (`server/relay.py`)** — WebSocket transport for browser nodes. It routes opaque peer messages and serves the static export for one-origin HTTPS demos.
 
 ## Node model
@@ -81,9 +81,8 @@ Browser smokes (relay plus the app must already be running):
 ```bash
 APP_URL=http://127.0.0.1:8001 node tests/detector-smoke.mjs   # fake mic WAV → mel → ONNX CRNN → gossip
 APP_URL=http://127.0.0.1:8001 node tests/ui-smoke.mjs           # four nodes join, all rows render without pagination
-UI_BASE_URL=http://localhost:3000 node tests/ui-viewport-smoke.mjs  # all 7 sections + QR + drone fit, 1920x1080 down to 390x844
-UI_BASE_URL=http://localhost:3000 node tests/ui-design-smoke.mjs    # palette, fonts, Carbon controls, onboarding, focus
-UI_BASE_URL=http://localhost:3000 node tests/carbon-ui.mjs          # g100 tokens, drone toggle, phone touch target
+UI_BASE_URL=http://localhost:3000 node tests/ui-viewport-smoke.mjs  # map-first desktop/mobile layout
+APP_URL=http://localhost:3000 node tests/operator-ui.mjs           # unified participant and scenario workflow
 ```
 
 ## What to say honestly
@@ -99,8 +98,8 @@ Defense track presented by Second Front Systems. Roles: ML/audio, frontend/opera
 The UI uses IBM Carbon React with the **g100** dark theme. The document-level
 `cds--g100` class supplies first-paint CSS tokens, while `DesignSystem` supplies
 the matching React theme context. Carbon owns buttons, tags, and the operations
-header. All dashboard sections render simultaneously inside `FitBoard`; there is no
-panel switcher. Custom maps, graphs, and tables retain
+header. The map takes the main column and supporting controls scroll in the
+sidebar. There is no whole-page scaling or panel switcher. Custom maps, graphs, and tables retain
 their domain behavior and use the semantic token bridge in `app/carbon.css`.
 
 - Use `ActionButton` for native button handlers and primary/tertiary/danger hierarchy.
@@ -110,33 +109,33 @@ their domain behavior and use the semantic token bridge in `app/carbon.css`.
   Carbon buttons use Carbon sizing, and the phone enrollment button stays >= 44px.
 - Do not remove the document theme class: React theme context alone does not set CSS tokens.
 
-UI regression checks against a running production or development server:
+The current acceptance commands are listed below. Older layout-specific
+`carbon-ui.mjs`, `ui-design-smoke.mjs`, and historical acceptance documents describe
+previous paginated/FitBoard layouts and are not the unified workspace's acceptance
+entrypoints. Live mobile microphone permissions still require device testing.
 
-```bash
-UI_BASE_URL=http://localhost:3000 node tests/carbon-ui.mjs
-UI_BASE_URL=http://localhost:3000 node tests/ui-design-smoke.mjs
-UI_BASE_URL=http://localhost:3000 node tests/ui-viewport-smoke.mjs
-```
+## Unified participant map and simulation
 
-These check theme contrast tokens, drone-mode controls, responsive overflow,
-simultaneous rendering of all sections with no pagination, and phone enrollment
-button sizing. Live microphone permissions and multi-phone enrollment still
-require device acceptance testing.
+The room map is deliberately not a geographic/GPS map. Real phones do not supply
+GPS coordinates. Admitted participants without assigned positions appear as
+dashed **unplaced** markers in a staging row. Those temporary display coordinates
+are never published or used for fusion. Dragging a marker, explicitly placing a
+selected participant, or choosing **auto-place** publishes its room configuration
+through gossip. Auto-place is an operator-requested schematic layout, not measured
+physical location. Departed participants disappear even though old records remain
+in the replica.
 
-## Operator integration boundaries and verification
+Selecting a marker opens its inspector without changing topology. **Link
+participants** explicitly enables pairwise link editing. The passive observer
+connects to admitted nodes so live readings and position records flow immediately,
+but it never relays between sensors or heals their partitions.
 
-`mark/fixing-simulation` is integrated alongside the Carbon/FitBoard live console.
-The simulator reuses `app/lib/detection.ts`, `log.ts`, and protocol record types,
-but owns its transport clock, synthetic scores, and geographic estimator.
-Its “placement advisor” is a deterministic Fisher-information optimizer, not an
-external model service. Simulated fixes are not real detector measurements.
-
-Live placement advice is a follow-up, not silently enabled by this integration.
-Before porting it, extract a metric-frame adapter and parameterize the street-scale
-spacing/range/detection constants for room-scale `x/y` positions. Keep live
-`fusion.ts` authoritative and require explicit operator confirmation for topology
-changes. Do not inject simulation records into a live session. The map and its
-Leaflet dependency remain in the separate `/operator` route, not `ml-demo`.
+The simulator algorithms imported from Mark's branch remain available as tested
+source modules under `app/operator/`, but the active page uses live `RoomMap`,
+`AdminChannel`, mesh records, and room-scale scenario controls. The geographic
+placement optimizer and independent synthetic `SimWorld` are not used as truth for
+real participants. Adapting that advisor to calibrated room-scale parameters
+remains separate work. The live page does not request external map tiles.
 
 Acceptance commands (use a free local port):
 
@@ -144,20 +143,22 @@ Acceptance commands (use a free local port):
 npm test
 npm run build
 npm run build:static
-server/.venv/bin/uvicorn relay:app --app-dir server --host 127.0.0.1 --port 8127
+server/.venv/bin/uvicorn relay:app --app-dir server --host 127.0.0.1 --port 8128
 # In another terminal:
-APP_URL=http://127.0.0.1:8127 node tests/operator-ui.mjs
-UI_BASE_URL=http://127.0.0.1:8127 node tests/ui-viewport-smoke.mjs
-APP_URL=http://127.0.0.1:8127 node tests/ui-smoke.mjs
+APP_URL=http://127.0.0.1:8128 node tests/operator-ui.mjs
+UI_BASE_URL=http://127.0.0.1:8128 node tests/ui-viewport-smoke.mjs
+APP_URL=http://127.0.0.1:8128 node tests/ui-smoke.mjs
 ```
 
-The operator browser test covers the real static route, Carbon controls, failed
-map tiles, placement/advisor acceptance, playback/pause/reset/completed-run replay,
-per-node viewpoint, responsive layouts, absence of live sockets, and navigation
-back to the live station without losing its session. The live smoke test covers
-joining/admitting phones, gossip, room placement, link cuts, and populated-board
-layout. Unit/integration tests exercise routing, loss, partitions, healing, and
-estimator edge cases.
+`operator-ui.mjs` checks actual browser join/admission, no fabricated markers,
+staging versus physical placement, position propagation, keyboard inspection,
+scenario overlays on the same nodes, departure cleanup, and legacy-route session
+preservation. `ui-viewport-smoke.mjs` checks nine desktop/mobile sizes for map
+prominence, visible room canvas, accessible controls, and horizontal overflow.
+`ui-smoke.mjs` checks four participant browsers, gossip convergence, placement,
+explicit link editing, link cuts, scenario flight/replay, and all participant rows.
+Real mobile microphone permissions and acoustic calibration still require device
+testing.
 
 Dependency audit at integration time reports existing Next.js/PostCSS advisories.
-The integration retains Next 15 and does not force a breaking framework upgrade.
+This UI change does not force a breaking framework upgrade.

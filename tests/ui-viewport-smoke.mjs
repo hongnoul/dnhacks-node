@@ -1,35 +1,29 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-const base = process.env.UI_BASE_URL || 'http://127.0.0.1:3112';
+const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8128';
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage();
-  for (const [width, height] of [[1920,1080],[1440,900],[1366,768],[1280,720],[1024,768],[1000,650],[390,844]]) {
+  for (const [width,height] of [[1920,1080],[1440,900],[1366,768],[1280,720],[1024,768],[1000,650],[768,900],[390,844],[320,720]]) {
     await page.setViewportSize({width,height});
-    await page.goto(`${base}/station?session=all-boxes-review`);
-    await page.locator('.fit-board').waitFor({state:'visible'});
-    await page.waitForTimeout(250);
-    assert.equal(await page.getByRole('combobox',{name:'Console panel'}).count(),0);
-    assert.equal(await page.locator('.page-controls').count(),0);
-    assert.equal(await page.locator('.console').evaluate(root => {
-      const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
-      let text; let count=0;
-      while(text=walker.nextNode()) if(text.textContent.trim() && !text.parentElement.closest('.panel')) count++;
-      return count;
-    }),0,'all console text belongs to a box');
+    await page.goto(`${base}/station/?session=layout-${Date.now()}`);
+    await page.locator('.unified-console .map-card').waitFor();
+    await page.waitForTimeout(200);
+    assert.equal(await page.locator('.fit-board').count(),0,'no scaled all-boxes board');
+    assert.equal(await page.getByRole('link',{name:'Simulation',exact:true}).count(),0,'no separate simulation workspace');
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),'no horizontal overflow');
+    const map = await page.locator('.map-card').boundingBox();
+    const sidebar = await page.locator('.dashboard-cards').boundingBox();
+    const canvas = await page.locator('.map-card svg').boundingBox();
+    if (width > 900) {
+      assert(map.width > sidebar.width * 1.7,'map dominates desktop');
+      assert(canvas.y >= 0 && canvas.y + canvas.height <= height,'whole room canvas visible');
+    } else assert(map.y < sidebar.y,'map appears before supporting controls on mobile');
+    assert.equal(await page.locator('.map-card [data-node-id]').count(),0,'no fake seed nodes');
     for (const section of ['confidence','topology','scenario','activity','links','nodes','inspector']) {
-      assert(await page.locator(`[data-section=${section}]`).isVisible(),`${section} is rendered simultaneously`);
+      await page.locator(`[data-section=${section}]`).scrollIntoViewIfNeeded();
+      assert(await page.locator(`[data-section=${section}]`).isVisible());
     }
-    assert(await page.locator('.join-card svg').isVisible());
-    assert(await page.locator('.audio-card canvas').isVisible());
-    const overflow = await page.evaluate(() => {
-      const outside=[...document.querySelectorAll('.fit-board .panel, .fit-board button, .fit-board canvas, .fit-board svg, .fit-board td')].filter(el=>{
-        const r=el.getBoundingClientRect();
-        return r.width && r.height && (r.bottom>innerHeight+1 || r.right>innerWidth+1 || r.left< -1 || r.top<47);
-      }).map(el=>el.tagName+':'+(el.textContent||'').slice(0,40));
-      return {width:document.documentElement.scrollWidth-innerWidth,height:document.documentElement.scrollHeight-innerHeight,outside};
-    });
-    assert.deepEqual(overflow,{width:0,height:0,outside:[]},`${width}x${height}: ${JSON.stringify(overflow)}`);
-    console.log(`PASS ${width}x${height}: all 7 panels, map, QR and drone simultaneously visible, no pagination or clipped bounds`);
+    console.log(`PASS ${width}x${height}: dominant participant map, accessible controls, no horizontal overflow or synthetic nodes`);
   }
 } finally {await browser.close();}

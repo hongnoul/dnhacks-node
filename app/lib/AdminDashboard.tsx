@@ -14,7 +14,7 @@
 import { Tag } from "@carbon/react";
 import { ActionButton } from "./DesignSystem";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AdminChannel, edgesToTopology, preset, type Preset } from "./admin.ts";
 import { relayUrl, sessionId } from "./config.ts";
 import { useMesh } from "./useMesh.ts";
@@ -60,23 +60,28 @@ function useContainerWidth(fallback: number) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const w = Math.floor(el.clientWidth);
-      if (w > 0) setWidth(w);
-    });
+    const measure = () => {
+      const available = Math.floor(el.clientWidth);
+      // Preserve the room aspect ratio while keeping the whole map on laptop
+      // screens. Mobile uses document scrolling rather than scaling all text.
+      const heightBound = window.innerWidth > 900 ? Math.max(180, window.innerHeight - (el.getBoundingClientRect().top + window.scrollY) - 100) * 1.5 : available;
+      if (available > 0) setWidth(Math.min(available, heightBound));
+    };
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
-    // First paint may precede layout; take whatever the box reports now too.
-    const w = Math.floor(el.clientWidth);
-    if (w > 0) setWidth(w);
-    return () => ro.disconnect();
+    window.addEventListener("resize", measure);
+    measure();
+    return () => { ro.disconnect(); window.removeEventListener("resize", measure); };
   }, []);
   return { ref, width };
 }
 
-export function AdminDashboard() {
+export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
   const chanRef = useRef<AdminChannel | null>(null);
   const [, force] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
+  const [linking, setLinking] = useState(false);
+  const [placeTarget, setPlaceTarget] = useState("");
   const [pendingEdge, setPendingEdge] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const [showLinks, setShowLinks] = useState(true);
@@ -136,7 +141,25 @@ export function AdminDashboard() {
   const admitted = sensors.filter((n) => n.admitted).map((n) => n.node);
   const pending = sensors.filter((n) => !n.admitted);
 
-  const positions = view?.positions ?? new Map();
+  // Replicated records outlive a connection. Never render departed or unadmitted
+  // record owners as current participants.
+  const positions = new Map([...(view?.positions ?? new Map())].filter(([id]) => admitted.includes(id)));
+  const unplaced = new Set(admitted.filter(id => !positions.has(id)));
+  // Unplaced participants are visible in a staging row, not fabricated physical
+  // positions. Only an explicit drag/place publishes a room coordinate.
+  const mapPositions = new Map(positions);
+  [...unplaced].forEach((node, i) => mapPositions.set(node, {
+    node, x: DEFAULT_ROOM.w * (i + 1) / (unplaced.size + 1), y: DEFAULT_ROOM.h * 0.93,
+  }));
+  const target = admitted.includes(placeTarget) ? placeTarget : (selected && admitted.includes(selected) ? selected : admitted[0] ?? "");
+  useEffect(() => {
+    if (selected && !admitted.includes(selected)) setSelected(null);
+    if (pendingEdge && !admitted.includes(pendingEdge)) setPendingEdge(null);
+  }, [state.nodes, selected, pendingEdge]);
+  useEffect(() => {
+    if (selected) document.querySelector('[data-section="inspector"]')?.scrollIntoView({ block: "nearest" });
+  }, [selected]);
+
   const downLinks = useMemo(
     () => new Set(state.links.filter((l) => !l.up).map((l) => linkKey(l.a, l.b))),
     [state.links]
@@ -187,6 +210,16 @@ export function AdminDashboard() {
     return out;
   }
 
+  // Connect the passive observer when participants are admitted, without
+  // inventing participant-to-participant links. Placement records must reach
+  // phones even before the operator chooses a topology preset.
+  useEffect(() => {
+    if (!chan || !state.nodes.some(n => n.node === ADMIN_ID && n.admitted)) return;
+    if (admitted.some(id => !(state.topology[ADMIN_ID] ?? []).includes(id))) {
+      applyTopology(sensorEdges());
+    }
+  }, [chan, state.nodes, state.topology]);
+
   function applyPreset(kind: Preset) {
     applyTopology(preset(kind, admitted));
   }
@@ -206,7 +239,9 @@ export function AdminDashboard() {
   }
 
   function onPick(node: string) {
-    if (node === ADMIN_ID) return;
+    if (node === ADMIN_ID || !admitted.includes(node)) return;
+    setSelected(node);
+    if (!linking) return;
     if (!pendingEdge) {
       setSelected(node);
       setPendingEdge(node);
@@ -242,9 +277,9 @@ export function AdminDashboard() {
   const placeCandidate: { candidate: PlacementCandidate; status: PlacementStatus } | null =
     useMemo(() => {
       if (mode !== "placing" || !placeHover) return null;
-      const candidate = buildPlacementCandidate(placeHover.x, placeHover.y, positions);
+      const candidate = buildPlacementCandidate(placeHover.x, placeHover.y, new Map([...positions].filter(([id]) => id !== target)));
       return { candidate, status: placementStatus(candidate) };
-    }, [mode, placeHover, positions]);
+    }, [mode, placeHover, positions, target]);
 
   /** Every mutation goes through the control channel or gossip — never local. */
   function cutLinks(pairs: [string, string][], up: boolean, extra?: { latency_ms?: number; loss?: number }) {
@@ -253,7 +288,8 @@ export function AdminDashboard() {
 
   function handleMapClick(x: number, y: number) {
     if (mode === "placing") {
-      const candidate = buildPlacementCandidate(x, y, positions);
+      if (!target || !mesh) return;
+      const candidate = buildPlacementCandidate(x, y, new Map([...positions].filter(([id]) => id !== target)));
       const status = placementStatus(candidate);
       if (status === "invalid") {
         log("Placement rejected — too close to an existing node", "critical");
@@ -261,19 +297,13 @@ export function AdminDashboard() {
       }
       if (status === "warning") {
         log(
-          `Placement rejected — ${placementNeighbours(candidate).length}/${MIN_CONNECTIONS} required neighbours in range`,
+          `Under-connected placement — ${placementNeighbours(candidate).length}/${MIN_CONNECTIONS} neighbours in range. Link this participant after placement.`,
           "warning"
         );
-        return;
       }
-      // No local node is created: the operator admits a real phone, then the
-      // console guides where to stand by publishing the validated position.
-      // For now, log the validated spot and its edges; the next admitted node
-      // can be ring-placed near it via auto-place.
-      log(
-        `Valid placement at (${x.toFixed(1)}, ${y.toFixed(1)}) — ${placementNeighbours(candidate).length} links in range`,
-        "success"
-      );
+      mesh.publishPosition(target, x, y);
+      setSelected(target);
+      log(`${target} placed at (${x.toFixed(1)}, ${y.toFixed(1)})`, "success");
       setPlaceHover(null);
       setMode("idle");
       return;
@@ -522,6 +552,94 @@ export function AdminDashboard() {
 
   return (
     <div className="dashboard">
+      <header className="dashboard-header panel">
+        <h1>Live mesh workspace</h1>
+        <span role="status"><Tag type={chan?.connected ? "green" : "warm-gray"}>Relay {chan?.connected ? "connected" : "offline"}</Tag></span>
+      </header>
+      <section className="metrics" aria-label="Mesh status">
+        <div className="panel metric"><span>Admitted sensors</span><strong>{admitted.length}</strong><small>Phones in this session</small></div>
+        <div className="panel metric"><span>Listening now</span><strong>{view?.listening ?? 0}</strong><small>Live mesh readings</small></div>
+        <div className="panel metric"><span>Detecting nodes</span><strong style={{ color: hot.size ? "var(--hot)" : "var(--ok)" }}>{hot.size}</strong><small>On-device verdicts</small></div>
+        <div className="panel metric"><span>Replicated records</span><strong>{view?.records ?? 0}</strong><small>Received through gossip</small></div>
+      </section>
+
+      <div className="dashboard-grid">
+        <div className="panel map-card" id="participant-map" tabIndex={-1}>
+          <div className="card-heading"><h2>Participant map</h2><span className="map-coordinate-label">Real participants · room coordinates</span></div>
+          <div className="map-toolbar">
+            <ActionButton className={linking ? "primary" : ""} onClick={() => { setLinking(!linking); setPendingEdge(null); }}>{linking ? "Done linking" : "Link participants"}</ActionButton>
+            <span className="dim">{admitted.length} participants · {unplaced.size} awaiting placement</span>
+          </div>
+          <div ref={mapBox.ref} className="map-viewport">
+            <RoomMap
+              room={DEFAULT_ROOM}
+              positions={mapPositions}
+              unplaced={unplaced}
+              estimate={est}
+              topology={state.topology}
+              downLinks={downLinks}
+              levels={levels}
+              selected={pendingEdge ?? selected}
+              onPick={onPick}
+              onMove={(node, x, y) => mesh?.publishPosition(node, x, y)}
+              ripples={ripples}
+              width={Math.max(120, mapBox.width)}
+              placement={placeCandidate}
+              drone={dronePos ? { x: dronePos.x, y: dronePos.y, radiusM: DRONE_DETECTION_RADIUS_M, dest: droneDest } : null}
+              alertPath={alertRoute?.path ?? null}
+              alertEdge={alertRoute?.activeEdge ?? null}
+              impact={impact ? { x: impact.x, y: impact.y, radiusM: IMPACT_RADIUS_M } : null}
+              onMapClick={handleMapClick}
+              onMapHover={(x, y) => { if (mode === "placing") setPlaceHover({ x, y }); }}
+            />
+          </div>
+          <div className="dim" style={{ fontSize: 12, marginTop: 8 }}>
+            {mode === "placing"
+              ? placeCandidate
+                ? placeCandidate.status === "invalid"
+                  ? `Too close — ${placeCandidate.candidate.distances[0] ? `${placeCandidate.candidate.distances[0].d.toFixed(1)} m to ${placeCandidate.candidate.distances[0].node}` : "no nodes"}`
+                  : placeCandidate.status === "warning"
+                    ? `${placementNeighbours(placeCandidate.candidate).length}/${MIN_CONNECTIONS} neighbours in range — move closer to the array`
+                    : `Valid — ${placementNeighbours(placeCandidate.candidate).length} links in range. Click to confirm.`
+                : "Move across the map to preview placement."
+              : mode === "impact"
+                ? "Click anywhere to run a simulated impact (cuts links, restores after 8 s)."
+                : mode === "droneStart"
+                  ? "Click to place the drone start."
+                  : mode === "droneDestination"
+                    ? "Click to place the drone destination."
+                    : linking ? "Click two participants to add or remove a live link." : "Select to inspect. Drag a participant to assign its room position."}
+            {pendingEdge && <b style={{ color: "var(--accent)" }}> linking from {pendingEdge}…</b>}
+          </div>
+          <p className="map-legend">Solid nodes: assigned room positions. Dashed nodes: unplaced participants in a staging row, not GPS locations. Scenario overlays never become live readings.</p>
+          <div style={{ fontSize: 13, marginTop: 6 }}>
+            {est && est.localised ? (
+              <>
+                <b>{est.nReports}</b> reporting · <b>{est.nSilent}</b> silent · ±
+                {est.spreadM.toFixed(1)} m at ({est.x.toFixed(1)}, {est.y.toFixed(1)})
+                {!est.graded && (
+                  <span style={{ color: "var(--warn)" }}> · no SNR on the wire: coarse</span>
+                )}
+              </>
+            ) : est ? (
+              <span style={{ color: "var(--warn)" }}>
+                <b>{est.nReports}</b> detecting, but not localised — nodes hear it at
+                similar levels, so nothing pins it down. Spread them out, or the drone is
+                outside the array.
+              </span>
+            ) : positions.size > 0 ? (
+              <span className="dim">
+                nothing heard · {view?.listening ?? 0} nodes listening
+              </span>
+            ) : (
+              <span className="dim">no positioned readings — admit and place some nodes</span>
+            )}
+          </div>
+        </div>
+
+        <div className="dashboard-cards" aria-label="Participant and scenario controls">
+          <section className="panel onboarding" id="participants" tabIndex={-1}>
+            {onboarding}
       {pending.length > 0 && (
         <div
           className="panel"
@@ -554,86 +672,7 @@ export function AdminDashboard() {
           </div>
         </div>
       )}
-      <header className="dashboard-header panel">
-        <h1>Shared airspace awareness</h1>
-        <span role="status"><Tag type={chan?.connected ? "green" : "warm-gray"}>Relay {chan?.connected ? "connected" : "offline"}</Tag></span>
-      </header>
-      <section className="metrics" aria-label="Mesh status">
-        <div className="panel metric"><span>Admitted sensors</span><strong>{admitted.length}</strong><small>Phones in this session</small></div>
-        <div className="panel metric"><span>Listening now</span><strong>{view?.listening ?? 0}</strong><small>Live mesh readings</small></div>
-        <div className="panel metric"><span>Detecting nodes</span><strong style={{ color: hot.size ? "var(--hot)" : "var(--ok)" }}>{hot.size}</strong><small>On-device verdicts</small></div>
-        <div className="panel metric"><span>Replicated records</span><strong>{view?.records ?? 0}</strong><small>Received through gossip</small></div>
-      </section>
-
-      <div className="dashboard-grid">
-        <div className="panel map-card">
-          <div className="card-heading"><h2>Mesh overview</h2><Tag type="cool-gray" size="sm">Room coordinates</Tag></div>
-          <div ref={mapBox.ref} className="map-viewport">
-            <RoomMap
-              room={DEFAULT_ROOM}
-              positions={positions}
-              estimate={est}
-              topology={state.topology}
-              downLinks={downLinks}
-              levels={levels}
-              selected={pendingEdge ?? selected}
-              onPick={onPick}
-              onMove={(node, x, y) => mesh?.publishPosition(node, x, y)}
-              ripples={ripples}
-              width={Math.max(120, Math.min(mapBox.width, 720))}
-              placement={placeCandidate}
-              drone={dronePos ? { x: dronePos.x, y: dronePos.y, radiusM: DRONE_DETECTION_RADIUS_M, dest: droneDest } : null}
-              alertPath={alertRoute?.path ?? null}
-              alertEdge={alertRoute?.activeEdge ?? null}
-              impact={impact ? { x: impact.x, y: impact.y, radiusM: IMPACT_RADIUS_M } : null}
-              onMapClick={handleMapClick}
-              onMapHover={(x, y) => { if (mode === "placing") setPlaceHover({ x, y }); }}
-            />
-          </div>
-          <div className="dim" style={{ fontSize: 12, marginTop: 8 }}>
-            {mode === "placing"
-              ? placeCandidate
-                ? placeCandidate.status === "invalid"
-                  ? `Too close — ${placeCandidate.candidate.distances[0] ? `${placeCandidate.candidate.distances[0].d.toFixed(1)} m to ${placeCandidate.candidate.distances[0].node}` : "no nodes"}`
-                  : placeCandidate.status === "warning"
-                    ? `${placementNeighbours(placeCandidate.candidate).length}/${MIN_CONNECTIONS} neighbours in range — move closer to the array`
-                    : `Valid — ${placementNeighbours(placeCandidate.candidate).length} links in range. Click to confirm.`
-                : "Move across the map to preview placement."
-              : mode === "impact"
-                ? "Click anywhere to run a simulated impact (cuts links, restores after 8 s)."
-                : mode === "droneStart"
-                  ? "Click to place the drone start."
-                  : mode === "droneDestination"
-                    ? "Click to place the drone destination."
-                    : "Drag to place. Click two nodes to add or remove a link."}
-            {pendingEdge && <b style={{ color: "var(--accent)" }}> linking from {pendingEdge}…</b>}
-          </div>
-          <div style={{ fontSize: 13, marginTop: 6 }}>
-            {est && est.localised ? (
-              <>
-                <b>{est.nReports}</b> reporting · <b>{est.nSilent}</b> silent · ±
-                {est.spreadM.toFixed(1)} m at ({est.x.toFixed(1)}, {est.y.toFixed(1)})
-                {!est.graded && (
-                  <span style={{ color: "var(--warn)" }}> · no SNR on the wire: coarse</span>
-                )}
-              </>
-            ) : est ? (
-              <span style={{ color: "var(--warn)" }}>
-                <b>{est.nReports}</b> detecting, but not localised — nodes hear it at
-                similar levels, so nothing pins it down. Spread them out, or the drone is
-                outside the array.
-              </span>
-            ) : positions.size > 0 ? (
-              <span className="dim">
-                nothing heard · {view?.listening ?? 0} nodes listening
-              </span>
-            ) : (
-              <span className="dim">no positioned readings — admit and place some nodes</span>
-            )}
-          </div>
-        </div>
-
-        <div className="dashboard-cards">
+          </section>
           <div className="panel" data-section="confidence">
             <div className="card-heading"><h2>Sensor confidence</h2><Tag type="teal" size="sm">Live readings</Tag></div>
             <p className="dim" style={{ fontSize: 12, marginTop: 0 }}>
@@ -671,12 +710,19 @@ export function AdminDashboard() {
 
           <div className="panel" data-section="topology">
             <h2>Network topology</h2>
+            <label className="placement-target">Participant to place
+              <select aria-label="Participant to place" value={target} onChange={e => setPlaceTarget(e.target.value)} disabled={!admitted.length}>
+                {!admitted.length && <option value="">Admit a participant first</option>}
+                {admitted.map(id => <option key={id} value={id}>{id}</option>)}
+              </select>
+            </label>
             <div className="row" style={{ flexWrap: "wrap" }}>
               <ActionButton onClick={() => applyPreset("bridge")}>two clusters + bridge</ActionButton>
               <ActionButton onClick={() => applyPreset("ring")}>ring</ActionButton>
               <ActionButton onClick={() => applyPreset("full")}>full mesh</ActionButton>
               <ActionButton onClick={autoPlace}>auto-place</ActionButton>
               <ActionButton
+                disabled={!target}
                 className={mode === "placing" ? "primary" : ""}
                 onClick={() => {
                   if (mode === "placing") {
@@ -700,7 +746,7 @@ export function AdminDashboard() {
             </p>
           </div>
 
-          <div className="panel" data-section="scenario">
+          <div className="panel" data-section="scenario" id="scenarios" tabIndex={-1}>
             <div className="row" style={{ justifyContent: "space-between" }}>
               <h2 style={{ margin: 0 }}>Scenario controls <Tag type="purple" size="sm">Simulation</Tag></h2>
               <span
@@ -931,7 +977,7 @@ export function AdminDashboard() {
                   const p = levels.get(n);
                   return (
                     <tr key={n}>
-                      <td>{n}</td>
+                      <td><button className="participant-select" onClick={() => { setSelected(n); setPlaceTarget(n); }}>{n}</button></td>
                       <td style={{ color: hot.has(n) ? "var(--hot)" : undefined }}>
                         {p === undefined ? "—" : p.toFixed(2)}
                       </td>

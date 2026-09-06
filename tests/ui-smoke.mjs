@@ -64,7 +64,7 @@ await openPanel('topology');
 await admin.getByRole("button", { name: /two clusters \+ bridge/i }).click();
 await admin.waitForTimeout(300);
 await admin.getByRole("button", { name: /auto-place/i }).click();
-await admin.waitForFunction(() => !document.body.innerText.includes("unplaced"), { timeout: 8000 })
+await admin.waitForFunction(() => !document.querySelector("[data-section=nodes]")?.textContent.includes("unplaced"), { timeout: 8000 })
   .then(() => ok("nodes placed via gossiped config records")).catch(() => bad("placement did not propagate"));
 
 // Link emulation is collapsed by default — it is network conditions, not
@@ -112,6 +112,34 @@ for (const width of [390, 320]) {
   const map = await n1.locator('svg').boundingBox();
   (map && map.width > 0 && map.x + map.width <= width) ? ok(`room map fits ${width}px`) : bad('room map overflow');
 }
+
+console.log("participant selection versus explicit linking");
+const neighboursOfFirst = () => admin.locator('[data-section=nodes] tbody tr').filter({has: admin.getByRole('button',{name:'n01',exact:true})}).locator('td').last().innerText();
+const beforeSelection = await neighboursOfFirst();
+for (const id of ['n01','n02']) {
+  await admin.locator(`[data-node-id=${id}]`).focus();
+  await admin.keyboard.press('Enter');
+}
+(await neighboursOfFirst()) === beforeSelection ? ok('inspection does not mutate topology') : bad('inspection changed topology');
+await admin.getByRole('button',{name:'Link participants',exact:true}).click();
+for (const id of ['n01','n02']) {
+  await admin.locator(`[data-node-id=${id}]`).focus();
+  await admin.keyboard.press('Enter');
+}
+await admin.waitForFunction(before => {
+  const row = [...document.querySelectorAll('[data-section=nodes] tbody tr')].find(r => r.querySelector('td')?.textContent === 'n01');
+  return row?.lastElementChild?.textContent !== before;
+}, beforeSelection).then(() => ok('explicit linking changes real participant topology')).catch(() => bad('linking did not change topology'));
+for (const id of ['n01','n02']) {
+  await admin.locator(`[data-node-id=${id}]`).focus();
+  await admin.keyboard.press('Enter');
+}
+await admin.waitForFunction(before => {
+  const row = [...document.querySelectorAll('[data-section=nodes] tbody tr')].find(r => r.querySelector('td')?.textContent === 'n01');
+  return row?.lastElementChild?.textContent === before;
+}, beforeSelection).then(() => ok('explicit pair can be linked back')).catch(() => bad('pair restoration failed'));
+await admin.getByRole('button',{name:'Done linking',exact:true}).click();
+await admin.getByRole('button',{name:'two clusters + bridge',exact:true}).click();
 
 console.log("cut a link");
 // A previous run may have left a link cut (button reads "restore") — either
@@ -189,21 +217,14 @@ links >= 3 ? ok('all link rows rendered beyond former two-row page') : bad(`too 
 const activityCount = await admin.locator('[data-section=activity] li').count();
 activityCount === 6 ? ok('all six retained activity events rendered at once') : bad(`expected six events, got ${activityCount}`);
 
-console.log('populated console viewport fit');
-for (const [width, height] of [[1366,768],[1000,650]]) {
+console.log('populated map-first console layout');
+for (const [width, height] of [[1366,768],[1000,650],[390,844]]) {
   await admin.setViewportSize({width,height});
   for (const panel of ['confidence','topology','scenario','activity','links','nodes']) {
-    await openPanel(panel);
-    await admin.waitForTimeout(100);
-    const fit = await admin.evaluate(() => {
-      const root = document.documentElement;
-      const visible = [...document.querySelectorAll('.console button, .console select, .console [data-section], .console table')].filter(el => el.getBoundingClientRect().height > 0);
-      return root.scrollHeight <= innerHeight && root.scrollWidth <= innerWidth && visible.every(el => {
-        const r = el.getBoundingClientRect();
-        return r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1 && el.scrollWidth <= el.clientWidth + 1;
-      });
-    });
-    fit ? ok(`${panel} fits populated ${width}x${height}`) : bad(`${panel} overflows populated ${width}x${height}`);
+    const section = admin.locator(`[data-section=${panel}]`);
+    await section.scrollIntoViewIfNeeded();
+    const fit = await admin.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
+    fit && await section.isVisible() ? ok(`${panel} accessible at ${width}x${height}`) : bad(`${panel} inaccessible or overflows at ${width}x${height}`);
   }
 }
 

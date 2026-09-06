@@ -1,70 +1,66 @@
-// Run after build:static against the relay serving out/.
+// Public acceptance: the former simulator is now the real participant workspace.
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 const base = process.env.APP_URL ?? 'http://127.0.0.1:8127';
+const session = `unified-${Date.now()}`;
 const browser = await chromium.launch();
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  const errors = [], sockets = [];
-  page.on('pageerror', e => errors.push(e.message));
-  page.on('websocket', ws => sockets.push(ws.url()));
-  // Exercise offline-basemap behavior without depending on a public tile service.
-  await page.route('**/*.tile.openstreetmap.org/**', r => r.abort());
-  await page.goto(`${base}/operator/?session=operator-acceptance`);
-  await page.getByRole('heading', {name: 'Network simulation', exact: true}).waitFor();
-  await page.getByRole('status').filter({hasText:'Basemap unavailable'}).waitFor();
-  assert.equal(await page.getByRole('link', {name:'Simulation', exact:true}).getAttribute('aria-current'), 'page');
-  assert.equal(await page.getByRole('button', {name:'Place node', exact:true}).evaluate(el => el.classList.contains('cds--btn')), true);
-  const map = page.locator('.leaflet-container');
-  const clickMap = async (x, y) => {const b = await map.boundingBox(); await page.mouse.click(b.x+x,b.y+y);};
-  for (const [x,y] of [[320,240],[370,240],[345,285]]) {
-    await page.getByRole('button', {name:'Place node',exact:true}).click();
-    await clickMap(x,y);
-  }
-  assert.match(await page.locator('header').last().innerText(), /3\s+active/i);
-  await page.getByRole('button', {name:'Suggest placement'}).click();
-  await page.getByText('Localisation quality', {exact:true}).waitFor();
-  const suggestions = page.locator('button').filter({hasText:/±.*link.*−/});
-  assert(await suggestions.count() > 0, 'advisor offers legal placements');
-  await suggestions.first().click();
-  assert.match(await page.locator('header').last().innerText(), /4\s+active/i);
-  await page.getByRole('button', {name:'Hide advice'}).click();
-  await page.getByRole('button', {name:'Draw attack route',exact:true}).click();
-  await clickMap(250,240);
-  await clickMap(430,240);
-  await page.getByRole('button', {name:/Finish route/}).click();
-  await page.getByRole('button', {name:'▶ Run',exact:true}).click();
-  await page.getByRole('button', {name:'❚❚ Pause',exact:true}).waitFor();
-  await page.waitForTimeout(400);
-  await page.getByRole('button', {name:'❚❚ Pause',exact:true}).click();
-  const clock = page.locator('span').filter({hasText:/^t\+\d+\.\d s$/});
-  const paused = await clock.innerText();
-  await page.waitForTimeout(250);
-  assert.equal(await clock.innerText(),paused,'pause freezes simulation time');
-  await page.getByRole('button', {name:/Reset/}).click();
-  assert.equal(await clock.innerText(),'t+0.0 s');
-  await page.getByRole('button', {name:'16×',exact:true}).click();
-  await page.getByRole('button', {name:'▶ Run',exact:true}).click();
-  await page.getByRole('button', {name:'▶ Replay',exact:true}).waitFor();
-  await page.getByRole('button', {name:'▶ Replay',exact:true}).click();
-  await page.waitForTimeout(150);
-  assert(await page.getByRole('button', {name:'❚❚ Pause',exact:true}).isVisible(), 'replay starts a fresh run');
-  await page.getByRole('button', {name:/Reset/}).click();
-  await clickMap(320,240);
-  await page.getByRole('button', {name:'See what this node sees',exact:true}).click();
-  await page.getByRole('button', {name:/Showing this node/}).waitFor();
-  assert.deepEqual(sockets, [], 'simulator never connects to live relay');
-  for (const width of [1440,1024,768,390]) {
+  const context = await browser.newContext();
+  const errors = [];
+  context.on('weberror', e => errors.push(String(e.error())));
+  const page = await context.newPage();
+  await page.goto(`${base}/operator/?session=${session}`);
+  await page.locator('.unified-console').waitFor();
+  assert.match(page.url(), /\/station\//);
+  assert(new URL(page.url()).searchParams.get('session') === session);
+  const markers = page.locator('.map-card [data-node-id]');
+  assert.equal(await markers.count(),0,'empty session has no fabricated sensors');
+  const phone = await context.newPage();
+  await phone.goto(`${base}/?node=real-phone&session=${session}`);
+  await phone.getByRole('button',{name:/Enable microphone & join/i}).click();
+  await page.getByRole('button',{name:'admit',exact:true}).waitFor({timeout:60000});
+  assert.equal(await markers.count(),0,'pending phone is not yet in admitted topology');
+  await page.getByRole('button',{name:'admit',exact:true}).click();
+  const marker = page.locator('[data-node-id="real-phone"]');
+  await marker.waitFor();
+  assert.equal(await markers.count(),1);
+  assert.equal(await marker.getAttribute('data-placed'),'false','participant has no invented room position');
+  await marker.focus();
+  await page.keyboard.press('Enter');
+  await page.locator('[data-section=inspector]').getByRole('heading',{name:'real-phone',exact:true}).waitFor();
+  await page.getByLabel('Participant to place',{exact:true}).selectOption('real-phone');
+  await page.getByRole('button',{name:'place node',exact:true}).click();
+  const map = page.locator('.map-card svg');
+  await map.scrollIntoViewIfNeeded();
+  let box = await map.boundingBox();
+  await map.click({position:{x:box.width*.5,y:box.height*.5}});
+  await page.waitForFunction(() => document.querySelector('[data-node-id="real-phone"]')?.getAttribute('data-placed') === 'true');
+  await page.locator('[data-section=nodes]').getByText('6.0, 4.0',{exact:true}).waitFor();
+  await phone.waitForFunction(() => /[1-9]\d* records held/.test(document.body.innerText));
+  assert.equal(await markers.count(),1,'placing assigns the existing participant, never creates a sensor');
+  await page.getByRole('button',{name:/simulate drone/i}).click();
+  await map.scrollIntoViewIfNeeded();
+  box = await map.boundingBox();
+  await map.click({position:{x:box.width*.3,y:box.height*.3}});
+  await map.click({position:{x:box.width*.7,y:box.height*.7}});
+  await page.getByRole('button',{name:'start flight',exact:true}).click();
+  await page.getByText(/IN FLIGHT/).waitFor();
+  assert.equal(await markers.count(),1,'scenario uses the same participant markers');
+  await page.getByRole('button',{name:'remove drone',exact:true}).click();
+  assert.equal(await page.locator('.map-card').getByText('sim drone',{exact:true}).count(),0);
+  for (const width of [1440,1024,768,390,320]) {
     await page.setViewportSize({width,height:900});
-    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `operator overflows at ${width}`);
-    assert(await page.getByRole('link',{name:'Live sensors',exact:true}).isVisible());
+    await page.waitForTimeout(100);
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no horizontal overflow at ${width}`);
+    if (width > 900) {
+      const mapBox = await page.locator('.map-card').boundingBox();
+      const side = await page.locator('.dashboard-cards').boundingBox();
+      assert(mapBox.width > side.width * 1.7,'map is the dominant desktop column');
+    }
   }
-  await page.getByRole('link',{name:'Live sensors',exact:true}).click();
-  await page.locator('.fit-board').waitFor();
-  assert.match(page.url(), /station\/\?session=operator-acceptance/);
-  await page.getByRole('link',{name:'Simulation',exact:true}).click();
-  await page.getByRole('heading',{name:'Network simulation',exact:true}).waitFor();
-  assert.match(page.url(), /operator\/\?session=operator-acceptance/);
-  assert.deepEqual(errors, []);
-  console.log('PASS operator: static route, Carbon controls, offline tiles, placement, advisor acceptance, route run/pause/reset, per-node view, four viewport sizes, no live socket, session-preserving mode navigation.');
+  await phone.close();
+  await page.waitForFunction(() => !document.querySelector('[data-node-id="real-phone"]'));
+  assert.equal(await markers.count(),0,'departed participant is removed despite retained replica records');
+  assert.deepEqual(errors,[]);
+  console.log('PASS unified console: legacy redirect/session, actual join/admission, no mock nodes, staging versus placed positions, gossip placement, keyboard inspector, scenario on participant map, responsive hierarchy, departure cleanup.');
 } finally { await browser.close(); }

@@ -19,6 +19,8 @@ export interface RoomMapProps {
   room: Room;
   positions: Map<string, Placed>;
   estimate: Estimate | null;
+  /** Staging markers are real participants without assigned physical coordinates. */
+  unplaced?: Set<string>;
   /** node → neighbours, drawn as edges. */
   topology?: Record<string, string[]>;
   /** Links the admin has cut, drawn dashed. */
@@ -118,7 +120,7 @@ export function RoomMap(props: RoomMapProps) {
   for (const [a, ns] of Object.entries(topology)) {
     for (const b of ns) {
       const k = linkKey(a, b);
-      if (seen.has(k) || !positions.has(a) || !positions.has(b)) continue;
+      if (seen.has(k) || !positions.has(a) || !positions.has(b) || props.unplaced?.has(a) || props.unplaced?.has(b)) continue;
       seen.add(k);
       edges.push([a, b]);
     }
@@ -376,6 +378,12 @@ export function RoomMap(props: RoomMapProps) {
           return (
             <g
               key={p.node}
+              data-node-id={p.node}
+              data-placed={!props.unplaced?.has(p.node)}
+              role={props.onPick ? "button" : undefined}
+              aria-label={`Participant ${p.node}${props.unplaced?.has(p.node) ? ", unplaced" : ""}`}
+              tabIndex={props.onPick ? 0 : undefined}
+              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); props.onPick?.(p.node); } }}
               style={{ cursor: props.onMove ? "grab" : "pointer" }}
               onPointerDown={(e) => {
                 (e.target as Element).releasePointerCapture?.(e.pointerId);
@@ -400,9 +408,10 @@ export function RoomMap(props: RoomMapProps) {
                 fill={isSel ? "var(--accent)" : "#12202f"}
                 stroke={isSel ? "#fff" : "var(--accent)"}
                 strokeWidth={2}
+                strokeDasharray={props.unplaced?.has(p.node) ? "3 3" : undefined}
               />
               <text x={cx} y={cy + 22} fill="var(--dim)" fontSize={10} textAnchor="middle">
-                {p.node}
+                {p.node}{props.unplaced?.has(p.node) ? " · unplaced" : ""}
               </text>
             </g>
           );
