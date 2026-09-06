@@ -1,0 +1,30 @@
+# Approved UI acceptance evidence
+
+Verified 2026-09-06 against the production Next server on :3107 and a real local relay on :8001.
+
+Run:
+- `npm run build && npm test`
+- `UI_BASE_URL=http://127.0.0.1:3107 node tests/ui-design-smoke.mjs`
+- `APP_URL=http://127.0.0.1:3107 node tests/ui-smoke.mjs`
+
+| Requirement / changed output | Public-interface observation | Result |
+| --- | --- | --- |
+| Tactical dark design | Browser computed background rgb(8,15,23), sans-serif body and monospace metric values | Pass at 1440/1024/390/320px |
+| Balanced dashboard cards | Browser grid has two columns at 1440px, one at narrower widths; four summary metrics render | Pass |
+| QR and drone remain visible, not behind a disclosure | Sidebar QR SVG and drone canvas visible without opening a panel; demo heading present | Pass at all four widths |
+| QR still points to the correct session | Displayed join URL equals current origin plus `?session=ui-review` | Pass; physical camera scan not tested |
+| Judge-facing overview and live/simulation separation | Operations title, four metrics and explicit Simulation badge render; real relay connects | Pass |
+| Phone onboarding | Three ordered instructions, privacy copy, enabled join button and keyboard focus outline | Pass at all four widths |
+| Join/admit remains functional | Three browser nodes join and are admitted through operator buttons | Pass with real relay |
+| Post-join phone presentation | Own mesh picture and replica info render; accessible confidence canvas and room map fit 320/390px without document overflow | Pass |
+| Responsive map preserves interaction | Map clicks place drone start/destination; flight starts | Pass after fixing legacy test to scroll target into view |
+| Larger controls / keyboard access | Every operator button has height >=44px; join button has visible solid focus outline | Pass |
+| Renamed topology, sensor directory and confidence panels preserve workflow | Three admitted node rows, auto-placement, confidence canvases, replica convergence | Pass |
+| Link controls and scenario activity remain usable | Expand, cut link, arm placement, arm impact, run flight and complete replay | Pass |
+| Build / integration regression | Production build and existing 45 tests | Pass |
+
+Concrete improvements: small-phone post-join charts and maps now fit the viewport, operator controls provide measured 44px targets, setup explains all three steps, and simulation is explicitly labeled. These are observed usability properties, not a claim that user preference or task completion speed has been measured. Visual screenshot review corroborated the layout but is not the sole evidence.
+
+Audit correction: the first UI commit unintentionally replaced the existing smoke test. The follow-up restores it with updated text selectors and viewport-safe map clicks. Design-specific assertions now live separately in ui-design-smoke.mjs.
+
+Limits: no physical phone camera scan, real microphone drone classification, audio playback listening, participant study, or subjective aesthetic preference testing. All requirements have evidence above, but comprehensive verification of every visual state and human usability remains partial.
