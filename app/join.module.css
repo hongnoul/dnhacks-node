@@ -2,21 +2,23 @@
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 32px 20px;
-  color: #111;
+  padding: 100px 20px;
+  position: relative;
+  isolation: isolate;
+  color: #000;
   font-family: Arial, Helvetica, sans-serif;
-  background-color: #aaa;
-  background-image: repeating-conic-gradient(#181818 0% 25%, #bfbfbf 0% 50%);
-  background-size: 4px 4px;
+  background: #07121b;
   color-scheme: light;
 }
 .dialog {
+  position: relative;
+  z-index: 1;
   width: min(100%, 720px);
   display: grid;
   grid-template-columns: minmax(0, 1fr) 210px;
   gap: 24px;
   padding: 28px;
-  background: #c0c0c0;
+  background: #dedede;
   border: 2px solid;
   border-color: #eee #262626 #262626 #eee;
   box-shadow: inset 2px 2px #fff, inset -3px -3px #808080, 2px 2px 0 #000;
@@ -72,16 +74,17 @@
   padding: 16px 8px;
   border: 2px solid;
   border-color: #808080 #eee #eee #808080;
-  background: linear-gradient(135deg, #eee, #aaa);
+  background: #050505;
+  color: #fff;
 }
-.logo { display: block; margin: 0; padding: 0; color: #000; background: transparent; font: 7.5px/10px "Courier New", monospace; white-space: pre; letter-spacing: 0; overflow: visible; }
+.logo { display: block; margin: 0; padding: 0; color: #fff; background: transparent; font: 700 7.5px/10px "Courier New", monospace; white-space: pre; letter-spacing: 0; overflow: visible; }
 .wordmark { margin-top: 20px; font-size: 20px; font-weight: 700; letter-spacing: 2px; }
 .brandCaption { margin-top: 8px; font: 9px/1.5 monospace; text-align: center; }
 @media (max-width: 560px) {
-  .screen { padding: 24px 16px; }
+  .screen { padding: 90px 16px; }
   .dialog { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 24px 20px; }
-  .brand { grid-row: 1; flex-direction: row; gap: 12px; padding: 4px 12px; }
-  .logo { font-size: 5px; line-height: 6px; flex-shrink: 0; }
+  .brand { grid-row: 1; flex-direction: column; gap: 12px; padding: 18px 12px; }
+  .logo { font-size: 7.5px; line-height: 9px; flex-shrink: 0; }
   .wordmark { margin: 0; font-size: 18px; }
   .brandCaption { display: none; }
   .title { margin-bottom: 18px; }

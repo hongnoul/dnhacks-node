@@ -8,6 +8,7 @@
 
 import styles from "./join.module.css";
 import { AsciiLogo } from "./lib/AsciiLogo";
+import { TrajectoryHero } from "./lib/TrajectoryHero";
 
 import { useEffect, useRef, useState } from "react";
 import { useMesh } from "./lib/useMesh.ts";
@@ -92,6 +93,7 @@ export default function NodePage() {
   if (!joined) {
     return (
       <main className={styles.screen}>
+        <TrajectoryHero />
         <section className={styles.dialog} aria-labelledby="join-title" aria-busy={loading}>
           <div className={styles.content}>
             <h1 id="join-title" className={styles.title}>Welcome to SkyMesh</h1>

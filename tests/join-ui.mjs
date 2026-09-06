@@ -14,7 +14,7 @@ try {
     await title.waitFor();
     assert.equal(await title.evaluate(e => getComputedStyle(e).fontStyle), 'italic');
     assert.equal(await title.evaluate(e => getComputedStyle(e).color), 'rgb(0, 0, 207)');
-    assert.equal(await page.locator('section').evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(192, 192, 192)');
+    assert.equal(await page.locator('section').evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(222, 222, 222)');
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     const logo = page.getByRole('img', { name: 'SkyMesh robot logo in ASCII art' });
     assert(await logo.isVisible());
@@ -24,6 +24,7 @@ try {
     assert((await button.boundingBox()).height >= 48);
     assert.equal(await button.evaluate(e => getComputedStyle(e).borderRadius), '0px');
     assert.equal(await button.evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(192, 192, 192)');
+    await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     assert(await button.evaluate(e => e === document.activeElement));
     assert.equal(await button.evaluate(e => getComputedStyle(e).outlineStyle), 'dotted');
