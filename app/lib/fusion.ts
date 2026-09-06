@@ -30,6 +30,11 @@ export interface Placed {
   node: string;
   x: number;
   y: number;
+  /**
+   * 1-sigma on this position, metres. Undefined means unstated, which is
+   * treated as "trust the coordinate" — the pre-survey behaviour.
+   */
+  sigmaM?: number;
 }
 
 export interface NodeReading {
@@ -105,16 +110,52 @@ function erf(x: number): number {
 
 const normCdf = (z: number) => 0.5 * (1 + erf(z / Math.SQRT2));
 
-/** P(observed level | source at distance d). Censored below the noise floor. */
-function snrLikelihood(snrDb: number, d: number, m: RangeModel): number {
+/** dB of level change per fractional change in range, from 20·log10. */
+const DB_PER_FRACTIONAL_RANGE = 20 / Math.LN10; // 8.686
+
+/**
+ * Level uncertainty for one node, folding in how well its position is known.
+ *
+ * §13 promises `sigma_m` "feeds fusion weighting" and this is where it does.
+ * Differentiating `expectedSnr` gives 8.686/d dB per metre of range error, so a
+ * node whose own position is uncertain by σ metres cannot predict its level to
+ * better than 8.686·σ/d dB no matter how good its microphone is. The two
+ * uncertainties are independent, so they add in quadrature.
+ *
+ * Note the 1/d: position error matters enormously up close and barely at all far
+ * away. A node surveyed to ±1 m contributes ~8.7 dB of slop to a source 1 m
+ * away — swamping the 4 dB measurement noise — and ~0.9 dB to one 10 m away.
+ * That is the correct shape: near a node, small displacements change the level a
+ * lot. Getting this wrong in the optimistic direction is how a demo produces a
+ * confident fix from dragged markers.
+ */
+export function effectiveSigmaDb(d: number, m: RangeModel, sigmaPosM?: number): number {
+  if (!sigmaPosM || !Number.isFinite(sigmaPosM) || sigmaPosM <= 0) return m.sigmaDb;
+  const range = Math.max(d, m.dRefM); // same clamp expectedSnr uses
+  return Math.hypot(m.sigmaDb, (DB_PER_FRACTIONAL_RANGE * sigmaPosM) / range);
+}
+
+/**
+ * P(observed level | source at distance d). Censored below the noise floor.
+ *
+ * The `1/sigma` on the Gaussian branch is load-bearing now and was not before.
+ * While sigma was a single constant it was the same factor in every cell and
+ * divided out in normalisation, so dropping it was harmless. `effectiveSigmaDb`
+ * makes sigma depend on the distance being evaluated — 17.8 dB at 1 m versus
+ * 4.4 dB at 10 m for a node known to ±2 m — so it no longer cancels. Without
+ * it, wide-sigma cells get scored as if they were as informative as narrow ones
+ * and the posterior drifts toward whichever node is worst surveyed.
+ */
+function snrLikelihood(snrDb: number, d: number, m: RangeModel, sigmaDb: number): number {
   const mu = expectedSnr(d, m);
   if (snrDb <= m.floorDb) {
     // Heard nothing: we know only that the true level was under the floor.
-    // This is what makes silence informative without inventing a range.
-    return normCdf((m.floorDb - mu) / m.sigmaDb);
+    // This is what makes silence informative without inventing a range. Already
+    // a probability, so it takes no density normaliser.
+    return normCdf((m.floorDb - mu) / sigmaDb);
   }
-  const z = (snrDb - mu) / m.sigmaDb;
-  return Math.exp(-0.5 * z * z);
+  const z = (snrDb - mu) / sigmaDb;
+  return Math.exp(-0.5 * z * z) / sigmaDb;
 }
 
 export interface Estimate {
@@ -147,7 +188,9 @@ export interface Estimate {
 export const LOCALISED_MAX_FRACTION = 0.6;
 
 /**
- * Goodness-of-fit gate, in multiples of the range model's sigma.
+ * Goodness-of-fit gate, in multiples of each node's own effective sigma
+ * (measurement noise combined with its position uncertainty, see
+ * `effectiveSigmaDb`).
  *
  * Spread alone cannot tell a real fix from a degenerate one: several nodes
  * hearing the same thing at the same level produce a *tight looking* posterior
@@ -203,7 +246,12 @@ export function fuse(opts: {
         const silent = r.detecting === false;
         const lik =
           typeof r.snrDb === "number"
-            ? snrLikelihood(silent ? range.floorDb : r.snrDb, d, range)
+            ? snrLikelihood(
+                silent ? range.floorDb : r.snrDb,
+                d,
+                range,
+                effectiveSigmaDb(d, range, pos.sigmaM)
+              )
             : // Fallback: soft detection evidence. Coarse by construction.
               r.p * detectionProb(d, model) + (1 - r.p) * (1 - detectionProb(d, model));
         ll += Math.log(Math.max(lik, 1e-12));
@@ -252,7 +300,15 @@ export function fuse(opts: {
       const d = Math.hypot(mapX - pos.x, mapY - pos.y);
       // A censored reading only says "below the floor"; it cannot be residual-checked.
       if (r.detecting === false || r.snrDb <= range.floorDb) continue;
-      const resid = r.snrDb - expectedSnr(d, range);
+      // Normalised by each node's own effective sigma, so a node with a stated
+      // position uncertainty is not judged against a precision it never claimed.
+      //
+      // Note what this does *not* do: a dragged marker publishes no `sigma_m`
+      // at all, so it falls back to the bare measurement noise and is held to
+      // the tightest standard of any node here. That is backwards on its face,
+      // and it is why the survey exists — the fix is to state an uncertainty,
+      // not to invent one for a drag whose real error nobody measured.
+      const resid = (r.snrDb - expectedSnr(d, range)) / effectiveSigmaDb(d, range, pos.sigmaM);
       sq += resid * resid;
       n++;
     }
@@ -262,7 +318,7 @@ export function fuse(opts: {
     // room. Both tests have to pass — consistent AND actually constrained.
     localised =
       n > 0 &&
-      rms <= MAX_RESIDUAL_SIGMAS * range.sigmaDb &&
+      rms <= MAX_RESIDUAL_SIGMAS &&
       spreadM < LOCALISED_MAX_FRACTION * roomRadiusM;
   } else {
     localised = spreadM < LOCALISED_MAX_FRACTION * roomRadiusM;

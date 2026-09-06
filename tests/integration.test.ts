@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import type { ChildProcess } from "node:child_process";
 import { Admin, TestNode, startRelay, waitFor } from "./harness.ts";
 import { fuse, expectedSnr, DEFAULT_RANGE, type Placed } from "../app/lib/fusion.ts";
+import { solveSurvey, METHOD_SIGMA_M, type Measurement } from "../app/lib/survey.ts";
 
 let relay: ChildProcess;
 before(async () => {
@@ -135,6 +136,83 @@ describe("end to end", () => {
 
     Object.entries(m.nodes).forEach(([id, n]) => id !== "n01" && n.close());
     m.admin.close();
+  });
+
+  test("a surveyed placement reaches every node with its uncertainty intact", async () => {
+    // survey.ts quotes a sigma per node and mesh.ts puts it on the wire. If it
+    // is dropped anywhere between here and a peer's replica, every phone
+    // silently upgrades an eyeballed mark to a surveyed one — the exact
+    // over-claim §13 asks the operator to record honestly.
+    const m = await bringUp("survey-spread");
+    const truth = Object.fromEntries(
+      Object.entries(PLACES).map(([id, [x, y]]) => [id, [x, y] as [number, number]])
+    );
+    const measurements: Measurement[] = [];
+    for (let i = 0; i < IDS.length; i++)
+      for (let j = i + 1; j < IDS.length; j++) {
+        const [ax, ay] = truth[IDS[i]];
+        const [bx, by] = truth[IDS[j]];
+        measurements.push({ a: IDS[i], b: IDS[j], dM: Math.hypot(ax - bx, ay - by) });
+      }
+    const solved = solveSurvey(measurements, { room: ROOM, defaultSigmaM: METHOD_SIGMA_M.tape })!;
+    assert.ok(solved.nodes.every((n) => n.sigmaM > 0 && n.sigmaM < 0.5));
+
+    for (const n of solved.nodes) {
+      m.nodes.n01.gossip.publish({
+        type: "node_config", node: n.node, x: n.x, y: n.y, sigma_m: n.sigmaM, enabled: true,
+      });
+    }
+    await waitFor(
+      // bringUp already placed each node once, so a second config per node is
+      // 2 * IDS.length in total.
+      () => IDS.every((id) => m.nodes[id].log.ofType("node_config").length === 2 * IDS.length),
+      8000, "survey spread"
+    );
+
+    for (const id of IDS) {
+      const latest = new Map<string, any>();
+      for (const r of m.nodes[id].log.ofType("node_config")) latest.set((r as any).node, r);
+      for (const n of solved.nodes) {
+        const got = latest.get(n.node);
+        assert.equal(got.sigma_m, n.sigmaM, `${id} lost ${n.node}'s sigma`);
+      }
+    }
+    m.close();
+  });
+
+  test("position uncertainty widens the fix rather than being decorative", async () => {
+    // The same readings and the same coordinates, differing only in how well
+    // those coordinates are known. A sigma that does not move the posterior is
+    // a number on a screen, not evidence.
+    const m = await bringUp("survey-weight");
+    const [tx, ty] = [3, 4];
+    for (const id of IDS) m.nodes[id].gossip.publish({ type: "reading", ...reading(id, tx, ty) });
+    await waitFor(
+      () => IDS.every((id) => m.nodes[id].log.ofType("reading").length === IDS.length),
+      8000, "readings spread"
+    );
+
+    const readings = [...new Map(
+      m.nodes.n06.log.ofType("reading").map((r: any) => [r.origin, r])
+    ).values()].map((r: any) => ({ node: r.origin, p: r.p, snrDb: r.snr_db }));
+    const withSigma = (sigmaM?: number) =>
+      fuse({
+        room: ROOM,
+        positions: new Map(
+          Object.entries(PLACES).map(([node, [x, y]]) => [node, { node, x, y, sigmaM }])
+        ),
+        readings,
+      })!;
+
+    const surveyed = withSigma(0.1);   // tape
+    const eyeballed = withSigma(1.5);  // dragged onto a satellite tile
+    assert.ok(
+      eyeballed.spreadM > surveyed.spreadM,
+      `eyeballed ${eyeballed.spreadM.toFixed(2)} m should exceed surveyed ${surveyed.spreadM.toFixed(2)} m`
+    );
+    // Unstated sigma keeps the pre-survey behaviour exactly.
+    assert.equal(withSigma(undefined).spreadM, withSigma(0).spreadM);
+    m.close();
   });
 
   test("a degraded network still converges", async () => {

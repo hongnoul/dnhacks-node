@@ -62,7 +62,7 @@ A separate browser page. **It has no microphone, no position, and never appears 
 | | |
 |---|---|
 | **Admit** | Nodes that scan the QR land in a pending queue; admin approves them in |
-| **Place** | Drag each node onto a room map to set its position (§13) |
+| **Place** | Survey the array by measured pairwise distance, or drag each node onto a room map (§13, §13.2) |
 | **Wire** | Draw the adjacency graph, or auto-generate it from a radius (§5) |
 | **Calibrate** | Trigger the sync chirp and show resulting per-node clock offsets (§8) |
 | **Demo** | Disable nodes, cut links, partition the mesh — the demo remote control (§12) |
@@ -646,7 +646,9 @@ This is *better* than GPS for the demo, not a downgrade:
   join flow.
 
 Record `sigma_m` honestly: ~0.1 m if marks were measured with a tape, ~0.5–1 m if placed by
-eye against a floor plan. It feeds fusion weighting.
+eye against a floor plan. It feeds fusion weighting — `fusion.ts` turns it into dB of level
+uncertainty via `effectiveSigmaDb`, so a poorly-known position widens the posterior instead
+of sharpening it (see §13.2).
 
 ### 13.1 Indoor caveats
 
@@ -661,6 +663,33 @@ eye against a floor plan. It feeds fusion weighting.
   reports, mostly better spatial diversity.
 - **2D only.** All phones sit at roughly table height, so source altitude is badly
   conditioned. Report 2D and say so; do not let the ellipse imply 3D precision.
+
+### 13.2 Setting the coordinates: survey, do not drag
+
+Dragging a marker onto a satellite tile is an eyeball measurement wearing a coordinate's
+clothes, and fusion believes those metres. `survey.ts` inverts the error budget: the
+operator measures what a tape can actually measure — the distance between two phones — and
+the coordinates are solved from those distances.
+
+Classical MDS seeds the layout, then stress majorisation (SMACOF) fits it to the measured
+pairs only, each weighted by `1/sigma²`. Partial surveys work (missing pairs weaken the
+fit rather than breaking it) and extra measurements tighten it rather than contradicting
+it. Per-node `sigma_m` comes out of the geometry of that node's own measurements — the
+GDOP argument — inflated by the reduced chi-square when the readings disagree, so one bad
+tape widens the whole array instead of hiding in an optimistic number.
+
+Three things the survey deliberately will not do:
+
+- **Guess the orientation.** Distances fix shape and size, never rotation or reflection.
+  The operator turns and mirrors the array to match the ground; the solver never picks.
+- **Pin an under-measured node.** One distance leaves a node anywhere on a circle, and
+  two collinear ones leave a mirror pair. Those nodes are flagged, not quietly placed.
+- **Claim the numbers were checked when they were not.** With `m` measurements over `n`
+  nodes, redundancy is `m − (2n − 3)`. At zero the fit is *satisfied* rather than tested;
+  at one, a blunder is absorbed evenly across every residual and cannot be attributed to a
+  pair. The console says so rather than reporting a clean rms. Only with real redundancy
+  does the offending pair stand out — the same detection/localisation split as §6.2, and
+  for the same reason.
 
 ## 14. Honest limits
 

@@ -11,7 +11,8 @@ Dedicated counter-UAS radar costs $100k+ per site and creates a single point of 
 SkyMesh is one app:
 
 - **Phone node (`/`)** — live microphone → TypeScript mel-spectrogram → CRNN via ONNX Runtime Web → drone confidence. Audio never leaves the phone; only likelihood records are shared.
-- **Unified workspace (`/station`)** — a dominant satellite basemap with real admitted participants. The right-hand control column contains onboarding, participant directory, scenario controls, inspector, topology, confidence, activity, and link emulation. It scrolls independently on desktop and stacks below the map on phones. No FitBoard scaling, panel switching, or pagination.
+- **Unified workspace (`/station`)** — a dominant satellite basemap with real admitted participants. The right-hand control column contains onboarding, participant directory, scenario controls, inspector, distance survey, topology, confidence, activity, and link emulation. It scrolls independently on desktop and stacks below the map on phones. No FitBoard scaling, panel switching, or pagination.
+- **Distance survey** — node positions are solved from measured phone-to-phone distances rather than dragged onto the map, and each one carries the uncertainty its geometry actually supports (`app/lib/survey.ts`, ARCHITECTURE.md §13.2).
 - **Scenario controls** — flight overlays, impact, interference, isolation, and replay operate on the same participant topology. Synthetic drone overlays never create microphone readings. Link-failure controls intentionally affect the real session relay.
 - **Compatibility (`/admin`, `/operator`)** — both redirect to the unified `/station` page with the session preserved. There is no separate fake-node simulator in the navigation.
 - **Relay (`server/relay.py`)** — WebSocket transport for browser nodes. It routes opaque peer messages and serves the static export for one-origin HTTPS demos.
@@ -83,6 +84,7 @@ APP_URL=http://127.0.0.1:8001 node tests/detector-smoke.mjs   # fake mic WAV →
 APP_URL=http://127.0.0.1:8001 node tests/ui-smoke.mjs           # four nodes join, all rows render without pagination
 UI_BASE_URL=http://localhost:3000 node tests/ui-viewport-smoke.mjs  # map-first desktop/mobile layout
 APP_URL=http://localhost:3000 node tests/operator-ui.mjs           # unified participant and scenario workflow
+APP_URL=http://localhost:3000 node tests/survey-ui.mjs             # measure pairwise distances, solve and apply positions
 ```
 
 ## What to say honestly

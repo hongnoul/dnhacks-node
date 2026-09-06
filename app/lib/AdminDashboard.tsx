@@ -26,6 +26,13 @@ import { DETECT_THRESHOLD } from "./detection.ts";
 import { DEFAULT_ROOM } from "./mesh.ts";
 import { SIMULATION_LABELS, type SimulationNotice } from "./simulationChannel.ts";
 import {
+  METHOD_SIGMA_M,
+  pairKey,
+  solveSurvey,
+  type Measurement,
+  type SurveyMethod,
+} from "./survey.ts";
+import {
   DRONE_DETECTION_RADIUS_M,
   FLIGHT_DURATION_MS,
   IMPACT_RADIUS_M,
@@ -92,6 +99,15 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
   const { mesh, view } = useMesh({ passive: true, forceId: ADMIN_ID });
   const mapBox = useContainerWidth(560);
 
+  // Distance survey (§13). Keyed by pair so re-measuring overwrites rather than
+  // accumulating, and kept as typed text so a half-entered "1." is not read as
+  // a measurement the moment the operator pauses.
+  const [surveyText, setSurveyText] = useState<Record<string, string>>({});
+  const [surveyMethod, setSurveyMethod] = useState<SurveyMethod>("tape");
+  const [surveyRotate, setSurveyRotate] = useState(0);
+  const [surveyFlip, setSurveyFlip] = useState(false);
+  const [surveyPreview, setSurveyPreview] = useState(false);
+
   // Scenario controls (Avery's demo layer, rewired to live mesh primitives).
   const [mode, setMode] = useState<MapMode>("idle");
   const [events, setEvents] = useState<ActivityEvent[]>([]);
@@ -157,12 +173,79 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
   // record owners as current participants.
   const positions = new Map([...(view?.positions ?? new Map())].filter(([id]) => admitted.includes(id)));
   const unplaced = new Set(admitted.filter(id => !positions.has(id)));
+
+  // ---- distance survey (§13) ----
+
+  /** Every unordered pair of admitted participants, in a stable order. */
+  const surveyPairs = useMemo(() => {
+    const out: [string, string][] = [];
+    for (let i = 0; i < admitted.length; i++)
+      for (let j = i + 1; j < admitted.length; j++) out.push([admitted[i], admitted[j]]);
+    return out;
+  }, [admitted.join(",")]);
+
+  const surveyMeasurements: Measurement[] = useMemo(
+    () =>
+      surveyPairs
+        .map(([a, b]) => ({ a, b, dM: Number.parseFloat(surveyText[pairKey(a, b)] ?? "") }))
+        .filter((m) => Number.isFinite(m.dM) && m.dM > 0),
+    [surveyPairs, surveyText]
+  );
+
+  const survey = useMemo(
+    () =>
+      solveSurvey(surveyMeasurements, {
+        room: DEFAULT_ROOM,
+        rotateDeg: surveyRotate,
+        flip: surveyFlip,
+        defaultSigmaM: METHOD_SIGMA_M[surveyMethod],
+      }),
+    [surveyMeasurements, surveyRotate, surveyFlip, surveyMethod]
+  );
+
+  /** Residual per pair, so the offending box can flag itself where it was typed. */
+  const surveyResidualByPair = useMemo(
+    () => new Map((survey?.residuals ?? []).map((r) => [pairKey(r.a, r.b), r])),
+    [survey]
+  );
+
+  function applySurvey() {
+    if (!mesh || !survey) return;
+    for (const n of survey.nodes) mesh.publishPosition(n.node, n.x, n.y, true, n.sigmaM);
+    setSurveyPreview(false);
+    const worst = Math.max(...survey.nodes.map((n) => n.sigmaM));
+    // Everything the panel is willing to warn about on screen has to reach the
+    // activity log too. Logging a survey with a 100-sigma residual as "success"
+    // is how a bad tape becomes the record of what happened.
+    const doubts = [
+      survey.nodes.some((n) => n.underdetermined) && "some participants not pinned in 2D",
+      survey.worstSigmas > 3 && `worst pair off by ${survey.worstSigmas.toFixed(1)}σ`,
+      !survey.fitsRoom && "array larger than the room frame",
+    ].filter(Boolean) as string[];
+    log(
+      `Survey applied — ${survey.nodes.length} participants placed, worst sigma ${worst.toFixed(2)} m` +
+        (doubts.length ? ` — ${doubts.join("; ")}` : ""),
+      doubts.length ? "warning" : "success"
+    );
+    if (survey.excluded.length) {
+      log(`Not placed — no measurement path to ${survey.excluded.join(", ")}`, "warning");
+    }
+  }
+
   // Unplaced participants are visible in a staging row, not fabricated physical
   // positions. Only an explicit drag/place publishes a room coordinate.
   const mapPositions = new Map(positions);
   [...unplaced].forEach((node, i) => mapPositions.set(node, {
     node, x: DEFAULT_ROOM.w * (i + 1) / (unplaced.size + 1), y: DEFAULT_ROOM.h * 0.93,
   }));
+  // Preview is deliberately separate from apply: the solved layout is a
+  // proposal until the operator publishes it, and a rotation they are still
+  // adjusting should not be gossiping a new position on every click.
+  if (surveyPreview && survey) {
+    for (const n of survey.nodes) {
+      if (admitted.includes(n.node)) mapPositions.set(n.node, { node: n.node, x: n.x, y: n.y, sigmaM: n.sigmaM });
+    }
+  }
   const target = admitted.includes(placeTarget) ? placeTarget : (selected && admitted.includes(selected) ? selected : admitted[0] ?? "");
   useEffect(() => {
     if (selected && !admitted.includes(selected)) setSelected(null);
@@ -663,7 +746,7 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
                     : linking ? "Click two participants to add or remove a live link." : "Select to inspect. Drag a participant to assign its room position."}
             {pendingEdge && <b style={{ color: "var(--accent)" }}> linking from {pendingEdge}…</b>}
           </div>
-          <p className="map-legend">Solid nodes: assigned room positions. Dashed nodes: unplaced participants in a staging row, not GPS locations. Scenario overlays never become live readings.</p>
+          <p className="map-legend">Solid nodes: assigned room positions. Dashed nodes: unplaced participants in a staging row, not GPS locations. A faint dashed ring marks a participant whose position is less certain than its dot, drawn to scale. Scenario overlays never become live readings.{surveyPreview && survey ? " Survey preview is showing — positions are a proposal until applied." : ""}</p>
           <div style={{ fontSize: 13, marginTop: 6 }}>
             {est && est.localised ? (
               <>
@@ -758,6 +841,158 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
                 </div>
               );
             })}
+          </div>
+
+          <div className="panel" data-section="survey">
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <h2 style={{ margin: 0 }}>Distance survey <Tag type="cyan" size="sm">Geometry</Tag></h2>
+              {survey && (
+                <span className="dim" style={{ fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+                  {surveyMeasurements.length}/{surveyPairs.length} pairs
+                </span>
+              )}
+            </div>
+            <p className="dim" style={{ fontSize: 12, marginTop: 6 }}>
+              Measure participant to participant and type it in. Positions are solved from
+              the distances, so the array&apos;s shape comes from the tape and only its
+              orientation from you. A tape is ~0.1 m; dragging a marker is ~1 m.
+            </p>
+
+            <label className="placement-target">Measured with
+              <select
+                aria-label="Survey method"
+                value={surveyMethod}
+                onChange={e => setSurveyMethod(e.target.value as SurveyMethod)}
+              >
+                <option value="laser">laser rangefinder — ±0.05 m</option>
+                <option value="tape">tape measure — ±0.10 m</option>
+                <option value="paced">paced out — ±0.50 m</option>
+                <option value="eyeball">estimated by eye — ±1.00 m</option>
+              </select>
+            </label>
+
+            {surveyPairs.length === 0 ? (
+              <p className="dim" style={{ fontSize: 12 }}>Admit at least two participants to survey.</p>
+            ) : (
+              <div className="survey-grid">
+                {surveyPairs.map(([a, b]) => {
+                  const key = pairKey(a, b);
+                  const resid = surveyResidualByPair.get(key);
+                  // Flag the box the operator typed into, not a summary
+                  // elsewhere: the whole point is finding the one bad entry.
+                  const bad = resid ? resid.sigmas > 3 : false;
+                  return (
+                    <label className="survey-row" key={key}>
+                      <span className="survey-pair">{a} · {b}</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.1"
+                        min="0"
+                        placeholder="—"
+                        aria-label={`Measured distance from ${a} to ${b}, metres`}
+                        value={surveyText[key] ?? ""}
+                        onChange={e => setSurveyText(t => ({ ...t, [key]: e.target.value }))}
+                        className={bad ? "survey-bad" : undefined}
+                      />
+                      <span className="survey-resid" style={{ color: bad ? "var(--hot)" : undefined }}>
+                        {/* A signed "-0.00" reads as an error the operator cannot
+                            find. Below display resolution, say zero. */}
+                        {resid
+                          ? Math.abs(resid.residualM) < 0.005
+                            ? "0.00"
+                            : `${resid.residualM > 0 ? "+" : "−"}${Math.abs(resid.residualM).toFixed(2)}`
+                          : ""}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            {survey && (
+              <>
+                <div className="row" style={{ flexWrap: "wrap", marginTop: 10, alignItems: "center", gap: 8 }}>
+                  <span className="dim" style={{ fontSize: 12 }}>Orientation</span>
+                  <ActionButton onClick={() => setSurveyRotate(r => (r - 15) % 360)}>rotate −15°</ActionButton>
+                  <ActionButton onClick={() => setSurveyRotate(r => (r + 15) % 360)}>rotate +15°</ActionButton>
+                  <ActionButton
+                    className={surveyFlip ? "primary" : ""}
+                    onClick={() => setSurveyFlip(f => !f)}
+                  >
+                    mirror
+                  </ActionButton>
+                </div>
+                <p className="dim" style={{ fontSize: 11, marginTop: 4 }}>
+                  Distances fix the shape and size, never which way it points or which way
+                  round it is. Turn it until it matches the ground — {surveyRotate}°
+                  {surveyFlip ? ", mirrored" : ""}.
+                </p>
+
+                {/* "Measurements agree" is only worth saying when the survey had
+                    the power to disagree. With one spare measurement a blunder is
+                    absorbed into every residual at once — the operator is reading
+                    reassurance the numbers cannot support, so name the weakness
+                    instead of the clean rms. */}
+                <p className={`survey-note${survey.worstSigmas > 3 ? " survey-warn" : ""}`}>
+                  rms residual {survey.rmsResidualM.toFixed(2)} m · redundancy {survey.redundancy}
+                  {survey.redundancy <= 0
+                    ? " — no spare measurements, so the fit is satisfied rather than tested"
+                    : survey.worstSigmas > 3
+                      ? ` — worst pair off by ${survey.worstSigmas.toFixed(1)}σ, re-measure it`
+                      : survey.redundancy < 3
+                        ? ` — only ${survey.redundancy} spare measurement${survey.redundancy === 1 ? "" : "s"}, so a wrong entry can hide in the fit. Measure more pairs to check it.`
+                        : " — measurements agree"}
+                </p>
+                {/* A true axis ratio now, so 0.1 reads as "ten times longer
+                    than wide" rather than an eigenvalue with no plain meaning. */}
+                {survey.aspect < 0.1 && (
+                  <p className="survey-note survey-warn">
+                    Participants came out in a line. The posterior stays sharp only where
+                    node distances differ (§13.1) — spread them out.
+                  </p>
+                )}
+                {survey.nodes.some(n => n.underdetermined) && (
+                  <p className="survey-note survey-warn">
+                    Not pinned in two dimensions:{" "}
+                    {survey.nodes.filter(n => n.underdetermined).map(n => n.node).join(", ")}.
+                    Measure each to at least two others, from different directions.
+                  </p>
+                )}
+                {survey.excluded.length > 0 && (
+                  <p className="survey-note survey-warn">
+                    No measurement path to {survey.excluded.join(", ")} — they would land in a
+                    separate frame, so they are left unplaced.
+                  </p>
+                )}
+                {!survey.fitsRoom && (
+                  <p className="survey-note survey-warn">
+                    Solved array spans {survey.extentM.w.toFixed(1)} × {survey.extentM.h.toFixed(1)} m,
+                    larger than the {DEFAULT_ROOM.w} × {DEFAULT_ROOM.h} m frame. Positions stay
+                    true to the tape; the occupancy grid only covers the frame.
+                  </p>
+                )}
+
+                <div className="row" style={{ flexWrap: "wrap", marginTop: 10 }}>
+                  <ActionButton
+                    className={surveyPreview ? "primary" : ""}
+                    onClick={() => setSurveyPreview(p => !p)}
+                  >
+                    {surveyPreview ? "hide preview" : "preview on map"}
+                  </ActionButton>
+                  <ActionButton onClick={applySurvey}>apply positions</ActionButton>
+                  <ActionButton
+                    onClick={() => {
+                      setSurveyText({});
+                      setSurveyPreview(false);
+                      log("Survey cleared", "info");
+                    }}
+                  >
+                    clear
+                  </ActionButton>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="panel" data-section="topology">
@@ -942,7 +1177,12 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
                 <div className="row" style={{ justifyContent: "space-between" }}>
                   <dt className="dim">position</dt>
                   <dd style={{ margin: 0 }}>
-                    {selectedPos ? `${selectedPos.x.toFixed(1)}, ${selectedPos.y.toFixed(1)} m` : "unplaced"}
+                    {selectedPos
+                      ? `${selectedPos.x.toFixed(1)}, ${selectedPos.y.toFixed(1)} m`
+                        // A coordinate without its uncertainty invites more trust than it
+                        // has earned. Say which kind of number this is.
+                        + (selectedPos.sigmaM ? ` ±${selectedPos.sigmaM.toFixed(2)} surveyed` : " · placed by hand")
+                      : "unplaced"}
                   </dd>
                 </div>
                 <div className="row" style={{ justifyContent: "space-between" }}>
@@ -1047,7 +1287,9 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
                         {p === undefined ? "—" : p.toFixed(2)}
                       </td>
                       <td className="dim">
-                        {pos ? `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}` : "unplaced"}
+                        {pos
+                          ? `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}${pos.sigmaM ? ` ±${pos.sigmaM.toFixed(2)}` : ""}`
+                          : "unplaced"}
                       </td>
                       <td className="dim">
                         {(state.topology[n] ?? []).filter((x) => x !== ADMIN_ID).join(" ") || "—"}

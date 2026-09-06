@@ -13,6 +13,7 @@ import {
   expectedSnr,
   DEFAULT_MODEL,
   DEFAULT_RANGE,
+  effectiveSigmaDb,
   type Placed,
   type NodeReading,
 } from "../app/lib/fusion.ts";
@@ -205,5 +206,58 @@ describe("fusion — degraded (p only)", () => {
       })!.spreadM;
     const gain = spread(3) / spread(6);
     assert.ok(gain < 1.5, `p-only improvement should be marginal, was ${gain.toFixed(2)}x`);
+  });
+});
+
+describe("position uncertainty (sigma_m, ARCHITECTURE.md §13)", () => {
+  const truth: [number, number] = [4, 3];
+  const readings = [...perimeter.values()].map((p) => measure(p, truth[0], truth[1]));
+  const withSigma = (sigmaM?: number, only?: string) =>
+    fuse({
+      room,
+      positions: new Map(
+        [...perimeter.entries()].map(([id, p]) => [
+          id,
+          { ...p, sigmaM: !only || only === id ? sigmaM : 0.1 },
+        ])
+      ),
+      readings,
+    })!;
+
+  test("a worse-known array gives a wider fix", () => {
+    assert.ok(withSigma(2).spreadM > withSigma(0.1).spreadM);
+  });
+
+  test("unstated sigma keeps the pre-survey behaviour exactly", () => {
+    const bare = fuse({ room, positions: perimeter, readings })!;
+    const zero = withSigma(0);
+    assert.equal(bare.spreadM, zero.spreadM);
+    assert.equal(bare.x, zero.x);
+    assert.equal(bare.y, zero.y);
+  });
+
+  test("sigma is bigger where the level curve is flat", () => {
+    // 8.686/d dB per metre: position error dominates up close and fades far
+    // away. This is what makes the likelihood's 1/sigma stop cancelling.
+    const near = effectiveSigmaDb(1, DEFAULT_RANGE, 2);
+    const far = effectiveSigmaDb(10, DEFAULT_RANGE, 2);
+    assert.ok(near > far * 3, `${near.toFixed(1)} dB at 1 m vs ${far.toFixed(1)} dB at 10 m`);
+    assert.equal(effectiveSigmaDb(5, DEFAULT_RANGE, undefined), DEFAULT_RANGE.sigmaDb);
+    assert.equal(effectiveSigmaDb(5, DEFAULT_RANGE, 0), DEFAULT_RANGE.sigmaDb);
+  });
+
+  test("one badly surveyed node does not drag the fix toward itself", () => {
+    // The Gaussian branch needs its 1/sigma normaliser. Without it, cells near a
+    // wide-sigma node score as if that node were as informative as the tight
+    // ones, and the MAP slides toward it. sigma varies per cell now, so the
+    // factor no longer divides out in normalisation.
+    const tight = withSigma(0.1);
+    const oneLoose = withSigma(3, "n01"); // n01 sits at (0.5, 0.5)
+    const pull =
+      Math.hypot(oneLoose.x - 0.5, oneLoose.y - 0.5) - Math.hypot(tight.x - 0.5, tight.y - 0.5);
+    assert.ok(
+      pull > -0.15,
+      `a vaguer node pulled the fix ${(-pull).toFixed(2)} m toward itself`
+    );
   });
 });

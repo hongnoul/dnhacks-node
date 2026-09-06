@@ -44,7 +44,12 @@ export default function GeographicMap(props: RoomMapProps) {
   const [configured, setConfigured] = useState(false);
   const [error, setError] = useState("");
   const [tileError, setTileError] = useState(false);
-  const [fitSequence, setFitSequence] = useState(0);
+  // Fit the participant area on first paint, not the anchor at zoom 18.
+  // A 12 m room at zoom 18 is a ~26 px box on a ~1000 px basemap: too small to
+  // click into, so placing or dragging a participant was impossible until
+  // someone found the "Fit participant area" button. Zero still means overview,
+  // so that button and "Area overview" keep working as before.
+  const [fitSequence, setFitSequence] = useState(1);
   const [overviewSequence, setOverviewSequence] = useState(0);
   useEffect(() => {
     try {
