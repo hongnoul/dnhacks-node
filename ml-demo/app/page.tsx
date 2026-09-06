@@ -33,7 +33,7 @@ const WINDOW_MS = 60_000;
 const MAX_POINTS = 28_800; // ~2 h cap at 4 Hz to bound memory
 
 type Phase = "idle" | "loading" | "starting" | "listening" | "error";
-type Point = { t: number; p: number };
+type Point = { t: number; p: number; d: boolean };
 
 function randomNodeId(): string {
   return Math.random().toString(36).slice(2, 8);
@@ -120,13 +120,14 @@ function drawGraph(canvas: HTMLCanvasElement, history: Point[], now: number) {
     return;
   }
 
-  // Red fill wherever the line is above threshold
+  // Red fill + red segments wherever the latched detection state is on
+  // (covers marginal trips that sit below the trip line).
   ctx.beginPath();
   let filling = false;
   for (let i = 0; i < vis.length; i++) {
     const px = Math.max(padL, x(vis[i].t));
     const py = y(vis[i].p);
-    if (vis[i].p >= DETECT_THRESHOLD) {
+    if (vis[i].d) {
       if (!filling) {
         ctx.moveTo(px, y(DETECT_THRESHOLD));
         ctx.lineTo(px, py);
@@ -155,7 +156,7 @@ function drawGraph(canvas: HTMLCanvasElement, history: Point[], now: number) {
   for (let i = 1; i < vis.length; i++) {
     const a = vis[i - 1];
     const b = vis[i];
-    ctx.strokeStyle = (b.p >= DETECT_THRESHOLD || a.p >= DETECT_THRESHOLD) ? RED : GREEN;
+    ctx.strokeStyle = b.d || a.d ? RED : GREEN;
     ctx.beginPath();
     ctx.moveTo(Math.max(padL, x(a.t)), y(a.p));
     ctx.lineTo(Math.max(padL, x(b.t)), y(b.p));
@@ -165,7 +166,7 @@ function drawGraph(canvas: HTMLCanvasElement, history: Point[], now: number) {
   // Red ticks along the top edge for each rising-edge crossing in view
   ctx.fillStyle = RED;
   for (let i = 1; i < vis.length; i++) {
-    if (vis[i - 1].p < DETECT_THRESHOLD && vis[i].p >= DETECT_THRESHOLD) {
+    if (!vis[i - 1].d && vis[i].d) {
       const px = Math.max(padL, x(vis[i].t));
       ctx.fillRect(px - 1, 0, 2, 6);
     }
@@ -176,7 +177,7 @@ function drawGraph(canvas: HTMLCanvasElement, history: Point[], now: number) {
   if (now - last.t < WINDOW_MS) {
     ctx.beginPath();
     ctx.arc(Math.max(padL, x(last.t)), y(last.p), 4, 0, Math.PI * 2);
-    ctx.fillStyle = last.p >= DETECT_THRESHOLD ? RED : GREEN;
+    ctx.fillStyle = last.d ? RED : GREEN;
     ctx.fill();
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 1.5;
@@ -281,8 +282,15 @@ export default function NodePage() {
           }
           const p = display;
           setConf(p);
+          // Compute the hysteresis verdict BEFORE appending the point so
+          // the graph pixel for this tick carries the latched state.
+          const was = wasDetectingRef.current;
+          marginalRef.current = raw >= MARGINAL_FLOOR ? marginalRef.current + 1 : 0;
+          const detecting = was
+            ? raw >= RELEASE_THRESHOLD || raw >= MARGINAL_FLOOR
+            : raw >= DETECT_THRESHOLD || marginalRef.current >= MARGINAL_TICKS;
           setHistory((prevHist) => {
-            const next = [...prevHist, { t, p }];
+            const next = [...prevHist, { t, p, d: detecting }];
             return next.length > MAX_POINTS ? next.slice(next.length - MAX_POINTS) : next;
           });
           // Hysteresis: trip at 0.35, hold until below 0.25 — a flickering
@@ -292,11 +300,6 @@ export default function NodePage() {
           // marginally, hold while raw stays >= 0.22 so the pill does not
           // chatter between the marginal floor and the release point.
           // Noise sits <0.06 sustained, so 0.22 is safe.
-          const was = wasDetectingRef.current;
-          marginalRef.current = raw >= MARGINAL_FLOOR ? marginalRef.current + 1 : 0;
-          const detecting = was
-            ? raw >= RELEASE_THRESHOLD || raw >= MARGINAL_FLOOR
-            : raw >= DETECT_THRESHOLD || marginalRef.current >= MARGINAL_TICKS;
           if (detecting && !was) {
             setDetections((n) => n + 1);
             setLastDetectAt(new Date().toLocaleTimeString());
