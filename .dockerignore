@@ -1,0 +1,9 @@
+.git
+.next
+out
+node_modules
+server/.venv
+**/__pycache__
+.env*
+.vercel
+sim-demo

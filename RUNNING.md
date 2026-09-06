@@ -1,5 +1,22 @@
 # Running the mesh
 
+## Railway (recommended for phones)
+
+1. In [Railway](https://railway.com/new), choose **Deploy from GitHub repo** and select
+   `hongnoul/dnhacks-node`. Keep the service root at `/`.
+2. Railway uses the repository Dockerfile and `railway.json` automatically.
+   No environment variables or custom build/start commands are needed.
+3. In the service's **Settings → Networking**, click **Generate Domain**.
+   If prompted for a target port, use `8080` (or the value of `PORT` if you set it).
+4. Open `https://<your-domain>/station/` and scan that page's QR with phones.
+   The frontend and `/ws` run together with HTTPS/WSS. Your laptop can stop the local relay.
+
+Keep **one replica**, with serverless/sleep disabled during demos. Session state is
+in memory, so restarts/deployments reset sessions. This is a public demo relay,
+not an authenticated production service. Railway may require credits or a paid plan.
+
+## Local development
+
     npm install
     python3 -m venv server/.venv && ./server/.venv/bin/pip install -r server/requirements.txt
 
