@@ -67,6 +67,12 @@ for _ in $(seq 1 90); do
 done
 
 if [ -n "$URL" ]; then
+  # Rebuild once with the public origin so og:image/twitter:image are absolute
+  # URLs pointing at this tunnel — link unfurlers fetch them without a page
+  # context, so the localhost fallback would render no thumbnail. The relay
+  # serves HTML from disk per request, so it picks up the rebuild live.
+  echo "==> rebuilding with NEXT_PUBLIC_SITE_URL=$URL for link previews"
+  STATIC=1 NEXT_PUBLIC_RELAY_URL=/ws NEXT_PUBLIC_SITE_URL="$URL" npx next build >/dev/null
   STATION_URL="$URL/station/"
   echo ""
   echo "============================================================"
