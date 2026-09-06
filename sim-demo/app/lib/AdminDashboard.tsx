@@ -91,8 +91,11 @@ export function AdminDashboard() {
   const [simDetecting, setSimDetecting] = useState<string[]>([]);
   const [alertRoute, setAlertRoute] = useState<AlertRoute | null>(null);
   const [impact, setImpact] = useState<{ x: number; y: number; ids: string[] } | null>(null);
+  const [interference, setInterference] = useState(false);
+  const [replaying, setReplaying] = useState(false);
   const flightRef = useRef<number | null>(null);
   const alertTimerRef = useRef<number | null>(null);
+  const replayTimerRef = useRef<number | null>(null);
   const detectedRef = useRef<Set<string>>(new Set());
 
   function log(message: string, tone: ActivityEvent["tone"] = "info") {
@@ -397,6 +400,59 @@ export function AdminDashboard() {
     flightRef.current = window.requestAnimationFrame(step);
   }
 
+  function setInterferenceOn(on: boolean) {
+    setInterference(on);
+    if (on) {
+      sensorLinks.forEach((l) => chan?.setLink(l.a, l.b, { latency_ms: 500, loss: 0.2 }));
+      log("Interference on — 500 ms, 20% loss on all links", "warning");
+    } else {
+      sensorLinks.forEach((l) => chan?.setLink(l.a, l.b, { latency_ms: 50, loss: 0, up: true }));
+      log("Links restored to nominal", "success");
+    }
+  }
+
+  /**
+   * One-click demo: interference on, then a drone flight across the room while
+   * links are degraded, then restore. Ports Avery's replayScenario — the flight
+   * path is fixed (west to east edge) so there is nothing to aim.
+   */
+  function replayScenario() {
+    if (replaying) return;
+    resetDrone();
+    setReplaying(true);
+    setInterferenceOn(true);
+    log("Replay started: drone flight under interference", "warning");
+    const start = { x: DEFAULT_ROOM.w * 0.1, y: DEFAULT_ROOM.h / 2 };
+    const dest = { x: DEFAULT_ROOM.w * 0.9, y: DEFAULT_ROOM.h / 2 };
+    setDroneStart(start);
+    setDroneDest(dest);
+    setDronePos(start);
+    setDronePhase("flying");
+    detectedRef.current.clear();
+    setAlertRoute(null);
+    setSimDetecting([]);
+    const t0 = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / FLIGHT_DURATION_MS);
+      const p = interpolatePosition(start, dest, t);
+      setDronePos(p);
+      updateSimDetections(p);
+      if (t < 1) {
+        flightRef.current = window.requestAnimationFrame(step);
+      } else {
+        flightRef.current = null;
+        setDronePhase("complete");
+        log("Replay flight complete", "success");
+        replayTimerRef.current = window.setTimeout(() => {
+          setInterferenceOn(false);
+          setReplaying(false);
+          log("Replay sequence complete", "success");
+        }, 1_500);
+      }
+    };
+    flightRef.current = window.requestAnimationFrame(step);
+  }
+
   function disableRandomNode() {
     const ids = admitted.filter((n) => {
       const ns = state.topology[n] ?? [];
@@ -419,6 +475,7 @@ export function AdminDashboard() {
     () => () => {
       if (flightRef.current !== null) window.cancelAnimationFrame(flightRef.current);
       if (alertTimerRef.current !== null) window.clearTimeout(alertTimerRef.current);
+      if (replayTimerRef.current !== null) window.clearTimeout(replayTimerRef.current);
     },
     []
   );
@@ -635,10 +692,10 @@ export function AdminDashboard() {
                 className="dim"
                 style={{
                   fontSize: 12,
-                  color: impact ? "var(--hot)" : connected ? "var(--ok)" : "var(--warn)",
+                  color: impact || interference ? "var(--hot)" : connected ? "var(--ok)" : "var(--warn)",
                 }}
               >
-                {impact ? "elevated" : connected ? "nominal" : "partitioned"}
+                {impact || interference ? "elevated" : connected ? "nominal" : "partitioned"}
               </span>
             </div>
             <div className="row" style={{ flexWrap: "wrap", marginTop: 8 }}>
@@ -661,20 +718,13 @@ export function AdminDashboard() {
               </button>
               <button onClick={disableRandomNode}>− disable random node</button>
               <button
-                onClick={() => {
-                  sensorLinks.forEach((l) => chan?.setLink(l.a, l.b, { latency_ms: 500, loss: 0.2 }));
-                  log("Interference on — 500 ms, 20% loss on all links", "warning");
-                }}
+                className={interference ? "primary" : ""}
+                onClick={() => setInterferenceOn(!interference)}
               >
-                ≋ simulate interference
+                {interference ? "≋ interference on (clear)" : "≋ simulate interference"}
               </button>
-              <button
-                onClick={() => {
-                  sensorLinks.forEach((l) => chan?.setLink(l.a, l.b, { latency_ms: 50, loss: 0, up: true }));
-                  log("Links restored to nominal", "success");
-                }}
-              >
-                ↻ clear interference
+              <button onClick={replayScenario} disabled={replaying}>
+                {replaying ? "↻ replaying…" : "↻ replay scenario"}
               </button>
             </div>
             <div className="row" style={{ marginTop: 8, fontSize: 12 }}>

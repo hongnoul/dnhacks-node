@@ -89,7 +89,11 @@ map and rewired from mock state to live mesh primitives:
 - **simulate impact** — click the map to cut every link touching nodes in the
   3 m blast radius; links restore after 8 s. Real partition, not a mock flag.
 - **disable random node** — isolates one node for 6 s, then it rejoins.
-- **interference / clear** — 500 ms + 20% loss on all links, then back to nominal.
+- **simulate interference** — toggles 500 ms + 20% loss on all links; the badge
+  reads elevated while on. Click again to restore nominal.
+- **replay scenario** — one-click demo: interference on, a drone flight across
+  the room while links are degraded, then restore. Fixed west-to-east path, so
+  there is nothing to aim.
 - **health + connectivity** — share of admitted nodes with fresh readings, and
   whether the sensor graph is connected over links that are up.
 

@@ -96,11 +96,20 @@ await n1.waitForFunction(
 }).catch(() => bad("no records reached the node"));
 
 console.log("cut a link");
+// A previous run may have left a link cut (button reads "restore") — either
+// label proves the control rendered from live relay link state.
 const cut = admin.getByRole("button", { name: "cut" }).first();
+const restore = admin.getByRole("button", { name: "restore" }).first();
 if (await cut.count()) {
   await cut.click();
   await admin.waitForFunction(() => document.body.innerText.includes("restore"), { timeout: 5000 })
     .then(() => ok("link cut and restorable")).catch(() => bad("cut did not take"));
+} else if (await restore.count()) {
+  await restore.click();
+  await admin.waitForFunction(
+    () => admin.getByRole("button", { name: "cut" }).count(),
+    { timeout: 5000 }
+  ).then(() => ok("link restored, cut available again")).catch(() => bad("restore did not take"));
 } else bad("no cut control found");
 
 console.log("scenario controls");
@@ -147,6 +156,13 @@ await admin.getByRole("button", { name: /cancel impact/i }).click();
 // Clicking a node row opens the inspector with heartbeat and links.
 await admin.waitForFunction(() => document.body.innerText.includes("scenario events") || document.body.innerText.includes("events"), { timeout: 5000 })
   .then(() => ok("activity log present")).catch(() => bad("no activity log"));
+
+// Replay: one click runs interference + flight + restore, then reports done.
+await admin.getByRole("button", { name: /replay scenario/i }).click();
+await admin.waitForFunction(() => document.body.innerText.includes("Replay started"), { timeout: 5000 })
+  .then(() => ok("replay sequence starts")).catch(() => bad("replay did not start"));
+await admin.waitForFunction(() => document.body.innerText.includes("Replay sequence complete"), { timeout: 20000 })
+  .then(() => ok("replay sequence completes")).catch(() => bad("replay did not complete"));
 
 if (errors.length) { console.log("\npage errors:"); errors.forEach((e) => console.log("   ", e.split("\n")[0])); }
 await browser.close();
