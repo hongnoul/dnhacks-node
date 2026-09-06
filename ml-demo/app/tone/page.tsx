@@ -11,24 +11,20 @@
 //
 // Audio credit: Drone Audio Detection Samples (DADS, MIT),
 // https://huggingface.co/datasets/geronimobasso/drone-audio-detection-samples
-// 3D credit: "Drone" by NateGazzard, CC-BY 3.0 via Poly Pizza,
-// https://poly.pizza/m/DNbUoMtG3H (vendored in /public/models).
+// 3D: procedural FPV-style quadcopter (no external asset).
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import QRCode from "react-qr-code";
 
 // Apex = production node page the phone opens.
 const APEX_URL = "https://dnhacks-node.vercel.app";
-const MODEL_SRC = "/models/drone-nate.glb";
 
 export default function TonePage() {
   const [playing, setPlaying] = useState(false);
   const [spin, setSpin] = useState(false);
   const [ready, setReady] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const mountRef = useRef<HTMLDivElement | null>(null);
   const droneRef = useRef<HTMLAudioElement | null>(null);
   const spinRef = useRef(false);
@@ -39,7 +35,7 @@ export default function TonePage() {
     spinRef.current = spin;
   }, [spin]);
 
-  // Three.js scene: top-pick drone, orbit drag, click = spin + sound.
+  // Three.js scene: procedural FPV quad, orbit drag, click = spin + sound.
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
@@ -78,27 +74,145 @@ export default function TonePage() {
     scene.add(drone);
     const clock = new THREE.Clock();
 
-    new GLTFLoader().load(
-      MODEL_SRC,
-      (gltf) => {
-        if (disposed) return;
-        const model = gltf.scene;
-        // Center + normalize: model spans z in [-0.5, 0.26].
-        model.position.set(0, 0, 0.13);
-        drone.add(model);
-        // Named rotor nodes spin around local Y (thin flat discs, Y ~ 0.008).
-        rotorsRef.current = [];
-        model.traverse((o) => {
-          if (/rotor/i.test(o.name)) rotorsRef.current.push(o);
-        });
-        setReady(true);
-      },
-      undefined,
-      (err: unknown) => {
-        if (!disposed)
-          setLoadError(err instanceof Error ? err.message : "failed to load drone.glb");
-      },
+    // Alternative model: procedural cinewhoop-style FPV quad with prop
+    // guards, orange canopy accents, and a front FPV camera. Built from
+    // primitives so /tone works fully offline with zero GLB downloads.
+    const carbon = new THREE.MeshStandardMaterial({
+      color: 0x23272f,
+      metalness: 0.55,
+      roughness: 0.4,
+    });
+    const accent = new THREE.MeshStandardMaterial({
+      color: 0xf97316,
+      metalness: 0.25,
+      roughness: 0.45,
+    });
+    const darkPlastic = new THREE.MeshStandardMaterial({
+      color: 0x111318,
+      metalness: 0.2,
+      roughness: 0.7,
+    });
+    const bladeMat = new THREE.MeshStandardMaterial({
+      color: 0x9ca3af,
+      metalness: 0.1,
+      roughness: 0.5,
+      transparent: true,
+      opacity: 0.9,
+    });
+
+    // Central body: low slab + raised orange canopy.
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.09, 0.34), carbon);
+    drone.add(body);
+    const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.1, 24, 16), accent);
+    canopy.scale.set(1, 0.55, 1.25);
+    canopy.position.set(0, 0.06, -0.02);
+    drone.add(canopy);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.305, 0.02, 0.06), accent);
+    stripe.position.set(0, 0.01, 0.1);
+    drone.add(stripe);
+
+    // Front FPV camera eye.
+    const camBarrel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.04, 0.05, 20),
+      darkPlastic,
     );
+    camBarrel.rotation.x = Math.PI / 2;
+    camBarrel.position.set(0, 0.01, 0.19);
+    drone.add(camBarrel);
+    const lens = new THREE.Mesh(
+      new THREE.CircleGeometry(0.022, 20),
+      new THREE.MeshStandardMaterial({
+        color: 0x0ea5e9,
+        emissive: 0x0369a1,
+        emissiveIntensity: 0.9,
+        roughness: 0.2,
+      }),
+    );
+    lens.position.set(0, 0.01, 0.216);
+    drone.add(lens);
+
+    // X arms, motors, guards, and 2-blade props.
+    rotorsRef.current = [];
+    const corners: Array<[number, number]> = [
+      [1, 1],
+      [-1, 1],
+      [1, -1],
+      [-1, -1],
+    ];
+    corners.forEach(([sx, sz], i) => {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.028, 0.05), carbon);
+      arm.position.set(sx * 0.14, 0.01, sz * 0.14);
+      arm.rotation.y = sx * sz > 0 ? Math.PI / 4 : -Math.PI / 4;
+      drone.add(arm);
+
+      const mx = sx * 0.24;
+      const mz = sz * 0.24;
+      const motor = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.028, 0.032, 0.045, 16),
+        darkPlastic,
+      );
+      motor.position.set(mx, 0.045, mz);
+      drone.add(motor);
+      const bell = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.02, 0.02, 12),
+        accent,
+      );
+      bell.position.set(mx, 0.07, mz);
+      drone.add(bell);
+
+      // Prop guard ring — the visual signature of this model.
+      const guard = new THREE.Mesh(
+        new THREE.TorusGeometry(0.125, 0.009, 10, 36),
+        i < 2 ? accent : carbon,
+      );
+      guard.rotation.x = Math.PI / 2;
+      guard.position.set(mx, 0.05, mz);
+      drone.add(guard);
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.02), carbon);
+      strut.position.set(mx + sx * 0.11, 0.025, mz);
+      drone.add(strut);
+
+      const prop = new THREE.Group();
+      prop.position.set(mx, 0.085, mz);
+      const bladeGeo = new THREE.BoxGeometry(0.21, 0.005, 0.024);
+      const b1 = new THREE.Mesh(bladeGeo, bladeMat);
+      const b2 = new THREE.Mesh(bladeGeo, bladeMat);
+      b2.rotation.y = Math.PI / 2;
+      const hub = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.012, 0.012, 0.018, 10),
+        darkPlastic,
+      );
+      prop.add(b1, b2, hub);
+      drone.add(prop);
+      rotorsRef.current.push(prop);
+
+      // Status LED under each guard.
+      const led = new THREE.Mesh(
+        new THREE.SphereGeometry(0.012, 10, 8),
+        new THREE.MeshStandardMaterial({
+          color: sz > 0 ? 0x22c55e : 0xef4444,
+          emissive: sz > 0 ? 0x16a34a : 0xdc2626,
+          emissiveIntensity: 1.4,
+        }),
+      );
+      led.position.set(mx, -0.035, mz);
+      drone.add(led);
+    });
+
+    // Skids.
+    [-0.1, 0.1].forEach((x) => {
+      const leg = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.008, 0.008, 0.12, 8),
+        darkPlastic,
+      );
+      leg.position.set(x, -0.1, 0);
+      drone.add(leg);
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.015, 0.16), darkPlastic);
+      foot.position.set(x, -0.16, 0.01);
+      drone.add(foot);
+    });
+
+    if (!disposed) setReady(true);
 
     // Whole canvas is clickable via the container's onClick — no raycast
     // needed for the simplified UI.
@@ -212,7 +326,7 @@ export default function TonePage() {
           }}
           title={spin ? "Click to stop" : "Click to play"}
         >
-          {!ready && !loadError && (
+          {!ready && (
             <div
               style={{
                 position: "absolute",
@@ -225,21 +339,6 @@ export default function TonePage() {
               }}
             >
               Loading…
-            </div>
-          )}
-          {loadError && (
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#dc2626",
-                fontSize: 13,
-              }}
-            >
-              3D failed to load
             </div>
           )}
         </div>
