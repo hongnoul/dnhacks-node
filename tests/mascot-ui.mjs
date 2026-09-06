@@ -15,7 +15,7 @@ try {
   assert.equal(await art.getAttribute('data-eye-frame'),'closed');
   assert.deepEqual(await art.boundingBox(),box);
   await page.clock.runFor(150);
-  assert.equal(await art.textContent(),initial);
+  assert.equal(await art.getAttribute('data-blink-frame'),'open');
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.waitForFunction(()=>document.querySelector('[data-eye-frame]').dataset.reducedMotion==='true');
   await page.clock.runFor(20000);

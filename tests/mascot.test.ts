@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mascotFrame, type EyeFrame } from '../app/lib/mascotFrames.ts';
-const frames: EyeFrame[] = ['open','half','closed','left','right','happy'];
+const frames: EyeFrame[] = ['open','half','closed','left','right','happy','up','down','upLeft','upRight','downLeft','downRight'];
 test('mascot emotion frames keep dimensions and all non-eye cells fixed', () => {
   const base=mascotFrame('open').split('\n');
   for(const frame of frames){
@@ -12,5 +12,5 @@ test('mascot emotion frames keep dimensions and all non-eye cells fixed', () => 
       for(let x=0;x<40;x++) if(!(y>=9&&y<14&&((x>=4&&x<10)||(x>=30&&x<36)))) assert.equal(row[x],base[y][x]);
     });
   }
-  assert.equal(new Set(frames.map(mascotFrame)).size,6);
+  assert.equal(new Set(frames.map(mascotFrame)).size,12);
 });

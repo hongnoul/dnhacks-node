@@ -30,7 +30,7 @@ export function TrajectoryHero() {
             <circle r="5" fill="#c0c0c0" stroke="currentColor" strokeWidth="2" />
             <path d="M-12 0H12M0-12V12" stroke="currentColor" />
           </g>
-          <g className={styles.drone} style={{ offsetPath: `path('${track.path}')`, animationDuration: track.duration, animationDelay: track.delay }}>
+          <g data-drone={track.id} className={styles.drone} style={{ offsetPath: `path('${track.path}')`, animationDuration: track.duration, animationDelay: track.delay }}>
             <circle r="15" fill="currentColor" opacity="0.14" />
             <path d="M-7-7L7 7M-7 7L7-7" stroke="currentColor" strokeWidth="2" />
             <circle r="3" fill="#000" />

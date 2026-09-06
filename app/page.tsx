@@ -102,7 +102,7 @@ export default function NodePage() {
     return (
       <main className={styles.screen}>
         <TrajectoryHero />
-        <section className={styles.dialog} aria-labelledby="join-title" aria-busy={loading}>
+        <section data-join-panel className={styles.dialog} aria-labelledby="join-title" aria-busy={loading}>
           <div className={styles.content}>
             <h1 id="join-title" className={styles.title}>Welcome to SkyMesh</h1>
             <div className={styles.rule} />
