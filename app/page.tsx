@@ -108,7 +108,7 @@ export default function NodePage() {
         <TrajectoryHero />
         <section data-join-panel className={`${styles.dialog} ${sensorReady ? styles.departing : ""}`} aria-labelledby="join-title" aria-busy={loading}>
           <div className={styles.content}>
-            <h1 id="join-title" className={styles.title}>Welcome to SkyMesh</h1>
+            <h1 id="join-title" className={styles.title}>Welcome to SkyMesh Client</h1>
             <div className={styles.rule} />
             <p className={styles.intro}>A shared sky. Powered by your phone.</p>
             <dl className={styles.fields}>
@@ -124,7 +124,7 @@ export default function NodePage() {
               {sensorReady ? "Sensor ready!" : loading ? "Preparing your sensor…" : resume ? "Resume sensor" : "Enable microphone & join"}
             </button>
             <p className={styles.note} role="status" aria-live="polite">
-              {sensorReady ? "Sensor ready. Joining the mesh…" : loading ? "Loading the detector (~6 MB). Please wait…" : "Beta phone build. SkyMesh proper runs on frontline hardware."}
+              {sensorReady ? "Sensor ready. Joining the mesh…" : loading ? "Loading the detector (~6 MB). Please wait…" : "Controlled release. Commercial derivative of frontline SkyMesh hardware."}
             </p>
           </div>
           <div className={styles.brand}>
