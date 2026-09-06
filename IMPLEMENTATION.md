@@ -192,7 +192,7 @@ iteration-order dependence.
 
 | To | Contract |
 |---|---|
-| **ML** | ✅ **landed.** SkyMesh's CRNN runs in-browser via ONNX Runtime Web; vendored by `sim-demo/canonical detector module`. The band-energy stub is gone |
+| **ML** | ✅ **landed.** SkyMesh's CRNN runs in-browser via ONNX Runtime Web from `app/lib/detector/`. The band-energy stub is gone |
 | **Frontend** | Room map + heatmap render from `fusion.ts` output. Admin page owns topology and link controls |
 
 Both can proceed against the stub. Neither blocks the mesh.
@@ -267,7 +267,7 @@ Five things the plan got wrong, found by building it. All are reflected in
 
 ## 11. Detector integration
 
-The stub is retired: `sim-demo` now runs the canonical SkyMesh CRNN directly from
+The stub is retired: SkyMesh now runs the canonical CRNN directly from
 `app/lib/detector/`, with `drone_crnn.onnx` and the ORT wasm checked into `public/`.
 There is one source of truth inside the product app.
 

@@ -2,12 +2,11 @@ node_modules/
 .next/
 .vercel/
 *.tsbuildinfo
-sim-demo/node_modules/
-sim-demo/.next/
-sim-demo/frontend/node_modules/
-sim-demo/frontend/.next/
 .vercel
 
-# stray root build output
-.next/
-node_modules/
+server/.venv/
+server/__pycache__/
+__pycache__/
+*.pyc
+tsconfig.tsbuildinfo
+out/

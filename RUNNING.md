@@ -1,6 +1,5 @@
 # Running the mesh
 
-    cd sim-demo
     npm install
     python3 -m venv server/.venv && ./server/.venv/bin/pip install -r server/requirements.txt
 

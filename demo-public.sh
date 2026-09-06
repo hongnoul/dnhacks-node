@@ -5,7 +5,7 @@
 # one origin (and one tunnel). Prints the station URL once the tunnel is up.
 # Kill with Ctrl-C; the relay and tunnel both stop.
 #
-# Usage: npm run demo:public   (runs from sim-demo/)
+# Usage: npm run demo:public   (runs from repo root)
 
 set -e
 cd "$(dirname "$0")"

@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd sim-demo && npm run build",
-  "devCommand": "cd sim-demo && npm run dev",
-  "installCommand": "cd sim-demo && npm install",
-  "outputDirectory": "sim-demo/.next",
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "outputDirectory": ".next",
   "framework": "nextjs"
 }

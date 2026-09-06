@@ -41,19 +41,17 @@ flowchart LR
 
 ```text
 dnhacks-node/
-  sim-demo/             # SkyMesh app: node, station, relay, tests
-    app/                # Next.js app routes and client mesh/detection logic
-    app/lib/detector/   # canonical on-device detector: mic, mel, ONNX wrapper
-    public/             # ONNX model, ORT wasm, drone audio, 3D model
-    server/             # WebSocket relay and static-file serving
-    tests/              # unit, integration, gossip, relay, fusion, scenario tests
+  app/                # Next.js app routes and client mesh/detection logic
+  app/lib/detector/   # canonical on-device detector: mic, mel, ONNX wrapper
+  public/             # ONNX model, ORT wasm, drone audio, 3D model
+  server/             # WebSocket relay and static-file serving
+  tests/              # unit, integration, gossip, relay, fusion, scenario tests
   README.md
 ```
 
 ## Quickstart
 
 ```bash
-cd sim-demo
 npm install
 python3 -m venv server/.venv && ./server/.venv/bin/pip install -r server/requirements.txt
 npm run relay   # FastAPI relay on :8001
@@ -65,7 +63,6 @@ Open `/station` on the laptop. Phones scan the QR and join `/` for the same sess
 For a public phone-safe demo:
 
 ```bash
-cd sim-demo
 npm run demo:public
 ```
 
@@ -74,7 +71,6 @@ That builds a static app, serves it from the relay beside `/ws`, and prints a tu
 ## Tests
 
 ```bash
-cd sim-demo
 npm test
 npm run build
 node tests/detector-smoke.mjs   # with dev/relay running
