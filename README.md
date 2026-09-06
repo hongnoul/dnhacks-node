@@ -11,7 +11,7 @@ Dedicated counter-UAS radar costs $100k+ per site and creates a single point of 
 SkyMesh is one app:
 
 - **Phone node (`/`)** — live microphone → TypeScript mel-spectrogram → CRNN via ONNX Runtime Web → drone confidence. Audio never leaves the phone; only likelihood records are shared.
-- **Unified workspace (`/station`)** — a dominant geographic basemap with real admitted participants. The right-hand control column contains onboarding, participant directory, scenario controls, inspector, topology, confidence, activity, and link emulation. It scrolls independently on desktop and stacks below the map on phones. No FitBoard scaling, panel switching, or pagination.
+- **Unified workspace (`/station`)** — a dominant satellite basemap with real admitted participants. The right-hand control column contains onboarding, participant directory, scenario controls, inspector, topology, confidence, activity, and link emulation. It scrolls independently on desktop and stacks below the map on phones. No FitBoard scaling, panel switching, or pagination.
 - **Scenario controls** — flight overlays, impact, interference, isolation, and replay operate on the same participant topology. Synthetic drone overlays never create microphone readings. Link-failure controls intentionally affect the real session relay.
 - **Compatibility (`/admin`, `/operator`)** — both redirect to the unified `/station` page with the session preserved. There is no separate fake-node simulator in the navigation.
 - **Relay (`server/relay.py`)** — WebSocket transport for browser nodes. It routes opaque peer messages and serves the static export for one-origin HTTPS demos.
@@ -116,8 +116,8 @@ entrypoints. Live mobile microphone permissions still require device testing.
 
 ## Unified participant map and simulation
 
-The console uses a Leaflet/OpenStreetMap geographic basemap with the live room
-frame projected over it. **Street overview** shows the surrounding streets;
+The console uses a Leaflet/Esri World Imagery satellite basemap with the live room
+frame projected over it. **Area overview** shows the surrounding area;
 **Fit participant area** zooms into the outlined room. Real phones do not supply
 GPS coordinates. The default Washington, DC anchor is explicitly illustrative.
 **Set map anchor** accepts a site latitude/longitude and saves this display

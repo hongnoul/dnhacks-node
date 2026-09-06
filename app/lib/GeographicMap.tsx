@@ -66,7 +66,7 @@ export default function GeographicMap(props: RoomMapProps) {
   return <div className="geographic-map-shell">
     <div className="geographic-tools">
       <ActionButton onClick={() => setFitSequence(n => n + 1)}>Fit participant area</ActionButton>
-      <ActionButton onClick={() => { setFitSequence(0); setOverviewSequence(n => n + 1); }}>Street overview</ActionButton>
+      <ActionButton onClick={() => { setFitSequence(0); setOverviewSequence(n => n + 1); }}>Area overview</ActionButton>
       <details><summary>Set map anchor</summary>
         <div className="anchor-fields">
           <label>Latitude<input aria-label="Map anchor latitude" type="number" step="any" min="-85" max="85" value={lat} onChange={e => setLat(e.target.value)} /></label>
