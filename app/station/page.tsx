@@ -1,5 +1,6 @@
 "use client";
 
+import HardwareLauncher from "../hardware/HardwareLauncher";
 import { Tag } from "@carbon/react";
 import { JoinCard } from "../lib/JoinCard.tsx";
 import { DroneStage } from "../lib/DroneStage.tsx";
@@ -15,6 +16,7 @@ export default function StationPage() {
           <a href="#participants">Participants</a>
           <a href="#scenarios">Scenarios</a>
           <a href="#simulation">Simulation</a>
+          <HardwareLauncher />
         </nav>
       </header>
       <AdminDashboard onboarding={<>

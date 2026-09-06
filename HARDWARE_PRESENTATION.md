@@ -57,3 +57,11 @@ The proposal was checked against `app/page.tsx`, `app/lib/TrajectoryHero.tsx`, a
 The browser test checks rendered viewpoint changes, orbit/zoom/reset, keyboard selection, GLB download headers, 390px/320px layouts, onboarding session preservation, no microphone requests, and missing-model fallback. It runs against a real built application. Existing unit/integration tests pass separately. Physical-device touch and hardware performance are not validated by these checks.
 
 Both production build and static export passed the browser acceptance test. The existing regression suite passed all 128 tests. Desktop and 320px mobile screenshots were visually reviewed. WebGL-unavailable fallback was also exercised.
+
+
+## Dashboard integration
+The sensor desktop now includes a `skymesh-node.glb` file launcher. Operations exposes “Hardware reference” in its navigation. Both open `HardwareLauncher`, a shared native dialog with navy title bar, gray beveled surfaces, component controls, Perspective/Front/Top/Base presets, Save GLB, and an explicit “Not connected hardware” status. `/hardware/` uses the same retro palette.
+
+The viewer module is lazy-loaded on opening and unmounted on closing. Escape and the close button return focus to the launcher. On narrow screens the sensor icon joins the existing desktop icon grid rather than overlapping the sensor window. The modal temporarily blocks dashboard input, but does not unmount the sensor runtime or alter the session URL.
+
+Validation: `APP_URL=http://127.0.0.1:3018 node tests/hardware-dashboard-ui.mjs` against the static export checks both entry points, deferred model request, theme color, viewpoints, close/reopen, focus restoration, canvas removal, mobile overflow, and continued sensor diagnostics. The sensor integration check deliberately uses the detector-unavailable path, not a live microphone. Live microphone continuity is not claimed as tested. Existing hardware browser checks also pass after the restyle.

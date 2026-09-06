@@ -34,7 +34,8 @@ export default function HardwareViewer() {
         orbit.target.set(0,.045,0); orbit.enablePan=false; orbit.minDistance=.13; orbit.maxDistance=.45;
         const render = () => renderer.render(scene,camera);
         const view = (index: number) => {
-          const v = parts[index]?.view ?? [1,.6,1];
+          const presets = [[1,.45,1], [0,0,1], [0,1,.001], [0,-1,.001]];
+          const v = index >= 4 ? presets[index - 4] : parts[index]?.view ?? [1,.6,1];
           camera.position.set(v[0],v[1],v[2]).normalize().multiplyScalar(.23).add(orbit.target);
           orbit.update(); render();
         };
@@ -71,6 +72,9 @@ export default function HardwareViewer() {
     return () => { disposed=true;cleanup(); };
   }, []);
   return <section aria-label="Hardware explorer" className={styles.explorer}>
+    <div className={styles.viewToolbar} role="group" aria-label="Standard views">
+      {["Perspective", "Front", "Top", "Base"].map((name,index) => <button type="button" key={name} onClick={() => controls.current(index + 4)}>{name}</button>)}
+    </div>
     <div className={styles.viewport}>
       <span className={styles.index}>SM-01 / CONCEPT STUDY</span>
       <div ref={host} className={styles.canvas} />

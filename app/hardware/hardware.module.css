@@ -49,3 +49,34 @@
 .nav{font-size:12px}
 }
 
+/* Shared retro desktop skin, including the standalone reference page. */
+.page{background:var(--retro-desktop);color:var(--retro-ink);font-family:var(--retro-font)}
+.page .nav,.page .footer,.page .bridge dl div{border-color:var(--retro-shadow)}
+.page .header h1 span,.page .header>p:not(.eyebrow),.page .bridge p,.page .bridge dd,.page .footer{color:var(--retro-muted)}
+.page .badge{color:var(--retro-title);border-color:var(--retro-shadow);background:var(--retro-surface)}
+.explorer{background:var(--retro-surface);color:var(--retro-ink);border:2px solid;border-color:white var(--retro-shadow) var(--retro-shadow) white;font-family:var(--retro-font)}
+.viewport{background:linear-gradient(#8882 1px,transparent 1px),linear-gradient(90deg,#8882 1px,transparent 1px),#bfc3c7;background-size:24px 24px;min-height:420px}
+.inspector{background:var(--retro-surface);border-color:var(--retro-shadow)}
+.eyebrow,.dimension,.hint,.description{color:var(--retro-muted)}
+.tabs button,.reset{border:2px solid;border-color:white var(--retro-shadow) var(--retro-shadow) white;background:var(--retro-button);color:var(--retro-ink);border-radius:0;font-family:var(--retro-font)}
+.tabs button span{color:var(--retro-title)}
+.tabs button[aria-pressed=true]{background:var(--retro-title);color:white;border-color:var(--retro-shadow) white white var(--retro-shadow)}
+.tabs button[aria-pressed=true] span{color:white}
+.fallback p{background:var(--retro-surface);color:var(--retro-ink)}
+.dialog{padding:3px;width:min(960px,calc(100vw - 24px));max-width:none;max-height:calc(100dvh - 24px);overflow:auto;background:var(--retro-surface);color:var(--retro-ink);border:2px solid;border-color:white var(--retro-edge) var(--retro-edge) white;box-shadow:5px 5px 0 #0005;font-family:var(--retro-font)}
+.dialog::backdrop{background:#0004}
+.titlebar{background:var(--retro-title);color:white;display:flex;justify-content:space-between;align-items:center;padding:5px 7px;gap:12px;font-size:13px;font-weight:bold}
+.titlebar button{background:var(--retro-button);color:black;border-radius:0;min-width:28px;border:2px outset white;cursor:pointer}
+.windowFooter{display:flex;justify-content:space-between;gap:12px;padding:10px;font-size:12px;border-top:1px solid var(--retro-shadow)}
+.windowFooter a{color:var(--retro-title)}
+.launcher{font:inherit;color:inherit;background:transparent;border:0;padding:0;text-decoration:underline;cursor:pointer;border-radius:0}
+.desktopFile{position:fixed;right:26px;bottom:140px;display:flex;flex-direction:column;align-items:center;gap:5px;width:118px;background:transparent;color:var(--retro-ink);border:0;font:12px var(--retro-font);cursor:pointer;border-radius:0;z-index:2}
+.desktopFile img{width:64px;height:64px;filter:drop-shadow(2px 2px 0 #555)}
+.desktopFile span{background:var(--retro-desktop);padding:2px}
+.dialog button:focus-visible,.dialog a:focus-visible,.desktopFile:focus-visible,.launcher:focus-visible{outline:2px dotted var(--retro-ink);outline-offset:3px}
+@media(max-width:740px){.dialog .viewport{min-height:300px}.dialog .inspector{padding:15px}.dialog .tabs{margin-top:10px}.desktopFile{right:10px;bottom:120px;width:100px}.windowFooter{flex-wrap:wrap}.dialog .description{min-height:0}}
+@media(max-width:1099px){.desktopFile{position:relative;inset:auto;width:100%;min-width:0;align-self:center;justify-self:center;padding:5px;font-size:12px}}
+.viewToolbar{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;padding:7px;border-bottom:1px solid var(--retro-shadow)}
+.viewToolbar button{background:var(--retro-button);color:var(--retro-ink);border:2px outset white;border-radius:0;padding:5px 10px;cursor:pointer;font:12px var(--retro-font)}
+.dialog .tabs button[aria-pressed=true],.page .tabs button[aria-pressed=true]{background:var(--retro-title);color:white;border-color:var(--retro-shadow) white white var(--retro-shadow)}
+.dialog .tabs button[aria-pressed=true] span,.page .tabs button[aria-pressed=true] span{color:white}

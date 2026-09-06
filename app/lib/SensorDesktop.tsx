@@ -9,6 +9,7 @@ import { RoomMap } from "./RoomMap";
 import { MeshHelp } from "./MeshHelp";
 import { TrajectoryHero } from "./TrajectoryHero";
 import QRCode from "react-qr-code";
+import HardwareLauncher from "../hardware/HardwareLauncher";
 import { AsciiLogo } from "./AsciiLogo";
 import { useDesktopDrag } from "./useDesktopDrag";
 import styles from "./SensorDesktop.module.css";
@@ -179,6 +180,7 @@ export function SensorDesktop({ mesh, view, score, detections, micError }: {
       </div>
       <footer className={styles.statusbar}><span>{view?.records ?? 0} records</span><span>{view?.neighbours.length ?? 0} neighbours</span><span>{activity}</span></footer>
     </section>}
+    <HardwareLauncher desktop />
     <button ref={qrFile} style={qrDrag.style} {...qrDrag.handlers} className={styles.qrFile} type="button" onClick={() => openViewer("qr")} aria-label="Open skymesh-join.svg">
       <span className={styles.fileImage}><QRCode value={joinUrl} size={72} /></span>
       <span className={styles.fileName}>skymesh-join.svg</span>
