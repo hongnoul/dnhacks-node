@@ -554,10 +554,6 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
 
   return (
     <div className="dashboard">
-      <header className="dashboard-header panel">
-        <h1>Live mesh workspace</h1>
-        <span role="status"><Tag type={chan?.connected ? "green" : "warm-gray"}>Relay {chan?.connected ? "connected" : "offline"}</Tag></span>
-      </header>
       <section className="metrics" aria-label="Mesh status">
         <div className="panel metric"><span>Admitted sensors</span><strong>{admitted.length}</strong><small>Phones in this session</small></div>
         <div className="panel metric"><span>Listening now</span><strong>{view?.listening ?? 0}</strong><small>Live mesh readings</small></div>
