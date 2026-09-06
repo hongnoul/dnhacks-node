@@ -290,3 +290,44 @@ One behavioural change that followed: a node whose detector fails to start now p
 **nothing at all**, rather than a stream of `p = 0`. Fusion treats a low reading as
 positive evidence of quiet (§6.1), so a broken node must be absent rather than
 confidently reporting silence it never measured.
+
+---
+
+## 12. Aligning with ml-demo's UX
+
+The console had drifted into being mostly network-emulation knobs, which is the wrong
+thing to lead with: sliders for latency and packet loss say nothing about the model
+producing the probabilities.
+
+- **Detection leads.** The operator console opens with per-node CRNN confidence graphs
+  and a DETECTING count in the header. Link emulation is collapsed behind a toggle and
+  labelled as network conditions rather than detection.
+- **The graphs come from the replicated log.** Every scored window is already a record,
+  so no telemetry path was needed — the operator's graph is the same data a node holds,
+  at the same resolution, and it arrived by gossip.
+- **One publish rate.** Nodes publish every scored window at the CRNN's own 500 ms hop
+  rather than a separate 1 Hz wire rate, so the log is the single source of truth for
+  the graph. ~160 B/s per node.
+- **Shared constants.** `detection.ts` re-states ml-demo's `DETECT_THRESHOLD = 0.5` and
+  `SCORE_INTERVAL_MS = 500`. The mesh and the standalone demo must agree about what
+  counts as a detection, or the same audio reads as a hit on one screen and a miss on
+  the other.
+
+### The honesty bug this surfaced
+
+Running four nodes off one laptop microphone produced a **confident marker in a corner
+at ±5.2 m**. Every node heard the same thing at the same level, which is consistent with
+no single source position — but the argmax still lands somewhere, and drawing it claimed
+precision that did not exist.
+
+Spread alone cannot catch this: a degenerate posterior can look tight. The fix is a
+goodness-of-fit test — if the source really were at the MAP, each node's observed level
+would match what that distance predicts, so the RMS residual is the discriminator.
+`Estimate.localised` is false past 3σ of the range model, the marker is suppressed, the
+heatmap dims, and the UI says "detecting, but not localised — nodes hear it at similar
+levels". Both directions are tested: identical levels must be rejected, and a genuine
+fix must survive ±3 dB of noise.
+
+Worth knowing what that noise costs: ±3 dB is a ~41% distance error (20·log10), so
+**1.5–2 m of position error** at these ranges. That, not grid resolution, bounds what
+the demo can claim.

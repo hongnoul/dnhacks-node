@@ -15,6 +15,8 @@ import { AdminChannel, edgesToTopology, preset, type Preset } from "../lib/admin
 import { relayUrl, sessionId } from "../lib/config.ts";
 import { useMesh } from "../lib/useMesh.ts";
 import { RoomMap, linkKey } from "../lib/RoomMap.tsx";
+import { ConfidenceGraph } from "../lib/ConfidenceGraph.tsx";
+import { DETECT_THRESHOLD } from "../lib/detection.ts";
 import { DEFAULT_ROOM } from "../lib/mesh.ts";
 
 const ADMIN_ID = "admin";
@@ -25,6 +27,7 @@ export default function AdminPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [pendingEdge, setPendingEdge] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [showLinks, setShowLinks] = useState(false);
   const { mesh, view } = useMesh({ passive: true, forceId: ADMIN_ID });
 
   useEffect(() => {
@@ -144,6 +147,11 @@ export default function AdminPage() {
       <div className="row" style={{ justifyContent: "space-between" }}>
         <h1>SkyMesh — operator</h1>
         <span className="dim" style={{ color: chan?.connected ? "var(--ok)" : "var(--hot)" }}>
+          {(mesh?.detecting().length ?? 0) > 0 && (
+            <b style={{ color: "var(--hot)" }}>
+              {mesh?.detecting().length} DETECTING ·{" "}
+            </b>
+          )}
           relay {chan?.connected ? "connected" : "down"} · {admitted.length} nodes ·{" "}
           {view?.records ?? 0} records
         </span>
@@ -169,7 +177,7 @@ export default function AdminPage() {
             {pendingEdge && <b style={{ color: "var(--accent)" }}> linking from {pendingEdge}…</b>}
           </div>
           <div style={{ fontSize: 13, marginTop: 6 }}>
-            {est ? (
+            {est && est.localised ? (
               <>
                 <b>{est.nReports}</b> reporting · <b>{est.nSilent}</b> silent · ±
                 {est.spreadM.toFixed(1)} m at ({est.x.toFixed(1)}, {est.y.toFixed(1)})
@@ -177,6 +185,12 @@ export default function AdminPage() {
                   <span style={{ color: "var(--warn)" }}> · no SNR on the wire: coarse</span>
                 )}
               </>
+            ) : est ? (
+              <span style={{ color: "var(--warn)" }}>
+                <b>{est.nReports}</b> detecting, but not localised — nodes hear it at
+                similar levels, so nothing pins it down. Spread them out, or the drone is
+                outside the array.
+              </span>
             ) : positions.size > 0 ? (
               <span className="dim">
                 nothing heard · {view?.listening ?? 0} nodes listening
@@ -203,6 +217,41 @@ export default function AdminPage() {
           )}
 
           <div className="panel">
+            <h2>detections</h2>
+            <p className="dim" style={{ fontSize: 12, marginTop: 0 }}>
+              Each node&apos;s on-device CRNN confidence, drawn from records that gossiped
+              here. Dashed line is ml-demo&apos;s {DETECT_THRESHOLD} threshold.
+            </p>
+            {admitted.length === 0 && <span className="dim">no nodes yet</span>}
+            {admitted.map((n) => {
+              const p = levels.get(n);
+              const hot = (p ?? 0) >= DETECT_THRESHOLD;
+              return (
+                <div key={n} style={{ marginBottom: 6 }}>
+                  <div className="row" style={{ justifyContent: "space-between" }}>
+                    <span style={{ color: hot ? "var(--hot)" : undefined }}>
+                      {n} {hot && "· DRONE"}
+                    </span>
+                    <span
+                      className="dim"
+                      style={{ color: hot ? "var(--hot)" : undefined, fontVariantNumeric: "tabular-nums" }}
+                    >
+                      {p === undefined ? "—" : p.toFixed(2)}
+                    </span>
+                  </div>
+                  <ConfidenceGraph
+                    history={mesh?.history(n) ?? []}
+                    width={300}
+                    height={38}
+                    compact
+                    now={Date.now()}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="panel">
             <h2>topology</h2>
             <div className="row" style={{ flexWrap: "wrap" }}>
               <button onClick={() => applyPreset("bridge")}>two clusters + bridge</button>
@@ -218,8 +267,19 @@ export default function AdminPage() {
           </div>
 
           <div className="panel">
-            <h2>links</h2>
-            {sensorLinks.length === 0 && <span className="dim">no links yet</span>}
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <h2 style={{ margin: 0 }}>link emulation</h2>
+              <button onClick={() => setShowLinks((v) => !v)}>
+                {showLinks ? "hide" : "show"}
+              </button>
+            </div>
+            <p className="dim" style={{ fontSize: 12, margin: "6px 0 0" }}>
+              Network conditions, not detection. These stand in for radio links: latency
+              and packet loss the phones would face in the field but never see on one WiFi.
+              Cutting a link is how partition-and-heal is demonstrated.
+            </p>
+            {showLinks && sensorLinks.length === 0 && <span className="dim">no links yet</span>}
+            {showLinks && (
             <table>
               <tbody>
                 {sensorLinks.map((l) => (
@@ -251,6 +311,7 @@ export default function AdminPage() {
                 ))}
               </tbody>
             </table>
+            )}
             <div className="row" style={{ marginTop: 8, flexWrap: "wrap" }}>
               <button
                 onClick={() => sensorLinks.forEach((l) => chan?.setLink(l.a, l.b, { latency_ms: 500, loss: 0.2 }))}

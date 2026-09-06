@@ -10,6 +10,8 @@ import { useEffect, useRef, useState } from "react";
 import { useMesh } from "./lib/useMesh.ts";
 import { MicScorer, SILENT, type Score } from "./lib/scoring.ts";
 import { RoomMap } from "./lib/RoomMap.tsx";
+import { ConfidenceGraph } from "./lib/ConfidenceGraph.tsx";
+import { DETECT_THRESHOLD, SCORE_INTERVAL_MS } from "./lib/detection.ts";
 import { DEFAULT_ROOM } from "./lib/mesh.ts";
 
 export default function NodePage() {
@@ -17,6 +19,8 @@ export default function NodePage() {
   const [loading, setLoading] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [score, setScore] = useState<Score>(SILENT);
+  const [detections, setDetections] = useState(0);
+  const wasDetecting = useRef(false);
   const { mesh, view } = useMesh({ enabled: joined });
   const scorerRef = useRef<MicScorer | null>(null);
 
@@ -43,13 +47,20 @@ export default function NodePage() {
   // (§6.1), and silence is what pushes the posterior away from empty space.
   useEffect(() => {
     if (!joined || !mesh) return;
+    // Publish every scored window, at the CRNN's own 500 ms hop. One rate keeps
+    // the log the single source of truth for the confidence graph — the node's
+    // own view and the operator's are then the same data, at the same
+    // resolution, and the operator's arrived by gossip. ~160 B/s per node.
     const id = setInterval(() => {
       const scorer = scorerRef.current;
       if (!scorer?.ready) return; // absent beats a false "heard nothing" (§6.1)
       const s = scorer.latest();
       setScore(s);
+      const isDetecting = s.p >= DETECT_THRESHOLD;
+      if (isDetecting && !wasDetecting.current) setDetections((n) => n + 1);
+      wasDetecting.current = isDetecting;
       mesh.publishReading(s);
-    }, 1000);
+    }, SCORE_INTERVAL_MS);
     return () => clearInterval(id);
   }, [joined, mesh]);
 
@@ -92,6 +103,7 @@ export default function NodePage() {
   }
 
   const status = view?.status.state ?? "connecting";
+  const detecting = score.p >= DETECT_THRESHOLD;
   const est = view?.estimate ?? null;
   const levels = new Map<string, number>(view ? [[view.nodeId, score.p]] : []);
 
@@ -114,26 +126,28 @@ export default function NodePage() {
         </div>
       )}
 
-      <div className="panel">
+      <div
+        className="panel"
+        style={{ borderColor: detecting ? "var(--hot)" : undefined }}
+      >
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <h2>drone likelihood</h2>
-          <span style={{ fontSize: 24, color: score.p > 0.7 ? "var(--hot)" : "var(--text)" }}>
-            {score.p.toFixed(2)}
+          <h2 style={{ margin: 0, color: detecting ? "var(--hot)" : undefined }}>
+            {detecting ? "DRONE DETECTED" : "drone confidence"}
+          </h2>
+          <span
+            style={{
+              fontSize: 30,
+              fontVariantNumeric: "tabular-nums",
+              color: detecting ? "var(--hot)" : "var(--text)",
+            }}
+          >
+            {(score.p * 100).toFixed(0)}%
           </span>
         </div>
-        <div style={{ height: 10, background: "#0e1620", borderRadius: 5, overflow: "hidden" }}>
-          <div
-            style={{
-              width: `${score.p * 100}%`,
-              height: "100%",
-              background: score.p > 0.7 ? "var(--hot)" : "var(--accent)",
-              transition: "width 300ms",
-            }}
-          />
-        </div>
-        <div className="dim" style={{ fontSize: 12, marginTop: 6 }}>
-          CRNN on-device · snr {score.snrDb === null ? "—" : `${score.snrDb.toFixed(1)} dB`} ·
-          logit {score.logit.toFixed(2)}
+        <ConfidenceGraph history={mesh?.history(view?.nodeId ?? "") ?? []} width={330} now={Date.now()} />
+        <div className="dim" style={{ fontSize: 12, marginTop: 4 }}>
+          on-device CRNN · {detections} detection{detections === 1 ? "" : "s"} · snr{" "}
+          {score.snrDb === null ? "—" : `${score.snrDb.toFixed(1)} dB`}
         </div>
       </div>
 
@@ -150,12 +164,16 @@ export default function NodePage() {
           width={340}
         />
         <div style={{ fontSize: 12, marginTop: 8 }}>
-          {est ? (
+          {est && est.localised ? (
             <>
               fused from <b>{est.nReports}</b> reporting + <b>{est.nSilent}</b> silent · ±
               {est.spreadM.toFixed(1)} m
               {!est.graded && <span style={{ color: "var(--warn)" }}> · no SNR: coarse</span>}
             </>
+          ) : est ? (
+            <span style={{ color: "var(--warn)" }}>
+              {est.nReports} detecting · not localised
+            </span>
           ) : (view?.positions.size ?? 0) > 0 ? (
             <span className="dim">nothing heard · {view?.listening ?? 0} nodes listening</span>
           ) : (

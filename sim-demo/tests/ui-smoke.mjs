@@ -61,9 +61,19 @@ await admin.getByRole("button", { name: /auto-place/i }).click();
 await admin.waitForFunction(() => !document.body.innerText.includes("unplaced"), { timeout: 8000 })
   .then(() => ok("nodes placed via gossiped config records")).catch(() => bad("placement did not propagate"));
 
-await admin.waitForFunction(() => /links/i.test(document.body.innerText) &&
-  document.querySelectorAll("input[type=range]").length > 0, { timeout: 5000 })
-  .then(() => ok("link controls rendered")).catch(() => bad("no link controls"));
+// Link emulation is collapsed by default — it is network conditions, not
+// detection, and detection is what leads the console now.
+await admin.getByRole("button", { name: /^show$/ }).first().click();
+await admin.waitForFunction(
+  () => document.querySelectorAll("input[type=range]").length > 0, { timeout: 5000 }
+).then(() => ok("link emulation controls expand on demand"))
+ .catch(() => bad("no link controls"));
+
+await admin.waitForFunction(
+  () => /detections/i.test(document.body.innerText) && document.querySelectorAll("canvas").length > 1,
+  { timeout: 8000 }
+).then(() => ok("per-node confidence graphs render from the replicated log"))
+ .catch(() => bad("no confidence graphs on the console"));
 
 console.log("node view");
 const n1 = nodes[0].page;

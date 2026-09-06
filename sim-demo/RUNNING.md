@@ -23,7 +23,13 @@ like a replication bug. `?session=<id>` isolates a run.
 1. `/admin`, then open `/?node=n01` … `/?node=n06` and admit each.
 2. **two clusters + bridge**, then **auto-place**. The bridge is the cut edge.
 3. Play drone audio near a phone (`public/drone-demo.wav` works) — the on-device CRNN
-   fires and the posterior concentrates.
+   fires, the DRONE DETECTED banner lights, and the console's per-node confidence
+   graphs spike.
+
+   With every node on one laptop mic they all hear the same thing at the same level,
+   which constrains nothing: the console will say **"detecting, but not localised"**
+   and draw no marker. That is correct. Localisation needs real separation between
+   devices — spatial diversity matters more than node count (ARCHITECTURE.md §13.1).
 4. **Kill a node**: close a tab. Its records survive on every other phone.
 5. **Partition**: cut `n03–n04`. Both halves keep working on their own picture.
 6. **Heal**: restore it. Union of grow-only sets — nothing to reconcile.
@@ -38,6 +44,17 @@ deployment those hops are radio links (ARCHITECTURE.md §4.0).
     npm test                        # 24 unit + integration
     node tests/ui-smoke.mjs         # browser smoke; relay + dev must be running
     node tests/detector-smoke.mjs   # CRNN fires on synthesised drone audio
+
+## What the console shows
+
+**detections** — each node's CRNN confidence over the last 60 s, at ml-demo's 0.5
+threshold. Drawn from records that gossiped here, so the graph is both the detection
+picture and evidence that replication works.
+
+**topology** — the adjacency graph. Imposed, standing in for radio range.
+
+**link emulation** (collapsed) — latency, loss, and cutting links. Network conditions,
+not detection: what phones would face in the field but never see on one WiFi.
 
 ## Detection
 

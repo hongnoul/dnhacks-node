@@ -85,6 +85,45 @@ describe("fusion — graded (snr_db present)", () => {
     assert.equal(est.nReports, 1);
   });
 
+  test("an unconstrained fix is flagged, not drawn", () => {
+    // The case this exists for, observed live: several phones on one microphone
+    // report the same high level, which is consistent with no single source
+    // position. The posterior can still look tight while the argmax sits in an
+    // arbitrary corner, so spread alone will not catch it — residuals do.
+    const same = [...perimeter.values()].map((pos) => ({ node: pos.node, p: 1.0, snrDb: 55 }));
+    assert.equal(
+      fuse({ room, positions: perimeter, readings: same })!.localised,
+      false,
+      "identical levels everywhere must not be reported as a fix"
+    );
+  });
+
+  test("a genuine fix survives realistic measurement noise", () => {
+    // Guards the other direction: the residual gate must not reject real fixes
+    // once levels are noisy, which they always are.
+    //
+    // Note the accuracy this implies. +/-3 dB is a ~41% distance error
+    // (20*log10), so ~1.5-2 m at these ranges — that, not the grid
+    // resolution, is what bounds what the demo can claim.
+    let seed = 7;
+    const jitter = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return ((seed / 0x7fffffff) * 2 - 1) * 3; // +/- 3 dB
+    };
+    for (const [tx, ty] of [[3, 4], [6, 4], [9, 2]] as const) {
+      const noisy = [...perimeter.values()].map((pos) => {
+        const r = measure(pos, tx, ty);
+        return { ...r, snrDb: (r.snrDb as number) + jitter() };
+      });
+      const est = fuse({ room, positions: perimeter, readings: noisy })!;
+      assert.equal(est.localised, true, `truth (${tx},${ty}) rejected under noise`);
+      assert.ok(
+        Math.hypot(est.x - tx, est.y - ty) < 2.5,
+        `truth (${tx},${ty}) -> MAP (${est.x.toFixed(1)},${est.y.toFixed(1)})`
+      );
+    }
+  });
+
   test("posterior is a normalised distribution", () => {
     const est = fuse({
       room, positions: perimeter,

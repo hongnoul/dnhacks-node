@@ -55,6 +55,10 @@ export function RoomMap(props: RoomMapProps) {
     const img = ctx.createImageData(nx, ny);
     let peak = 0;
     for (const v of posterior) if (v > peak) peak = v;
+    // A diffuse posterior should *look* diffuse. At full strength an
+    // unconstrained fix paints the whole room and reads as confidence, which is
+    // the opposite of what it means.
+    const alpha = estimate.localised ? 210 : 70;
     for (let i = 0; i < posterior.length; i++) {
       // Square-root stretch: the tail carries the shape of the uncertainty and a
       // linear ramp hides all of it.
@@ -62,7 +66,7 @@ export function RoomMap(props: RoomMapProps) {
       img.data[i * 4 + 0] = Math.round(40 + 215 * t);
       img.data[i * 4 + 1] = Math.round(60 + 80 * t);
       img.data[i * 4 + 2] = Math.round(120 - 60 * t);
-      img.data[i * 4 + 3] = Math.round(210 * t);
+      img.data[i * 4 + 3] = Math.round(alpha * t);
     }
     // Draw at grid resolution, then let the browser scale it up smoothly.
     const off = document.createElement("canvas");
@@ -166,7 +170,7 @@ export function RoomMap(props: RoomMapProps) {
           );
         })}
 
-        {estimate && (
+        {estimate?.localised && (
           <>
             <circle
               cx={toPx(estimate.x, estimate.y)[0]}

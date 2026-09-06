@@ -33,11 +33,14 @@ await page.goto(`${APP}/?session=${S}&node=n01`);
 await page.getByRole("button", { name: /join the mesh/i }).click();
 
 // Model fetch is ~6 MB on a cold cache.
-await page.waitForFunction(() => /drone likelihood/i.test(document.body.innerText), { timeout: 60000 })
+await page.waitForFunction(() => /drone confidence|DRONE DETECTED/i.test(document.body.innerText), { timeout: 60000 })
   .then(() => ok("CRNN loaded and mic opened")).catch(() => bad("detector never came up"));
 
 const noMic = await page.evaluate(() => /Detector unavailable/.test(document.body.innerText));
 if (noMic) bad("fake mic was rejected");
+
+// The banner is ml-demo's, and the mesh must agree with it about what counts.
+const banner = await page.evaluate(() => /DRONE DETECTED/.test(document.body.innerText));
 
 // Poll the on-screen likelihood while the drone WAV plays into the fake mic.
 let peak = 0, peakSnr = null;
@@ -45,9 +48,9 @@ for (let i = 0; i < 30; i++) {
   await page.waitForTimeout(700);
   const s = await page.evaluate(() => {
     const t = document.body.innerText;
-    const p = t.match(/drone likelihood\s*([\d.]+)/i);
+    const pct = t.match(/(\d+)%/);            // big readout, e.g. "87%"
     const snr = t.match(/snr\s*(-?[\d.]+) dB/i);
-    return { p: p ? +p[1] : null, snr: snr ? +snr[1] : null };
+    return { p: pct ? +pct[1] / 100 : null, snr: snr ? +snr[1] : null };
   });
   if (s.p !== null && s.p > peak) { peak = s.p; peakSnr = s.snr; }
   if (peak > 0.7) break;
@@ -63,6 +66,10 @@ const records = await page.evaluate(() => {
   return m ? +m[1] : 0;
 });
 records > 0 ? ok(`readings reaching the log (${records} records)`) : bad("no records published");
+
+const finalBanner = await page.evaluate(() => /DRONE DETECTED/.test(document.body.innerText));
+(banner || finalBanner) ? ok("detection banner matched ml-demo's 0.5 threshold")
+                        : bad("confidence rose but the banner never fired");
 
 if (errors.length) { console.log("\npage errors:"); errors.slice(0, 5).forEach((e) => console.log("   ", e.split("\n")[0])); }
 await browser.close();

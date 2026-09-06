@@ -118,7 +118,35 @@ export interface Estimate {
   nSilent: number;
   /** False when no reading carried SNR, so position came from the weak path. */
   graded: boolean;
+  /**
+   * False when the credible region covers so much of the room that the MAP cell
+   * is not a meaningful fix.
+   *
+   * This is the case where a demo lies most easily: several nodes hearing the
+   * same thing at the same level constrain nothing, the posterior goes nearly
+   * flat, and the argmax lands in an arbitrary corner. Drawing a marker there
+   * claims precision that does not exist, so callers should suppress it and say
+   * "detected, not localised".
+   */
+  localised: boolean;
 }
+
+/**
+ * Fraction of the room's equivalent radius beyond which a fix is meaningless.
+ * Only used on the ungraded path, where there are no residuals to check.
+ */
+export const LOCALISED_MAX_FRACTION = 0.6;
+
+/**
+ * Goodness-of-fit gate, in multiples of the range model's sigma.
+ *
+ * Spread alone cannot tell a real fix from a degenerate one: several nodes
+ * hearing the same thing at the same level produce a *tight looking* posterior
+ * in an arbitrary place. Residuals can. If the source really were at the MAP,
+ * each node's observed level would match what that distance predicts; when the
+ * readings are consistent with no single position, the residuals blow up.
+ */
+export const MAX_RESIDUAL_SIGMAS = 3;
 
 const SILENT_BELOW = 0.2;
 
@@ -189,14 +217,40 @@ export function fuse(opts: {
     if (acc >= 0.9) break;
   }
 
+  const spreadM = Math.sqrt((cells * cellM * cellM) / Math.PI);
+  const roomRadiusM = Math.sqrt((opts.room.w * opts.room.h) / Math.PI);
+  const mapX = ((bestI % nx) + 0.5) * cellM;
+  const mapY = (Math.floor(bestI / nx) + 0.5) * cellM;
+
+  // Does a source at the MAP actually explain what the nodes measured?
+  let localised: boolean;
+  if (graded) {
+    let sq = 0;
+    let n = 0;
+    for (const { r, pos } of used) {
+      if (typeof r.snrDb !== "number") continue;
+      const d = Math.hypot(mapX - pos.x, mapY - pos.y);
+      // A censored reading only says "below the floor"; it cannot be residual-checked.
+      if (r.snrDb <= range.floorDb) continue;
+      const resid = r.snrDb - expectedSnr(d, range);
+      sq += resid * resid;
+      n++;
+    }
+    const rms = n > 0 ? Math.sqrt(sq / n) : Infinity;
+    localised = n > 0 && rms <= MAX_RESIDUAL_SIGMAS * range.sigmaDb;
+  } else {
+    localised = spreadM < LOCALISED_MAX_FRACTION * roomRadiusM;
+  }
+
   return {
     nx,
     ny,
     cellM,
     posterior,
-    x: ((bestI % nx) + 0.5) * cellM,
-    y: (Math.floor(bestI / nx) + 0.5) * cellM,
-    spreadM: Math.sqrt((cells * cellM * cellM) / Math.PI),
+    x: mapX,
+    y: mapY,
+    spreadM,
+    localised,
     nReports: used.filter((e) => e.r.p >= SILENT_BELOW).length,
     nSilent: used.filter((e) => e.r.p < SILENT_BELOW).length,
     graded,

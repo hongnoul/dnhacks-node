@@ -13,6 +13,8 @@ import { loadIdentity, type Identity } from "./identity.ts";
 import { fuse, type Estimate, type Placed, type Room, type NodeReading } from "./fusion.ts";
 import type { NewRecord } from "./protocol.ts";
 import type { Score } from "./scoring.ts";
+import { DETECT_THRESHOLD, GRAPH_WINDOW_MS } from "./detection.ts";
+import type { Point } from "./ConfidenceGraph.tsx";
 
 export const DEFAULT_ROOM: Room = { w: 12, h: 8 };
 
@@ -103,6 +105,30 @@ export class Mesh {
       else out.delete(c.node);
     }
     return out;
+  }
+
+  /**
+   * Confidence history for one node, straight out of the replicated log.
+   *
+   * Note where this comes from: on the operator console these points arrived by
+   * gossip, so the graph is both the detection picture and evidence that
+   * replication works. No separate telemetry path exists.
+   */
+  history(node: string, windowMs = GRAPH_WINDOW_MS): Point[] {
+    const cutoff = this.clock.now() - windowMs;
+    const out: Point[] = [];
+    for (const rec of this.log.ofType("reading")) {
+      const r = rec as unknown as { origin: string; t: number; p: number };
+      if (r.origin === node && r.t >= cutoff) out.push({ t: r.t, p: r.p });
+    }
+    return out.sort((a, b) => a.t - b.t);
+  }
+
+  /** Nodes currently over ml-demo's detection threshold. */
+  detecting(): string[] {
+    return this.currentReadings()
+      .filter((r) => r.p >= DETECT_THRESHOLD)
+      .map((r) => r.node);
   }
 
   /** Most recent reading per node, within the freshness window. */
