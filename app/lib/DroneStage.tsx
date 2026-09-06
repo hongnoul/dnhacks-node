@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { createDroneRotors } from "./droneRotors";
 
 const MODEL_SRC = "/models/drone-sillyfear.glb";
 
@@ -91,6 +92,7 @@ export function DroneStage({ height = 240 }: { height?: number }) {
       MODEL_SRC,
       (gltf) => {
         const model = gltf.scene;
+        rotorsRef.current = createDroneRotors(model);
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
         const scale = 2.6 / Math.max(size.x, size.y, size.z);
@@ -98,26 +100,6 @@ export function DroneStage({ height = 240 }: { height?: number }) {
         const centre = box.getCenter(new THREE.Vector3()).multiplyScalar(scale);
         model.position.sub(centre);
         pivot.add(model);
-
-        // Visible two-blade props on shaft pivots — the GLB's own discs are
-        // rotationally symmetric, so spinning them reads as motionless.
-        const span = 2.6 * 0.34;
-        const bladeGeo = new THREE.BoxGeometry(span * 0.95, 0.012, 0.07);
-        const bladeMat = new THREE.MeshStandardMaterial({
-          color: 0x9fd0ff,
-          metalness: 0.1,
-          roughness: 0.5,
-        });
-        for (const [dx, dz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) {
-          const rotor = new THREE.Group();
-          rotor.position.set(dx * span, 0.16, dz * span);
-          const a = new THREE.Mesh(bladeGeo, bladeMat);
-          const b = new THREE.Mesh(bladeGeo, bladeMat);
-          b.rotation.y = Math.PI / 2;
-          rotor.add(a, b);
-          pivot.add(rotor);
-          rotorsRef.current.push(rotor);
-        }
       },
       undefined,
       (e) => setModelError(String(e))
