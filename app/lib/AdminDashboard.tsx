@@ -11,7 +11,7 @@
 
 "use client";
 
-import { Select, SelectItem, Tag } from "@carbon/react";
+import { Tag } from "@carbon/react";
 import { ActionButton } from "./DesignSystem";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -61,46 +61,32 @@ function useContainerWidth(fallback: number) {
     const el = ref.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
-      const w = Math.floor(Math.min(el.clientWidth, window.matchMedia("(min-width: 1000px) and (min-height: 650px)").matches && el.clientHeight > 0 ? el.clientHeight * 1.5 : el.clientWidth));
+      const w = Math.floor(el.clientWidth);
       if (w > 0) setWidth(w);
     });
     ro.observe(el);
     // First paint may precede layout; take whatever the box reports now too.
-    const w = Math.floor(Math.min(el.clientWidth, window.matchMedia("(min-width: 1000px) and (min-height: 650px)").matches && el.clientHeight > 0 ? el.clientHeight * 1.5 : el.clientWidth));
+    const w = Math.floor(el.clientWidth);
     if (w > 0) setWidth(w);
     return () => ro.disconnect();
   }, []);
   return { ref, width };
 }
 
-function PageControls({ label, count, size, offset, onPage }: { label: string; count: number; size: number; offset: number; onPage: (page: number) => void }) {
-  if (count <= size) return null;
-  const page = offset / size;
-  return <nav className="page-controls" aria-label={`${label} pages`}>
-    <ActionButton aria-label={`Previous ${label.toLowerCase()}`} disabled={page === 0} onClick={() => onPage(page - 1)}>‹</ActionButton>
-    <span>{offset + 1}–{Math.min(offset + size, count)} of {count}</span>
-    <ActionButton aria-label={`Next ${label.toLowerCase()}`} disabled={offset + size >= count} onClick={() => onPage(page + 1)}>›</ActionButton>
-  </nav>;
-}
-
 export function AdminDashboard() {
   const chanRef = useRef<AdminChannel | null>(null);
   const [, force] = useState(0);
-  const [eventPage, setEventPage] = useState(0);
-  const [sensorPage, setSensorPage] = useState(0);
-  const [linkPage, setLinkPage] = useState(0);
-  const [pendingPage, setPendingPage] = useState(0);
-  const [panel, setPanel] = useState("confidence");
   const [selected, setSelected] = useState<string | null>(null);
   const [pendingEdge, setPendingEdge] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
-  const [showLinks, setShowLinks] = useState(false);
+  const [showLinks, setShowLinks] = useState(true);
   const { mesh, view } = useMesh({ passive: true, forceId: ADMIN_ID });
   const mapBox = useContainerWidth(560);
 
   // Scenario controls (Avery's demo layer, rewired to live mesh primitives).
   const [mode, setMode] = useState<MapMode>("idle");
   const [events, setEvents] = useState<ActivityEvent[]>([]);
+  const eventSequence = useRef(0);
   const [placeHover, setPlaceHover] = useState<{ x: number; y: number } | null>(null);
   const [dronePhase, setDronePhase] = useState<DronePhase>("idle");
   const [droneStart, setDroneStart] = useState<{ x: number; y: number } | null>(null);
@@ -117,7 +103,11 @@ export function AdminDashboard() {
   const detectedRef = useRef<Set<string>>(new Set());
 
   function log(message: string, tone: ActivityEvent["tone"] = "info") {
-    setEvents((cur) => pushEvent(cur, message, tone));
+    // Several actions can log in one millisecond. Unique keys prevent React
+    // from retaining duplicate DOM rows when the bounded event list shifts.
+    const id = ++eventSequence.current;
+    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    setEvents((cur) => pushEvent(cur, message, tone, () => ({ id, time })));
   }
 
   useEffect(() => {
@@ -219,7 +209,6 @@ export function AdminDashboard() {
     if (node === ADMIN_ID) return;
     if (!pendingEdge) {
       setSelected(node);
-      setPanel("inspector");
       setPendingEdge(node);
       return;
     }
@@ -530,11 +519,6 @@ export function AdminDashboard() {
   const selectedPos = selected ? positions.get(selected) : undefined;
   const selectedLive = selected ? (view?.liveNodes ?? []).includes(selected) : false;
 
-  const eventOffset = Math.min(eventPage, Math.max(0, Math.ceil(events.length / 3) - 1)) * 3;
-  const sensorOffset = Math.min(sensorPage, Math.max(0, Math.ceil(admitted.length / 3) - 1)) * 3;
-  const linkOffset = Math.min(linkPage, Math.max(0, Math.ceil(sensorLinks.length / 2) - 1)) * 2;
-  const pendingOffset = Math.min(pendingPage, Math.max(0, Math.ceil(pending.length / 2) - 1)) * 2;
-  const sensorPager = <PageControls label="Sensors" count={admitted.length} size={3} offset={sensorOffset} onPage={setSensorPage} />;
 
   return (
     <div className="dashboard">
@@ -553,7 +537,7 @@ export function AdminDashboard() {
               waiting to join ({pending.length})
             </h2>
             <div className="row" style={{ flexWrap: "wrap" }}>
-              {pending.slice(pendingOffset, pendingOffset + 2).map((n) => (
+              {pending.map((n) => (
                 <span key={n.node} className="row" style={{ gap: 6, marginRight: 8 }}>
                   <span>{n.node}</span>
                   <ActionButton className="primary" onClick={() => chan?.admit(n.node)}>
@@ -561,7 +545,6 @@ export function AdminDashboard() {
                   </ActionButton>
                 </span>
               ))}
-              <PageControls label="Pending sensors" count={pending.length} size={2} offset={pendingOffset} onPage={setPendingPage} />
               {pending.length > 1 && (
                 <ActionButton onClick={() => pending.forEach((n) => chan?.admit(n.node))}>
                   admit all
@@ -571,8 +554,8 @@ export function AdminDashboard() {
           </div>
         </div>
       )}
-      <header className="dashboard-header">
-        <div><p className="eyebrow">Operations console</p><h1>Shared airspace awareness</h1><p className="dim">A live picture built by the mesh, not a central detector.</p></div>
+      <header className="dashboard-header panel">
+        <h1>Shared airspace awareness</h1>
         <span role="status"><Tag type={chan?.connected ? "green" : "warm-gray"}>Relay {chan?.connected ? "connected" : "offline"}</Tag></span>
       </header>
       <section className="metrics" aria-label="Mesh status">
@@ -650,27 +633,15 @@ export function AdminDashboard() {
           </div>
         </div>
 
-        <div className="dashboard-cards" data-panel={panel}>
-          <div className="panel-switcher">
-            <Select id="console-panel" labelText="Console panel" size="md" value={panel} onChange={e => setPanel(e.target.value)}>
-              <SelectItem value="confidence" text="Sensor confidence" />
-              <SelectItem value="topology" text="Network topology" />
-              <SelectItem value="scenario" text="Scenario controls" />
-              <SelectItem value="activity" text="Scenario activity" />
-              <SelectItem value="links" text="Link emulation" />
-              <SelectItem value="nodes" text="Sensor directory" />
-              {selected && <SelectItem value="inspector" text="Selected sensor" />}
-            </Select>
-          </div>
+        <div className="dashboard-cards">
           <div className="panel" data-section="confidence">
-            {sensorPager}
             <div className="card-heading"><h2>Sensor confidence</h2><Tag type="teal" size="sm">Live readings</Tag></div>
             <p className="dim" style={{ fontSize: 12, marginTop: 0 }}>
               Each node&apos;s on-device CRNN confidence, drawn from records that gossiped
               here. Dashed line is SkyMesh&apos;s {DETECT_THRESHOLD} threshold.
             </p>
             {admitted.length === 0 && <div className="empty-state"><strong>Your mesh starts with one phone.</strong><p>Scan the QR code, allow microphone access, then admit the phone here.</p></div>}
-            {admitted.slice(sensorOffset, sensorOffset + 3).map((n) => {
+            {admitted.map((n) => {
               const p = levels.get(n);
               const isHot = hot.has(n);
               return (
@@ -818,14 +789,13 @@ export function AdminDashboard() {
               <h2 style={{ margin: 0 }}>Scenario activity</h2>
               <span className="dim" style={{ fontSize: 12 }}>{events.length} events</span>
             </div>
-            <PageControls label="Events" count={events.length} size={3} offset={eventOffset} onPage={setEventPage} />
             {events.length === 0 && (
               <p className="dim" style={{ fontSize: 12, marginBottom: 0 }}>
                 Scenario events land here.
               </p>
             )}
             <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0", display: "grid", gap: 4, fontSize: 12 }}>
-              {events.slice(eventOffset, eventOffset + 3).map((e) => (
+              {events.map((e) => (
                 <li key={e.id} className="row" style={{ justifyContent: "flex-start", gap: 8 }}>
                   <span
                     style={{
@@ -844,11 +814,12 @@ export function AdminDashboard() {
             </ul>
           </div>
 
+          {!selected && <div className="panel" data-section="inspector"><h2>Sensor inspector</h2><p className="dim">Select a sensor on the map to inspect its readings and connections.</p></div>}
           {selected && (
             <div className="panel" data-section="inspector">
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <h2 style={{ margin: 0 }}>{selected}</h2>
-                <ActionButton onClick={() => { setSelected(null); setPanel("confidence"); }} aria-label="Close inspector">×</ActionButton>
+                <ActionButton onClick={() => { setSelected(null); }} aria-label="Close inspector">×</ActionButton>
               </div>
               <dl style={{ display: "grid", gap: 4, fontSize: 13, margin: "8px 0" }}>
                 <div className="row" style={{ justifyContent: "space-between" }}>
@@ -901,11 +872,10 @@ export function AdminDashboard() {
               Cutting a link is how partition-and-heal is demonstrated.
             </p>
             {showLinks && sensorLinks.length === 0 && <span className="dim">no links yet</span>}
-            {showLinks && <PageControls label="Links" count={sensorLinks.length} size={2} offset={linkOffset} onPage={setLinkPage} />}
             {showLinks && (
             <table>
               <tbody>
-                {sensorLinks.slice(linkOffset, linkOffset + 2).map((l) => (
+                {sensorLinks.map((l) => (
                   <tr key={linkKey(l.a, l.b)}>
                     <td>{l.a}–{l.b}</td>
                     <td>
@@ -951,13 +921,12 @@ export function AdminDashboard() {
 
           <div className="panel" data-section="nodes">
             <h2>Sensor directory</h2>
-            {sensorPager}
             <table>
               <thead>
                 <tr><th>node</th><th>p</th><th>pos</th><th>neighbours</th></tr>
               </thead>
               <tbody>
-                {admitted.slice(sensorOffset, sensorOffset + 3).map((n) => {
+                {admitted.map((n) => {
                   const pos = positions.get(n);
                   const p = levels.get(n);
                   return (

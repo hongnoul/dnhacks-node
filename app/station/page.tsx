@@ -14,6 +14,7 @@
 
 "use client";
 
+import { FitBoard } from "../lib/FitBoard";
 import { OperationsHeader } from "../lib/DesignSystem";
 import { Tag } from "@carbon/react";
 import { JoinCard } from "../lib/JoinCard.tsx";
@@ -24,19 +25,19 @@ export default function StationPage() {
   return (
     <>
     <OperationsHeader />
+    <FitBoard>
     <main className="console">
       <aside className="console-sidebar" aria-label="Join and demonstrate">
-        <div className="brand"><span className="brand-mark">S</span><div><strong>SkyMesh</strong><div className="eyebrow">Distributed detection</div></div></div>
         <section className="panel join-card"><JoinCard compact /></section>
         <section className="panel audio-card">
           <div className="card-heading"><h2>Drone audio demo</h2><Tag type="purple" size="sm">Demo</Tag></div>
           <p className="dim">Play a sample near a joined phone to test on-device detection.</p>
           <DroneStage height={220} />
         </section>
-        <p className="sidebar-note">Local intelligence. Shared awareness.<br />Raw microphone audio stays on each phone.</p>
       </aside>
       <div className="console-main"><AdminDashboard /></div>
     </main>
+    </FitBoard>
     </>
   );
 }

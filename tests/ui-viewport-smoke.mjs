@@ -1,27 +1,35 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-const base = process.env.UI_BASE_URL || 'http://127.0.0.1:3107';
+const base = process.env.UI_BASE_URL || 'http://127.0.0.1:3112';
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage();
-  for (const [width, height] of [[1440,900],[1366,768],[1280,720],[1024,768],[1000,650]]) {
+  for (const [width, height] of [[1920,1080],[1440,900],[1366,768],[1280,720],[1024,768],[1000,650],[390,844]]) {
     await page.setViewportSize({width,height});
-    await page.goto(`${base}/station?session=viewport-review`);
-    await page.getByRole('combobox', {name:'Console panel'}).waitFor();
-    for (const panel of ['confidence','topology','scenario','activity','links','nodes']) {
-      await page.getByRole('combobox', {name:'Console panel'}).selectOption(panel);
-      if (panel === 'links') await page.getByRole('button',{name:'show',exact:true}).click();
-      await page.waitForTimeout(100);
-      const overflow = await page.evaluate(() => {
-        const root = document.documentElement;
-        const outside = [...document.querySelectorAll('.console button, .console select, .console canvas, .console svg, .console [data-section]')].filter(el => {
-          const r=el.getBoundingClientRect();
-          return r.width && r.height && (r.bottom > innerHeight + 1 || r.right > innerWidth + 1 || r.left < -1 || r.top < -1);
-        }).map(el => el.tagName+':'+(el.textContent||'').slice(0,40));
-        return {width:root.scrollWidth-innerWidth,height:root.scrollHeight-innerHeight,outside};
-      });
-      assert.deepEqual(overflow,{width:0,height:0,outside:[]},`${width}x${height} ${panel}: ${JSON.stringify(overflow)}`);
+    await page.goto(`${base}/station?session=all-boxes-review`);
+    await page.locator('.fit-board').waitFor({state:'visible'});
+    await page.waitForTimeout(250);
+    assert.equal(await page.getByRole('combobox',{name:'Console panel'}).count(),0);
+    assert.equal(await page.locator('.page-controls').count(),0);
+    assert.equal(await page.locator('.console').evaluate(root => {
+      const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+      let text; let count=0;
+      while(text=walker.nextNode()) if(text.textContent.trim() && !text.parentElement.closest('.panel')) count++;
+      return count;
+    }),0,'all console text belongs to a box');
+    for (const section of ['confidence','topology','scenario','activity','links','nodes','inspector']) {
+      assert(await page.locator(`[data-section=${section}]`).isVisible(),`${section} is rendered simultaneously`);
     }
-    console.log(`PASS ${width}x${height}: all six panels fit with no page scrolling or clipped controls`);
+    assert(await page.locator('.join-card svg').isVisible());
+    assert(await page.locator('.audio-card canvas').isVisible());
+    const overflow = await page.evaluate(() => {
+      const outside=[...document.querySelectorAll('.fit-board .panel, .fit-board button, .fit-board canvas, .fit-board svg, .fit-board td')].filter(el=>{
+        const r=el.getBoundingClientRect();
+        return r.width && r.height && (r.bottom>innerHeight+1 || r.right>innerWidth+1 || r.left< -1 || r.top<47);
+      }).map(el=>el.tagName+':'+(el.textContent||'').slice(0,40));
+      return {width:document.documentElement.scrollWidth-innerWidth,height:document.documentElement.scrollHeight-innerHeight,outside};
+    });
+    assert.deepEqual(overflow,{width:0,height:0,outside:[]},`${width}x${height}: ${JSON.stringify(overflow)}`);
+    console.log(`PASS ${width}x${height}: all 7 panels, map, QR and drone simultaneously visible, no pagination or clipped bounds`);
   }
-} finally { await browser.close(); }
+} finally {await browser.close();}

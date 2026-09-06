@@ -70,7 +70,7 @@ await admin.waitForFunction(() => !document.body.innerText.includes("unplaced"),
 // Link emulation is collapsed by default — it is network conditions, not
 // detection, and detection is what leads the console now.
 await openPanel("links");
-await admin.getByRole("button", { name: /^show$/ }).first().click();
+if (await admin.getByRole("button", { name: /^show$/ }).first().isVisible()) await admin.getByRole("button", { name: /^show$/ }).first().click();
 await admin.waitForFunction(
   () => document.querySelectorAll("input[type=range]").length > 0, { timeout: 5000 }
 ).then(() => ok("link emulation controls expand on demand"))
@@ -178,10 +178,17 @@ await admin.waitForFunction(() => document.querySelector("[data-section=activity
   .then(() => ok("replay sequence completes")).catch(() => bad("replay did not complete"));
 
 await openPanel('nodes');
-await admin.getByRole('button', {name:'Next sensors', exact:true}).click();
 await admin.locator('[data-section=nodes]').getByText('n04', {exact:true}).waitFor();
-ok('sensor pagination exposes fourth admitted node');
-await admin.getByRole('button', {name:'Previous sensors', exact:true}).click();
+ok('fourth admitted node rendered without pagination');
+const allRows = await admin.locator('[data-section=nodes] tbody tr').count();
+allRows === 4 ? ok('all four sensor rows rendered at once') : bad(`expected four sensor rows, got ${allRows}`);
+const graphs = await admin.locator('[data-section=confidence] canvas').count();
+graphs === 4 ? ok('all four confidence graphs rendered at once') : bad(`expected four graphs, got ${graphs}`);
+const links = await admin.locator('[data-section=links] tbody tr').count();
+links >= 3 ? ok('all link rows rendered beyond former two-row page') : bad(`too few link rows: ${links}`);
+const activityCount = await admin.locator('[data-section=activity] li').count();
+activityCount === 6 ? ok('all six retained activity events rendered at once') : bad(`expected six events, got ${activityCount}`);
+
 console.log('populated console viewport fit');
 for (const [width, height] of [[1366,768],[1000,650]]) {
   await admin.setViewportSize({width,height});

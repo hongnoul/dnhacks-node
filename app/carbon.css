@@ -61,3 +61,37 @@ a { color: var(--cds-link-primary); }
 }
 
 @media (prefers-reduced-motion: reduce) { .cds--btn { transition: none; } }
+
+/* All-boxes board: content stays rendered and scales as a unit to fit. */
+.board-viewport { position: relative; width: 100%; height: calc(100dvh - 48px); overflow: clip; }
+.fit-board { position: absolute; top: 0; transform-origin: top left; }
+.fit-board .console { display: grid; grid-template-columns: 220px minmax(0, 1fr); height: auto; min-height: 0; }
+.fit-board .console-sidebar { display: flex; flex-direction: column; padding: 8px; gap: 8px; overflow: visible; }
+.fit-board .console-main { padding: 8px; overflow: visible; }
+.fit-board .dashboard { height: auto; display: grid; grid-template-rows: none; gap: 8px; }
+.fit-board .dashboard-header { padding: 8px 12px; }
+.fit-board .dashboard-header h1 { font-size: 20px; margin: 0; }
+.fit-board .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.fit-board .metric { padding: 8px 12px; gap: 2px; }
+.fit-board .metric strong { font-size: 24px; }
+.fit-board .metric small { display: block; }
+.fit-board .dashboard-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: start; }
+.fit-board .dashboard-cards { display: contents; }
+.fit-board .dashboard-cards > .panel { display: block; overflow: visible; }
+.fit-board .map-card { grid-row: span 2; display: block; }
+.fit-board .map-viewport { width: 100%; display: block; }
+.fit-board .card-heading { margin-bottom: 8px; padding-bottom: 8px; }
+.fit-board .panel { padding: 10px; }
+.fit-board .console .join-card p, .fit-board .console .audio-card p, .fit-board .dashboard [data-section="scenario"] > p { display: block; }
+.fit-board .console .join-card svg { width: 120px; height: 120px; }
+.fit-board .console .join-card > div > div:nth-child(3) { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.fit-board .drone-model { height: 150px !important; }
+.fit-board .console .audio-card iframe { max-height: none; }
+.fit-board .dashboard table { display: table; width: 100%; table-layout: fixed; overflow: visible; }
+.fit-board .dashboard td, .fit-board .dashboard th { padding: 5px; overflow-wrap: anywhere; }
+.fit-board .dashboard input[type="range"] { width: 100%; min-width: 0; }
+.fit-board .empty-state { padding: 12px; }
+.fit-board .cds--btn { min-width: 0; max-width: 100%; padding-inline: 10px; }
+.fit-board .row { flex-wrap: wrap; }
+.fit-board .console .join-card, .fit-board .console .audio-card { flex: none; }
+.fit-board [data-section="activity"] li span:last-child { min-width: 0; overflow-wrap: anywhere; }

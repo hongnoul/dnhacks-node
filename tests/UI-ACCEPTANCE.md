@@ -61,3 +61,22 @@ Observed acceptance on the final build:
 - Production build and all 45 unit/integration tests passed.
 
 The checks exposed and resolved sidebar text overflow, populated scenario overflow, and long activity-message overflow. No overflow-hidden rule is applied to the console to conceal offscreen controls. The long textual join URL is intentionally ellipsized in compact mode; its QR retains the full URL. This revision has not been deployed.
+
+## Current revision: all boxes simultaneously visible
+
+Supersedes the earlier panel-switcher/pagination layout. Carbon styling is preserved.
+
+| Requested result | Check | Observed result |
+| --- | --- | --- |
+| Remove standalone console text | DOM text walker verifies every nonempty text node inside `.console` belongs to a `.panel` | Pass at seven viewport sizes |
+| Render all boxes together | All seven secondary sections, map, QR and drone visible at the same time | Pass at 1920x1080, 1440x900, 1366x768, 1280x720, 1024x768, 1000x650, 390x844 |
+| No pagination or panel selector | No `.page-controls` or Console panel combobox; real-relay test counts all four rows and confidence graphs, at least three links and all six retained events | Pass |
+| No viewport overflow or clipped content | Exact zero document overflow plus bounding-rectangle checks for panels, controls, canvases, SVGs and table cells | Pass, including populated board at 1366x768 and 1000x650 |
+| Retain functional controls | Real admission, topology, position publication, replica convergence, link cuts, scaled-map start/destination clicks, flight and replay | Pass |
+| Retain phone onboarding and Carbon UI | Updated design smoke suite at four widths | Pass |
+
+`FitBoard` observes the board and available viewport, then uniformly scales all content to fit. It does not paginate or omit content. Text and controls get smaller on small screens or with large datasets. This is the explicit tradeoff for simultaneously showing all boxes without scrolling. A clipping boundary prevents transient layout spill, but acceptance checks independently verify all content bounds lie inside it.
+
+The all-rows check exposed timestamp-based event-key collisions: six retained events could produce 19 DOM rows. Per-console monotonic event keys fixed the issue; the final browser run rendered exactly six retained events.
+
+Final production build succeeded. All three browser suites and 45 unit/integration tests passed together after the fix. Revision is local, not deployed. Preview: `http://localhost:3114/station/`.
