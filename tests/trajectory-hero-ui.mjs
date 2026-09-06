@@ -20,7 +20,10 @@ try {
   assert.match(await hero.evaluate(e=>getComputedStyle(e).backgroundImage), /repeating-conic-gradient/);
   assert(await hero.locator('svg > g[style]').evaluateAll(es=>es.every(e=>getComputedStyle(e).color==='rgb(0, 0, 0)')));
   assert.equal(await hero.locator('path[opacity="0.25"]').count(),4);
-  const drones=hero.locator('g[style*="offset-path"]');assert.equal(await drones.count(),4);
+  const drones=hero.locator('g[style*="offset-path"]');assert.equal(await drones.count(),12);
+  const routes=await drones.evaluateAll(es=>es.map(e=>e.style.offsetPath));
+  assert.equal(new Set(routes).size,4);
+  for(const route of new Set(routes))assert.equal(routes.filter(r=>r===route).length,3);
   const drone=drones.first();
   const before=await drone.evaluate(e=>getComputedStyle(e).offsetDistance);
   await page.waitForFunction(old=>getComputedStyle(document.querySelector('[data-trajectory-hero] g[style*="offset-path"]')).offsetDistance!==old,before);
@@ -31,5 +34,5 @@ try {
   assert.equal(await page.getByRole('button',{name:'Pause trajectories',exact:true}).isVisible(),false);
   assert(await page.getByRole('button',{name:'Enable microphone & join'}).isVisible());
   if(process.env.JCODE_SCRATCH_DIR)await page.screenshot({path:`${process.env.JCODE_SCRATCH_DIR}/trajectory-hero.png`,fullPage:true});
-  console.log(`PASS: logo contrast ${logoRatio.toFixed(2)}:1, body ${bodyRatio.toFixed(2)}:1, four moving drone paths, no background text or controls, reduced motion, decorative nonblocking layer.`);
+  console.log(`PASS: logo contrast ${logoRatio.toFixed(2)}:1, body ${bodyRatio.toFixed(2)}:1, twelve drones on four existing paths, no background text or controls, reduced motion, decorative nonblocking layer.`);
 }finally{await browser.close();}
