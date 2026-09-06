@@ -293,12 +293,12 @@ export default function NodePage() {
             const next = [...prevHist, { t, p, d: detecting }];
             return next.length > MAX_POINTS ? next.slice(next.length - MAX_POINTS) : next;
           });
-          // Hysteresis: trip at 0.35, hold until below 0.25 — a flickering
+          // Hysteresis: trip at 0.35, release at 0.25 — a flickering
           // 0.30/0.40 signal stays DETECTED instead of chattering.
           // Plus marginal-trip: 3 straight ticks >= 0.22 trips too (a
-          // distant drone that never quite reaches 0.35). Once tripped
-          // marginally, hold while raw stays >= 0.22 so the pill does not
-          // chatter between the marginal floor and the release point.
+          // distant drone that never quite reaches 0.35). While latched,
+          // hold on raw >= 0.22 so a marginal trip does not chatter between
+          // the marginal floor and the release point.
           // Noise sits <0.06 sustained, so 0.22 is safe.
           if (detecting && !was) {
             setDetections((n) => n + 1);
@@ -435,7 +435,7 @@ export default function NodePage() {
             conf == null
               ? "Drone confidence history, no data yet"
               : `Drone confidence history, current ${Math.round(conf * 100)} percent${
-                  detecting ? ", above threshold, drone detected" : ", below threshold, clear"
+                  detecting ? ", drone detected" : ", clear"
                 }`
           }
           style={{ display: "block", width: "100%", height: 260 }}
