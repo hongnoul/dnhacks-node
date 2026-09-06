@@ -19,10 +19,23 @@ ctx.on("weberror", (e) => errors.push(String(e.error())));
 
 console.log("operator console");
 const admin = await ctx.newPage();
+let confirmRelay;
+const relayReady = new Promise(resolve => { confirmRelay = resolve; });
+admin.on('websocket', socket => socket.on('framereceived', frame => {
+  try {
+    const message = JSON.parse(String(frame.payload));
+    if (message.ctrl === 'state' && Array.isArray(message.nodes)) confirmRelay(true);
+  } catch { /* Ignore unrelated frames. */ }
+}));
 await admin.goto(`${APP}/station/?session=${encodeURIComponent(SESSION)}`);
 await admin.waitForSelector("h1");
-await admin.waitForFunction(() => document.body.innerText.toLowerCase().includes("relay connected"), { timeout: 30000 })
-  .then(() => ok("relay connected")).catch(() => bad("relay never connected"));
+let relayTimer;
+const connected = await Promise.race([
+  relayReady,
+  new Promise(resolve => { relayTimer = setTimeout(() => resolve(false), 30000); }),
+]);
+clearTimeout(relayTimer);
+connected ? ok('relay connected (control-state frame received)') : bad('relay never connected');
 
 console.log("nodes join");
 const nodes = [];
