@@ -68,7 +68,7 @@ export function ConfidenceGraph({
     const x = (t: number) => padL + ((t - t0) / GRAPH_WINDOW_MS) * iw;
     const y = (p: number) => padT + (1 - Math.min(1, Math.max(0, p))) * ih;
 
-    ctx.font = "10px ui-monospace, monospace";
+    ctx.font = monochrome ? "10px 'Courier New', monospace" : "10px ui-monospace, monospace";
     ctx.strokeStyle = GRID;
     ctx.lineWidth = 1;
     for (const g of compact ? [1] : [0, 0.5, 1]) {
@@ -125,9 +125,9 @@ export function ConfidenceGraph({
     ctx.fillStyle = RED_FILL;
     ctx.fill();
 
-    ctx.lineWidth = compact ? 1.5 : 2.5;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
+    ctx.lineWidth = monochrome ? 1 : compact ? 1.5 : 2.5;
+    ctx.lineJoin = monochrome ? "miter" : "round";
+    ctx.lineCap = monochrome ? "butt" : "round";
     for (let i = 1; i < vis.length; i++) {
       const a = vis[i - 1];
       const b = vis[i];
@@ -141,10 +141,18 @@ export function ConfidenceGraph({
 
     const last = vis[vis.length - 1];
     if (now - last.t < GRAPH_WINDOW_MS) {
-      ctx.beginPath();
-      ctx.arc(Math.max(padL, x(last.t)), y(last.p), compact ? 2.5 : 4, 0, Math.PI * 2);
       ctx.fillStyle = (last.d ?? last.p >= DETECT_THRESHOLD) ? RED : GREEN;
-      ctx.fill();
+      const px = Math.max(padL, x(last.t));
+      const py = y(last.p);
+      if (monochrome) {
+        // A square cursor keeps the terminal instrument free of rounded UI marks.
+        const size = compact ? 4 : 6;
+        ctx.fillRect(Math.round(px - size / 2), Math.round(py - size / 2), size, size);
+      } else {
+        ctx.beginPath();
+        ctx.arc(px, py, compact ? 2.5 : 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     if (!compact) {
