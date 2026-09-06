@@ -6,6 +6,7 @@ import { DEFAULT_ROOM } from "./mesh";
 import type { Score } from "./scoring";
 import { ConfidenceGraph } from "./ConfidenceGraph";
 import { RoomMap } from "./RoomMap";
+import { MeshHelp } from "./MeshHelp";
 import { TrajectoryHero } from "./TrajectoryHero";
 import QRCode from "react-qr-code";
 import { AsciiLogo } from "./AsciiLogo";
@@ -174,7 +175,7 @@ export function SensorDesktop({ mesh, view, score, detections, micError }: {
               <p className={styles.note}>Audio stays on this phone. Only detection scores are shared.</p>
             </>}
             {tab === "Mesh" && <>
-              <h2>Your mesh picture</h2><p className={styles.note}>Computed on this phone from its own replica, not received from a server.</p>
+              <MeshHelp /><p className={styles.note}>Computed on this phone from its own replica, not received from a server.</p>
               <div className={styles.map}><RoomMap room={DEFAULT_ROOM} positions={view?.positions ?? new Map()} estimate={est ?? null} levels={new Map(view ? [[view.nodeId, score.p]] : [])} width={Math.max(1, width - 2)} /></div>
               <p className={styles.note}>{est?.localised ? `Fused from ${est.nReports} reporting + ${est.nSilent} silent · ±${est.spreadM.toFixed(1)} m${!est.graded ? " · no SNR: coarse" : ""}` : est ? `${est.nReports} detecting · not localised` : (view?.positions.size ?? 0) > 0 ? `Nothing heard · ${view?.listening ?? 0} nodes listening` : "No positioned readings yet. The operator must place nodes."}</p>
             </>}
