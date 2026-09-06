@@ -48,5 +48,5 @@ export function AsciiLogo({ className, mood = "idle" }: { className?: string; mo
     return () => clearInterval(timer);
   }, [mood, reduced]);
   const displayedFrame = mood === "idle" && !reduced && frame === "open" ? target?.gaze ?? "open" : frame;
-  return <pre ref={artRef} className={className} role="img" aria-label="SkyMesh robot logo in ASCII art" data-reduced-motion={reduced} data-mood={mood} data-eye-frame={displayedFrame} data-blink-frame={frame} data-target-drone={target?.id ?? ""}>{mascotFrame(displayedFrame)}</pre>;
+  return <pre ref={artRef} className={className} role="img" aria-label="SkyMesh robot logo in ASCII art" data-reduced-motion={reduced} data-mood={mood} data-eye-frame={displayedFrame} data-blink-frame={frame} data-target-drone={target?.id ?? ""}>{mascotFrame(displayedFrame, mood === "idle" && !reduced ? target?.gaze ?? "open" : displayedFrame)}</pre>;
 }
