@@ -1,6 +1,27 @@
 # Running the mesh
 
-## Railway (recommended for phones)
+## Fly.io (low-cost always-on hosting)
+
+`fly.toml` configures one shared CPU with 512 MB RAM in US East, HTTPS,
+health checks, and idle sleep disabled. Billing must be enabled on your Fly account.
+The app name must be globally unique. If it is taken, change `app` in `fly.toml`.
+
+```sh
+fly apps create skymesh-hongnoul --org personal
+fly ips allocate-v4 --shared -a skymesh-hongnoul
+fly ips allocate-v6 -a skymesh-hongnoul
+fly deploy --remote-only --ha=false
+```
+
+Use `--ha=false` on the initial deployment to avoid an extra machine. Keep one
+machine because relay sessions are in process memory. Do not add volumes,
+databases, or a dedicated IPv4 for this demo. Remote build usage may add costs.
+
+After deployment, open `https://skymesh-hongnoul.fly.dev/station/` and scan its QR.
+Verify `/health` and `fly machine list` before presenting. Deploys and restarts
+reset sessions. This is a public demo relay, not an authenticated production service.
+
+## Railway
 
 1. In [Railway](https://railway.com/new), choose **Deploy from GitHub repo** and select
    `hongnoul/dnhacks-node`. Keep the service root at `/`.
