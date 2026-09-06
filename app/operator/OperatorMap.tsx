@@ -27,7 +27,7 @@ import {
   type SuggestResult,
 } from "./placement";
 import styles from "./operator.module.css";
-import { ActionButton, OperationsHeader } from "../lib/DesignSystem";
+import { ActionButton } from "../lib/DesignSystem";
 
 type MapMode = "idle" | "placing" | "connecting" | "route";
 type DronePhase = "idle" | "drawing" | "ready";
@@ -830,7 +830,6 @@ export default function OperatorMap() {
 
   return (
     <>
-    <OperationsHeader />
     <main className={styles.shell}>
       <header className={styles.header}>
         <div><p className={styles.eyebrow}>Simulation · synthetic sensors</p><h1 className={styles.title}>Network simulation</h1><p className={styles.modeNotice}>Planning sandbox. No microphone, live sensors, or relay connection.</p></div>
