@@ -23,7 +23,7 @@ export function mascotFrame(frame: EyeFrame): string {
   return rows.map(row => row.join("")).join("\n");
 }
 export const sequences: Record<MascotMood, readonly (readonly [EyeFrame, number])[]> = {
-  idle: [["open", 5200], ["half", 60], ["closed", 90], ["half", 60]],
+  idle: [["open", 4200], ["half", 60], ["closed", 90], ["half", 60]],
   loading: [["left", 950], ["right", 950], ["half", 60], ["closed", 90]],
   happy: [["happy", 1000]],
 };

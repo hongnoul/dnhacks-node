@@ -9,7 +9,7 @@ try {
   const art=page.getByRole('img',{name:'SkyMesh robot logo in ASCII art'});
   await art.waitFor();
   const initial=await art.textContent();const box=await art.boundingBox();
-  await page.clock.runFor(5250);
+  await page.clock.runFor(4250);
   assert.equal(await art.getAttribute('data-eye-frame'),'half');
   await page.clock.runFor(70);
   assert.equal(await art.getAttribute('data-eye-frame'),'closed');
