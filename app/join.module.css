@@ -1,0 +1,83 @@
+.screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  color: #111;
+  font-family: Arial, Helvetica, sans-serif;
+  background-color: #aaa;
+  background-image: repeating-conic-gradient(#181818 0% 25%, #bfbfbf 0% 50%);
+  background-size: 4px 4px;
+  color-scheme: light;
+}
+.dialog {
+  width: min(100%, 720px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 168px;
+  gap: 24px;
+  padding: 28px;
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #eee #262626 #262626 #eee;
+  box-shadow: inset 2px 2px #fff, inset -3px -3px #808080, 2px 2px 0 #000;
+}
+.content { min-width: 0; }
+.title {
+  margin: 2px 0 22px;
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(23px, 4vw, 28px);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0;
+  color: #0000cf;
+}
+.rule { height: 2px; background: #808080; border-bottom: 1px solid #eee; }
+.intro { margin: 20px 0 16px; font-size: 14px; line-height: 1.5; }
+.fields { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 9px 10px; margin: 0; }
+.fields dt { text-align: right; font-size: 15px; font-weight: 700; }
+.fields dd { margin: 0; min-width: 0; padding: 7px 8px; border: 2px solid; border-color: #808080 #eee #eee #808080; font-size: 13px; line-height: 1.4; }
+.steps { margin: 20px 0; padding-left: 24px; list-style: decimal; font-size: 13px; line-height: 1.7; }
+.screen .joinButton {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid;
+  border-color: #fff #343434 #343434 #fff;
+  border-radius: 0;
+  box-shadow: inset -1px -1px #808080;
+  background: #c0c0c0;
+  color: #000;
+  font: 700 15px Arial, Helvetica, sans-serif;
+  cursor: pointer;
+  min-height: 48px;
+}
+.screen .joinButton:hover:not(:disabled) { background: #d0d0d0; }
+.screen .joinButton:active:not(:disabled) { border-color: #343434 #fff #fff #343434; box-shadow: inset 1px 1px #808080; }
+.screen .joinButton:focus-visible { outline: 2px dotted #000; outline-offset: -6px; }
+.screen .joinButton:disabled { color: #555; cursor: wait; opacity: 1; }
+.note { margin: 12px 0 0; font-size: 12px; line-height: 1.5; min-height: 36px; }
+.brand {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 8px;
+  border: 2px solid;
+  border-color: #808080 #eee #eee #808080;
+  background: linear-gradient(135deg, #eee, #aaa);
+}
+.logo { display: block; width: 100%; height: auto; }
+.wordmark { margin-top: 20px; font-size: 20px; font-weight: 700; letter-spacing: 2px; }
+.brandCaption { margin-top: 8px; font: 9px/1.5 monospace; text-align: center; }
+@media (max-width: 560px) {
+  .screen { padding: 24px 16px; }
+  .dialog { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 24px 20px; }
+  .brand { grid-row: 1; flex-direction: row; gap: 12px; padding: 4px 12px; }
+  .logo { width: 68px; }
+  .wordmark { margin: 0; font-size: 18px; }
+  .brandCaption { display: none; }
+  .title { margin-bottom: 18px; }
+}

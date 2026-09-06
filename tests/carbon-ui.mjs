@@ -27,7 +27,7 @@ try {
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${route} overflows at ${width}px`);
       if (route === '/') {
         const button = page.getByRole('button', { name: 'Enable microphone & join' });
-        assert(await button.evaluate(el => el.classList.contains('cds--btn')));
+        assert(await page.getByRole('heading', { name: 'Welcome to SkyMesh' }).isVisible());
         assert((await button.boundingBox()).height >= 44);
       }
     }

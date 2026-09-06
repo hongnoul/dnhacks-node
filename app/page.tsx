@@ -6,7 +6,7 @@
 
 "use client";
 
-import { ActionButton } from "./lib/DesignSystem";
+import styles from "./join.module.css";
 
 import { useEffect, useRef, useState } from "react";
 import { useMesh } from "./lib/useMesh.ts";
@@ -90,28 +90,34 @@ export default function NodePage() {
 
   if (!joined) {
     return (
-      <main className="join-screen">
-        <div className="panel join-panel">
-          <p className="eyebrow">A shared sky. Powered by your phone.</p>
-          <h1 className="join-title">Join SkyMesh</h1>
-          <p className="dim" style={{ marginTop: 0 }}>
-            Help the mesh listen for drones. Detection runs on your phone. Only detection scores are shared, never your audio.
-          </p>
-          <ol className="join-steps"><li>Allow microphone access</li><li>Wait for the operator to admit you</li><li>Keep this screen open to listen</li></ol>
-          <ActionButton
-            className="primary"
-            style={{ fontSize: 18, padding: "14px 32px" }}
-            onClick={join}
-            disabled={loading}
-          >
-            {loading ? "Preparing your sensor…" : "Enable microphone & join"}
-          </ActionButton>
-          <p className="dim" style={{ fontSize: 12 }}>
-            {loading
-              ? "Fetching the CRNN (~6 MB, cached after the first visit)."
-              : "Allow microphone access when asked. Detection runs on this device."}
-          </p>
-        </div>
+      <main className={styles.screen}>
+        <section className={styles.dialog} aria-labelledby="join-title" aria-busy={loading}>
+          <div className={styles.content}>
+            <h1 id="join-title" className={styles.title}>Welcome to SkyMesh</h1>
+            <div className={styles.rule} />
+            <p className={styles.intro}>A shared sky. Powered by your phone.</p>
+            <dl className={styles.fields}>
+              <dt>Mode:</dt><dd>On-device drone detection</dd>
+              <dt>Privacy:</dt><dd>Audio stays on this phone</dd>
+            </dl>
+            <ol className={styles.steps}>
+              <li>Enable your microphone.</li>
+              <li>Wait for the operator to admit you.</li>
+              <li>Keep this screen open to listen.</li>
+            </ol>
+            <button className={styles.joinButton} type="button" onClick={join} disabled={loading}>
+              {loading ? "Preparing your sensor…" : "Enable microphone & join"}
+            </button>
+            <p className={styles.note} role="status" aria-live="polite">
+              {loading ? "Loading the detector (~6 MB). Please wait…" : "Only detection scores are shared. Never your audio."}
+            </p>
+          </div>
+          <div className={styles.brand}>
+            <img src="/skymesh-logo.svg" width="810" height="810" alt="SkyMesh robot logo" className={styles.logo} />
+            <span className={styles.wordmark}>SKYMESH</span>
+            <span className={styles.brandCaption}>PERSONAL SENSOR NODE</span>
+          </div>
+        </section>
       </main>
     );
   }
