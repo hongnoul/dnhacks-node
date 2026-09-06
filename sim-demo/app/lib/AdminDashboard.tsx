@@ -447,6 +447,38 @@ export function AdminDashboard() {
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
+      {pending.length > 0 && (
+        <div
+          className="panel"
+          style={{
+            borderColor: "var(--accent)",
+            position: "sticky",
+            top: 0,
+            zIndex: 5,
+          }}
+        >
+          <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0 }}>
+              waiting to join ({pending.length})
+            </h2>
+            <div className="row" style={{ flexWrap: "wrap" }}>
+              {pending.map((n) => (
+                <span key={n.node} className="row" style={{ gap: 6, marginRight: 8 }}>
+                  <span>{n.node}</span>
+                  <button className="primary" onClick={() => chan?.admit(n.node)}>
+                    admit
+                  </button>
+                </span>
+              ))}
+              {pending.length > 1 && (
+                <button onClick={() => pending.forEach((n) => chan?.admit(n.node))}>
+                  admit all
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="row" style={{ justifyContent: "space-between" }}>
         <div className="row">
           <h1 style={{ margin: 0 }}>SkyMesh — operator</h1>
@@ -530,20 +562,6 @@ export function AdminDashboard() {
         </div>
 
         <div style={{ display: "grid", gap: 12, minWidth: 300, flex: 1 }}>
-          {pending.length > 0 && (
-            <div className="panel" style={{ borderColor: "var(--accent)" }}>
-              <h2>waiting to join</h2>
-              {pending.map((n) => (
-                <div key={n.node} className="row" style={{ justifyContent: "space-between", marginTop: 6 }}>
-                  <span>{n.node}</span>
-                  <button className="primary" onClick={() => chan?.admit(n.node)}>
-                    admit
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
           <div className="panel">
             <h2>detections</h2>
             <p className="dim" style={{ fontSize: 12, marginTop: 0 }}>

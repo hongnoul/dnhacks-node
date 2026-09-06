@@ -20,8 +20,15 @@ import { AdminDashboard } from "../lib/AdminDashboard.tsx";
 
 export default function StationPage() {
   return (
-    <main style={{ display: "flex", height: "100dvh", overflow: "hidden" }}>
+    <>
+      <style>{`@media (max-width: 900px) {
+        .console { flex-direction: column; overflow-y: auto !important; }
+        .console-sidebar { width: 100% !important; flex: none !important; border-right: 0 !important; border-bottom: 1px solid var(--line); overflow-y: visible !important; }
+        .console-main { overflow-y: visible !important; }
+      }`}</style>
+    <main className="console" style={{ display: "flex", height: "100dvh", overflow: "hidden" }}>
       <aside
+        className="console-sidebar"
         style={{
           width: 340,
           flex: "0 0 340px",
@@ -39,6 +46,7 @@ export default function StationPage() {
       </aside>
 
       <div
+        className="console-main"
         style={{
           flex: 1,
           minWidth: 0, // flex children default to min-content; without this the
@@ -49,5 +57,6 @@ export default function StationPage() {
         <AdminDashboard />
       </div>
     </main>
+    </>
   );
 }

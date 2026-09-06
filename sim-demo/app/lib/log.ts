@@ -91,7 +91,7 @@ export class Log {
    * seq 2, so LWW picked the 9th write of a value and a node dragged ten times
    * on the map jumped back to where it was on the ninth.
    *
-   * Cached because /admin calls ofType() many times a second over a log that
+   * Cached because the operator console calls ofType() many times a second over a log that
    * only ever grows; re-sorting each time degrades the console within minutes.
    */
   sorted(): MeshRecord[] {
