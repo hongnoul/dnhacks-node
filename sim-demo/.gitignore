@@ -5,3 +5,9 @@ server/__pycache__/
 __pycache__/
 *.pyc
 tsconfig.tsbuildinfo
+
+# vendored from ml-demo by vendor-detector.mjs at install — not a second source of truth
+app/lib/vendor/
+public/ort/
+public/drone_crnn.onnx
+public/drone-demo.wav
