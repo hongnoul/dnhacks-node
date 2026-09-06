@@ -96,7 +96,15 @@ export function useSimulation(
     return () => cancelAnimationFrame(raf);
   }, [world, running, speed]);
 
-  const play = useCallback(() => setRunning(true), []);
+  const play = useCallback(() => {
+    // A completed route must start a new run, not immediately finish again.
+    // Paused, unfinished runs retain their time and replicas.
+    if (world.snapshot(false).done) {
+      world.reset();
+      setSnapshot(world.snapshot(false));
+    }
+    setRunning(true);
+  }, [world]);
   const pause = useCallback(() => setRunning(false), []);
   const reset = useCallback(() => {
     setRunning(false);

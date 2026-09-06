@@ -95,3 +95,15 @@ a { color: var(--cds-link-primary); }
 .fit-board .row { flex-wrap: wrap; }
 .fit-board .console .join-card, .fit-board .console .audio-card { flex: none; }
 .fit-board [data-section="activity"] li span:last-child { min-width: 0; overflow-wrap: anywhere; }
+
+/* Mode navigation stays visible on phones and preserves the live session. */
+.operations-nav { display: flex; align-self: stretch; align-items: stretch; }
+.operations-nav a { display: flex; align-items: center; padding: 0 16px; color: var(--dim); text-decoration: none; font-size: 14px; white-space: nowrap; }
+.operations-nav a[aria-current="page"] { color: var(--text); background: var(--panel); border-bottom: 2px solid var(--accent); }
+.operations-nav a:focus-visible { outline: 2px solid var(--cds-focus, #fff); outline-offset: -2px; }
+@media (max-width: 600px) {
+  .operations-shell .shell-product { display: none; }
+  .operations-shell .cds--header__name { padding-inline: 12px; }
+  .operations-nav a { padding-inline: 10px; font-size: 12px; }
+  .shell-meta { display: none; }
+}

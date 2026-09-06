@@ -26,6 +26,7 @@ import {
   type SuggestResult,
 } from "./placement";
 import styles from "./operator.module.css";
+import { ActionButton, OperationsHeader } from "../lib/DesignSystem";
 
 type MapMode = "idle" | "placing" | "connecting" | "route";
 type DronePhase = "idle" | "drawing" | "ready";
@@ -155,6 +156,7 @@ export default function OperatorMap() {
   const [mode, setMode] = useState<MapMode>("idle");
   const [placementCandidate, setPlacementCandidate] = useState<PlacementCandidate>(null);
   const [advisorOn, setAdvisorOn] = useState(false);
+  const [tilesUnavailable, setTilesUnavailable] = useState(false);
   /**
    * First node of a link being drawn.
    *
@@ -595,20 +597,23 @@ export default function OperatorMap() {
   }
 
   return (
+    <>
+    <OperationsHeader />
     <main className={styles.shell}>
       <header className={styles.header}>
-        <div><p className={styles.eyebrow}>SkyMesh / Operator</p><h1 className={styles.title}>Sensor network</h1></div>
-        <div className={styles.headerStats}><div className={styles.networkStatus}><span className={styles.statusDot} /> {nodes.length === 0 ? "no network" : "network live"}</div><div className={styles.stat}><strong>{activeNodes.length}</strong> active</div><div className={styles.stat}><strong>{sim.running ? 1 : 0}</strong> drones</div><div className={styles.stat}><strong>{nodes.length === 0 ? "—" : `${networkHealth}%`}</strong> health</div></div>
+        <div><p className={styles.eyebrow}>Simulation · synthetic sensors</p><h1 className={styles.title}>Network simulation</h1><p className={styles.modeNotice}>Planning sandbox. No microphone, live sensors, or relay connection.</p></div>
+        <div className={styles.headerStats}><div className={styles.networkStatus}><span className={styles.statusDot} /> {nodes.length === 0 ? "no network" : "simulated network"}</div><div className={styles.stat}><strong>{activeNodes.length}</strong> active</div><div className={styles.stat}><strong>{sim.running ? 1 : 0}</strong> drones</div><div className={styles.stat}><strong>{nodes.length === 0 ? "—" : `${networkHealth}%`}</strong> health</div></div>
       </header>
       <div className={styles.workspace}>
         <section className={styles.mapArea} aria-label="Interactive sensor map">
+          {tilesUnavailable && <p className={styles.tileNotice} role="status">Basemap unavailable. Placement and simulation still work on the blank map.</p>}
           <div className={styles.toolbar}>
-            <button className={mode === "placing" ? styles.buttonActive : styles.button} onClick={togglePlacementMode} type="button">{mode === "placing" ? "Cancel placement" : "Place node"}</button>
-            <button className={mode === "connecting" ? styles.buttonActive : styles.button} onClick={toggleLinkMode} type="button">{mode === "connecting" ? "Done linking" : "Link nodes"}</button>
+            <ActionButton className={mode === "placing" ? styles.buttonActive : styles.button} onClick={togglePlacementMode} type="button">{mode === "placing" ? "Cancel placement" : "Place node"}</ActionButton>
+            <ActionButton className={mode === "connecting" ? styles.buttonActive : styles.button} onClick={toggleLinkMode} type="button">{mode === "connecting" ? "Done linking" : "Link nodes"}</ActionButton>
           </div>
           {mode !== "idle" && <div className={styles.mapHint}>{mode === "placing" ? placementCandidate ? <><strong>{placementStatus === "invalid" ? `${Math.round(placementCandidate.distances[0]?.distanceM ?? 0)} m — too close` : placementStatus === "warning" ? `${eligiblePlacementNodes.length}/${MIN_CONNECTIONS} required neighbors` : `Valid placement — ${eligiblePlacementNodes.length} available links`}</strong><span className={styles.placementDistances}>{placementCandidate.distances.slice(0, 3).map(({ node, distanceM }) => `${node.name}: ${Math.round(distanceM)} m`).join(" · ")}</span></> : "Move across the map to preview placement constraints." : mode === "route" ? (route.length === 0 ? "Click to set the launch point, then click each waypoint along the ingress." : `${route.length} waypoint${route.length === 1 ? "" : "s"} · ${Math.round(coverage.lengthM)} m · ${Math.round(coverage.covered * 100)}% observed — finish when done`) : linkFrom ? `Linking from ${nodes.find((n) => n.id === linkFrom)?.name ?? linkFrom} — click another sensor to link or unlink.` : "Click a sensor, then click another to link or unlink the pair."}</div>}
           <MapContainer center={MAP_CENTER} zoom={15} className={styles.map} zoomControl={false}>
-            <TileLayer className={styles.mapTiles} attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <TileLayer eventHandlers={{ tileerror: () => setTilesUnavailable(true) }} className={styles.mapTiles} attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             <MapInteractions onMapClick={handleMapClick} onMapMove={handleMapMove} onMapUp={endNodeDrag} mapRef={mapRef} />
             {connections.map((connection) => {
               const points = connectionPoints(connection, shownNodes);
@@ -682,12 +687,12 @@ export default function OperatorMap() {
           {viewpoint && (
             <div className={styles.viewpointBanner}>
               <span>Seeing what <b>{nodes.find((n) => n.id === viewpoint)?.name ?? viewpoint}</b> sees — {view.records} records, {view.contacts.length} contact{view.contacts.length === 1 ? "" : "s"}</span>
-              <button onClick={() => setViewpoint(null)} type="button">operator view</button>
+              <ActionButton onClick={() => setViewpoint(null)} type="button">operator view</ActionButton>
             </div>
           )}
           {nodes.length === 0 && mode === "idle" && (
             <div className={styles.emptyHint}>
-              No sensors. Use <b>Place node</b> above, or <button className={styles.linkAction} onClick={() => seedRing()} type="button">seed a ring of 5</button>.
+              No sensors. Use <b>Place node</b> above, or <ActionButton className={styles.linkAction} onClick={() => seedRing()} type="button">seed a ring of 5</ActionButton>.
             </div>
           )}
           {advisor && (
@@ -705,9 +710,9 @@ export default function OperatorMap() {
         <aside className={styles.panel} aria-label="Node inspector">
           <section className={styles.scenarioSection} aria-label="Scenario controls">
             <div className={styles.scenarioHeader}><div><p className={styles.sectionKicker}>Demo layer</p><h2>Attack run</h2></div><span className={styles.threatBadge} data-level={sim.running ? "elevated" : "nominal"}>{sim.running ? "Elevated" : "Nominal"}</span></div>
-            <button className={mode === "route" ? styles.runButtonActive : styles.runButton} onClick={drawRoute} type="button">
+            <ActionButton className={mode === "route" ? styles.runButtonActive : styles.runButton} onClick={drawRoute} type="button">
               {mode === "route" ? `Finish route (${route.length} waypoint${route.length === 1 ? "" : "s"})` : dronePhase === "idle" ? "Draw attack route" : "Redraw route"}
-            </button>
+            </ActionButton>
             {route.length > 1 && (
               <div className={styles.runCoverage} data-thin={coverage.covered < 0.6}>
                 <div className={styles.runBar}><i style={{ width: `${Math.round(coverage.covered * 100)}%` }} /></div>
@@ -725,22 +730,22 @@ export default function OperatorMap() {
             )}
             {dronePhase === "ready" || sim.snapshot.timeMs > 0 ? (
               <div className={styles.transport}>
-                <button className={styles.transportPlay} onClick={sim.running ? sim.pause : sim.play} type="button">
+                <ActionButton className={styles.transportPlay} onClick={sim.running ? sim.pause : sim.play} type="button">
                   {sim.running ? "❚❚ Pause" : sim.snapshot.done ? "▶ Replay" : "▶ Run"}
-                </button>
+                </ActionButton>
                 <div className={styles.transportSpeeds}>
                   {SPEEDS.map((x) => (
-                    <button key={x} className={sim.speed === x ? styles.speedActive : styles.speed} onClick={() => sim.setSpeed(x)} type="button">{x}×</button>
+                    <ActionButton key={x} className={sim.speed === x ? styles.speedActive : styles.speed} onClick={() => sim.setSpeed(x)} type="button">{x}×</ActionButton>
                   ))}
                 </div>
-                <button className={styles.scenarioButton} onClick={sim.reset} type="button"><span>↺</span>Reset</button>
+                <ActionButton className={styles.scenarioButton} onClick={sim.reset} type="button"><span>↺</span>Reset</ActionButton>
                 <span className={styles.transportClock}>t+{(sim.snapshot.timeMs / 1000).toFixed(1)} s</span>
               </div>
             ) : null}
             <div className={styles.scenarioRow}>
-              {mode === "route" && route.length > 0 && <button className={styles.scenarioButton} onClick={undoWaypoint} type="button"><span>↶</span>Undo</button>}
-              {dronePhase !== "idle" && mode !== "route" && <button className={styles.scenarioButton} onClick={() => { sim.reset(); setDronePhase("idle"); setRoute([]); }} type="button"><span>×</span>Clear</button>}
-              <button className={advisorOn ? styles.scenarioButtonActive : styles.scenarioButton} onClick={toggleAdvisor} type="button"><span>◎</span>{advisorOn ? "Hide advice" : "Suggest placement"}</button>
+              {mode === "route" && route.length > 0 && <ActionButton className={styles.scenarioButton} onClick={undoWaypoint} type="button"><span>↶</span>Undo</ActionButton>}
+              {dronePhase !== "idle" && mode !== "route" && <ActionButton className={styles.scenarioButton} onClick={() => { sim.reset(); setDronePhase("idle"); setRoute([]); }} type="button"><span>×</span>Clear</ActionButton>}
+              <ActionButton className={advisorOn ? styles.scenarioButtonActive : styles.scenarioButton} onClick={toggleAdvisor} type="button"><span>◎</span>{advisorOn ? "Hide advice" : "Suggest placement"}</ActionButton>
             </div>
             {advisor && (
               <>
@@ -752,11 +757,11 @@ export default function OperatorMap() {
                   <ul className={styles.advisorList}>
                     {advisor.result.suggestions.map((s) => (
                       <li key={s.rank}>
-                        <button className={styles.advisorItem} type="button" onClick={() => acceptSuggestion(s.lat, s.lon, s.neighbours, s.rank)}>
+                        <ActionButton className={styles.advisorItem} type="button" onClick={() => acceptSuggestion(s.lat, s.lon, s.neighbours, s.rank)}>
                           <span className={styles.advisorRank}>{s.rank}</span>
                           <span>±<b>{Math.round(s.medianCoveredRadiusM)} m</b> · {s.neighbours.length} link{s.neighbours.length === 1 ? "" : "s"}{s.coverageGain > 0.005 && ` · +${Math.round(s.coverageGain * 100)}% area`}</span>
                           <span className={styles.advisorGain}>−{Math.round(s.improvementM)} m</span>
-                        </button>
+                        </ActionButton>
                       </li>
                     ))}
                   </ul>
@@ -788,7 +793,7 @@ export default function OperatorMap() {
           </section>
           {selectedNode ? <>
             <section className={styles.panelSection}>
-              <div className={styles.panelHeading}><div><h2>{selectedNode.name}</h2><p className={styles.nodeId}>{selectedNode.id}</p></div><button className={styles.closeButton} onClick={() => setSelectedNodeId(null)} type="button" aria-label="Close inspector">×</button></div>
+              <div className={styles.panelHeading}><div><h2>{selectedNode.name}</h2><p className={styles.nodeId}>{selectedNode.id}</p></div><ActionButton className={styles.closeButton} onClick={() => setSelectedNodeId(null)} type="button" aria-label="Close inspector">×</ActionButton></div>
               <span className={styles.statusBadge} data-status={selectedNode.status}>{selectedNode.status}</span>
               <dl className={styles.infoGrid}>
                 <div><dt>Confidence</dt><dd>{sim.snapshot.timeMs > 0 ? `${Math.round((simNodes.get(selectedNode.id)?.p ?? 0) * 100)}%` : "—"}</dd></div>
@@ -798,9 +803,9 @@ export default function OperatorMap() {
               </dl>
               {/* The one control that makes divergence visible: redraw the map
                   from this node's replica instead of the operator's union. */}
-              <button className={viewpoint === selectedNode.id ? styles.viewpointActive : styles.actionButton} onClick={() => setViewpoint(viewpoint === selectedNode.id ? null : selectedNode.id)} type="button">
+              <ActionButton className={viewpoint === selectedNode.id ? styles.viewpointActive : styles.actionButton} onClick={() => setViewpoint(viewpoint === selectedNode.id ? null : selectedNode.id)} type="button">
                 {viewpoint === selectedNode.id ? "Showing this node's view — back to operator" : "See what this node sees"}
-              </button>
+              </ActionButton>
             </section>
             <section className={styles.panelSection}>
               <h3>Links ({selectedConnections.length})</h3>
@@ -813,14 +818,15 @@ export default function OperatorMap() {
                   {/* Out-of-range links are legal — the operator may have drawn them
                       deliberately — but they should say so rather than look normal. */}
                   <span className={styles.connectionStatus} data-status={span !== null && span > MAX_LINK_DISTANCE_M ? "degraded" : connection.status}>{span === null ? connection.status : `${span} m`}</span>
-                  <button className={styles.unlinkButton} onClick={() => toggleLink(selectedNode.id, otherId)} type="button" aria-label={`Unlink ${otherNode?.name ?? otherId}`}>unlink</button>
+                  <ActionButton className={styles.unlinkButton} onClick={() => toggleLink(selectedNode.id, otherId)} type="button" aria-label={`Unlink ${otherNode?.name ?? otherId}`}>unlink</ActionButton>
                 </li>;
               })}</ul> : <p className={styles.emptyState}>No links. Use “Link nodes”, or drag this sensor near another.</p>}
-              <button className={styles.removeButton} onClick={() => removeNode(selectedNode.id)} type="button">Remove sensor</button>
+              <ActionButton className={styles.removeButton} onClick={() => removeNode(selectedNode.id)} type="button">Remove sensor</ActionButton>
             </section>
           </> : <section className={styles.panelSection}><h2>Select a node</h2><p className={styles.emptyState}>Click a sensor on the map to inspect its health and connections.</p></section>}
         </aside>
       </div>
     </main>
+    </>
   );
 }

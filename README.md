@@ -12,6 +12,7 @@ SkyMesh is one app:
 
 - **Phone node (`/`)** — live microphone → TypeScript mel-spectrogram → CRNN via ONNX Runtime Web → drone confidence. Audio never leaves the phone; only likelihood records are shared.
 - **Operator console (`/station`)** — laptop screen under the `SkyMesh / Operations` header. The left sidebar holds the compact join QR and the clickable 3D drone/audio demo; the right side renders the admin dashboard (node admission, room map, topology/link controls, confidence graphs, fused localization). A `FitBoard` wrapper (`app/lib/FitBoard.tsx`) scales the whole board down to fit the viewport, so all seven sections (sensor confidence, network topology, scenario controls, scenario activity, link emulation, sensor directory, sensor inspector) plus QR and drone canvas are visible at once. There is no panel switcher and no pagination: every admitted sensor, link row, and retained activity event renders in full. Link emulation is shown by default, and the inspector shows a placeholder until a sensor is selected on the map.
+- **Network simulation (`/operator`)** — separate planning sandbox with geographic node placement, information-based placement advice, coverage overlays, attack routes, timed lossy gossip, and per-node estimates. The shared Carbon header switches between live sensors and simulation while preserving the session parameter. Synthetic sensors never connect to the live relay or microphone. External OpenStreetMap tiles are optional: a warning appears on tile failure, and placement/simulation remain usable on a blank basemap.
 - **Admin compatibility (`/admin`)** — redirects to `/station` preserving the session.
 - **Relay (`server/relay.py`)** — WebSocket transport for browser nodes. It routes opaque peer messages and serves the static export for one-origin HTTPS demos.
 
@@ -121,3 +122,42 @@ These check theme contrast tokens, drone-mode controls, responsive overflow,
 simultaneous rendering of all sections with no pagination, and phone enrollment
 button sizing. Live microphone permissions and multi-phone enrollment still
 require device acceptance testing.
+
+## Operator integration boundaries and verification
+
+`mark/fixing-simulation` is integrated alongside the Carbon/FitBoard live console.
+The simulator reuses `app/lib/detection.ts`, `log.ts`, and protocol record types,
+but owns its transport clock, synthetic scores, and geographic estimator.
+Its “placement advisor” is a deterministic Fisher-information optimizer, not an
+external model service. Simulated fixes are not real detector measurements.
+
+Live placement advice is a follow-up, not silently enabled by this integration.
+Before porting it, extract a metric-frame adapter and parameterize the street-scale
+spacing/range/detection constants for room-scale `x/y` positions. Keep live
+`fusion.ts` authoritative and require explicit operator confirmation for topology
+changes. Do not inject simulation records into a live session. The map and its
+Leaflet dependency remain in the separate `/operator` route, not `ml-demo`.
+
+Acceptance commands (use a free local port):
+
+```bash
+npm test
+npm run build
+npm run build:static
+server/.venv/bin/uvicorn relay:app --app-dir server --host 127.0.0.1 --port 8127
+# In another terminal:
+APP_URL=http://127.0.0.1:8127 node tests/operator-ui.mjs
+UI_BASE_URL=http://127.0.0.1:8127 node tests/ui-viewport-smoke.mjs
+APP_URL=http://127.0.0.1:8127 node tests/ui-smoke.mjs
+```
+
+The operator browser test covers the real static route, Carbon controls, failed
+map tiles, placement/advisor acceptance, playback/pause/reset/completed-run replay,
+per-node viewpoint, responsive layouts, absence of live sockets, and navigation
+back to the live station without losing its session. The live smoke test covers
+joining/admitting phones, gossip, room placement, link cuts, and populated-board
+layout. Unit/integration tests exercise routing, loss, partitions, healing, and
+estimator edge cases.
+
+Dependency audit at integration time reports existing Next.js/PostCSS advisories.
+The integration retains Next 15 and does not force a breaking framework upgrade.
