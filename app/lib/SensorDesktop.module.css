@@ -137,6 +137,12 @@
 .stationImage > span { font: 48px/1 monospace; }
 .stationImage strong { font: bold 16px/1.1 'Courier New', monospace; letter-spacing: .12em; }
 
+/* The model is a desktop file, with the same artwork frame and label as video. */
+.hardwareImage svg { display: block; width: 94px; height: 82px; margin: auto; }
+@media (min-width: 1100px) {
+  .desktop .hardwareFile { top: 10vh; left: auto; right: max(24px, calc((100vw - 760px) / 2 - 190px)); }
+}
+
 /* bottom-style terminal panel: title interrupts a single-cell border. */
 .terminalInstrument { min-width: 0; margin: 0; padding: 0 13px 10px; border: 1px solid #dedee3; background: #101216; box-shadow: 0 0 0 6px #101216; color: #dedee3; }
 .terminalInstrument legend { padding: 0 7px; background: #101216; font: 12px/1.5 Menlo, Consolas, monospace; }
@@ -162,6 +168,7 @@
   .desktopMascot { font-size: 2.2px; line-height: 2.5px; }
   .videoImage > span { width: 56px; font-size: 26px; line-height: 44px; border-inline-width: 4px; }
   .videoImage small { font-size: 11px; line-height: 20px; }
+  .hardwareImage svg { width: 48px; height: 42px; }
   .stationImage > span { font-size: 26px; }
   .stationImage strong { font-size: 11px; }
   .window, .qrViewer { translate: none !important; }

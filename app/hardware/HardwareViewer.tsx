@@ -11,6 +11,7 @@ export default function HardwareViewer() {
   const host = useRef<HTMLDivElement>(null);
   const controls = useRef<(index: number) => void>(() => {});
   const [selected, setSelected] = useState(0);
+  const [standardView, setStandardView] = useState<number | null>(0);
   const [status, setStatus] = useState('Loading 3D concept…');
   useEffect(() => {
     let disposed = false;
@@ -73,22 +74,27 @@ export default function HardwareViewer() {
   }, []);
   return <section aria-label="Hardware explorer" className={styles.explorer}>
     <div className={styles.viewToolbar} role="group" aria-label="Standard views">
-      {["Perspective", "Front", "Top", "Base"].map((name,index) => <button type="button" key={name} onClick={() => controls.current(index + 4)}>{name}</button>)}
+      <span className={styles.toolbarLabel}>View:</span>
+      {["Perspective", "Front", "Top", "Base"].map((name,index) => <button type="button" key={name} aria-pressed={standardView===index} onClick={() => {setStandardView(index);controls.current(index + 4);}}>{name}</button>)}
     </div>
     <div className={styles.viewport}>
-      <span className={styles.index}>SM-01 / CONCEPT STUDY</span>
       <div ref={host} className={styles.canvas} />
-      {status && <div className={styles.fallback}><img src="/hardware-poster.svg" alt="Illustration of the proposed dome-shaped SkyMesh acoustic sensor with solar cap, antenna, and mounting feet" /><p role="status">{status}</p></div>}
-      <span className={styles.dimension}>Ø 100 mm target · proportions illustrative</span>
+      {status && <div className={styles.fallback}><img src="/hardware-poster.svg" alt="Illustration of the proposed dome-shaped SkyMesh acoustic sensor with solar cap, antenna, and mounting feet" /></div>}
     </div>
     <div className={styles.inspector}>
-      <p className={styles.eyebrow}>Explore the node</p>
-      <div className={styles.tabs} role="group" aria-label="Component viewpoints">
-        {parts.map((part,i)=><button key={part.title} type="button" aria-pressed={selected===i} onClick={()=>{setSelected(i);controls.current(i);}}><span>0{i+1}</span>{part.title}</button>)}
-      </div>
-      <p className={styles.description} aria-live="polite">{parts[selected].text}</p>
-      <p className={styles.hint}>Drag to orbit · Scroll or pinch to zoom<br/>Component buttons also change the viewpoint.</p>
-      <button type="button" className={styles.reset} onClick={()=>{setSelected(0);controls.current(0);}}>Reset view</button>
+      <fieldset className={styles.componentGroup}>
+        <legend>Components</legend>
+        <div className={styles.tabs} role="group" aria-label="Component viewpoints">
+          {parts.map((part,i)=><button key={part.title} type="button" aria-pressed={selected===i} onClick={()=>{setSelected(i);setStandardView(null);controls.current(i);}}><span aria-hidden="true">0{i+1}</span>{part.title}</button>)}
+        </div>
+      </fieldset>
+      <fieldset className={styles.componentGroup}>
+        <legend>Details</legend>
+        <p className={styles.description} aria-live="polite">{parts[selected].text}</p>
+      </fieldset>
+      {status && <p className={styles.loadStatus} role="status">{status}</p>}
+      <p className={styles.hint}>Drag to rotate.<br/>Scroll or pinch to zoom.</p>
+      <button type="button" className={styles.reset} onClick={()=>{setSelected(0);setStandardView(0);controls.current(0);}}>Reset view</button>
     </div>
   </section>;
 }
