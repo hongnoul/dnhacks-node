@@ -23,14 +23,12 @@ try {
   const drone=drones.first();
   const before=await drone.evaluate(e=>getComputedStyle(e).offsetDistance);
   await page.waitForFunction(old=>getComputedStyle(document.querySelector('[data-trajectory-hero] g[style*="offset-path"]')).offsetDistance!==old,before);
-  await page.getByRole('button',{name:'Pause trajectories',exact:true}).click();
-  assert.equal(await drone.evaluate(e=>getComputedStyle(e).animationPlayState),'paused');
-  await page.getByRole('button',{name:'Resume trajectories',exact:true}).click();
-  assert.equal(await drone.evaluate(e=>getComputedStyle(e).animationPlayState),'running');
+  assert.equal(await hero.locator('text').count(),0);
+  assert.equal(await page.getByRole('button').count(),1);
   await page.emulateMedia({reducedMotion:'reduce'});
   assert.equal(await drone.evaluate(e=>getComputedStyle(e).animationName),'none');
   assert.equal(await page.getByRole('button',{name:'Pause trajectories',exact:true}).isVisible(),false);
   assert(await page.getByRole('button',{name:'Enable microphone & join'}).isVisible());
   if(process.env.JCODE_SCRATCH_DIR)await page.screenshot({path:`${process.env.JCODE_SCRATCH_DIR}/trajectory-hero.png`,fullPage:true});
-  console.log(`PASS: logo contrast ${logoRatio.toFixed(2)}:1, body ${bodyRatio.toFixed(2)}:1, four moving drone paths, pause/resume, reduced motion, decorative nonblocking layer.`);
+  console.log(`PASS: logo contrast ${logoRatio.toFixed(2)}:1, body ${bodyRatio.toFixed(2)}:1, four moving drone paths, no background text or controls, reduced motion, decorative nonblocking layer.`);
 }finally{await browser.close();}

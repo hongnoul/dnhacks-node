@@ -25,7 +25,6 @@ try {
     assert.equal(await button.evaluate(e => getComputedStyle(e).borderRadius), '0px');
     assert.equal(await button.evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(192, 192, 192)');
     await page.keyboard.press('Tab');
-    await page.keyboard.press('Tab');
     assert(await button.evaluate(e => e === document.activeElement));
     assert.equal(await button.evaluate(e => getComputedStyle(e).outlineStyle), 'dotted');
     await button.hover();

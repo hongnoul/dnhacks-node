@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import styles from "./TrajectoryHero.module.css";
 
 const tracks = [
@@ -11,9 +10,8 @@ const tracks = [
 ];
 
 export function TrajectoryHero() {
-  const [paused, setPaused] = useState(false);
   return <>
-    <div className={`${styles.scene} ${paused ? styles.paused : ""}`} aria-hidden="true" data-trajectory-hero>
+    <div className={styles.scene} aria-hidden="true" data-trajectory-hero>
       <svg className={styles.map} viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
         <defs>
           <pattern id="trajectory-grid" width="60" height="60" patternUnits="userSpaceOnUse">
@@ -31,7 +29,6 @@ export function TrajectoryHero() {
           <g transform={`translate(${track.x} ${track.y})`}>
             <circle r="5" fill="#c0c0c0" stroke="currentColor" strokeWidth="2" />
             <path d="M-12 0H12M0-12V12" stroke="currentColor" />
-            <text x="16" y="-14" fill="currentColor" fontSize="12" fontFamily="monospace">DRN / {track.id}</text>
           </g>
           <g className={styles.drone} style={{ offsetPath: `path('${track.path}')`, animationDuration: track.duration, animationDelay: track.delay }}>
             <circle r="15" fill="currentColor" opacity="0.14" />
@@ -42,9 +39,6 @@ export function TrajectoryHero() {
         </g>)}
       </svg>
     </div>
-    <div className={styles.caption}><strong>SKYMESH / AIRSPACE</strong><span>ILLUSTRATIVE DRONE TRAJECTORIES · NOT LIVE DATA</span></div>
-    <button className={styles.control} type="button" aria-pressed={paused} onClick={() => setPaused(!paused)}>
-      {paused ? "Resume trajectories" : "Pause trajectories"}
-    </button>
+
   </>;
 }
