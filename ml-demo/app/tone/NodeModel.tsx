@@ -1,58 +1,75 @@
 "use client";
 
-// Procedural 3D model of the dnhacks sensor node industrial design (white
-// glossy dome with a black solar panel cap, three barrel mic ports at 120°
-// spacing, whip antenna, base and spike legs). three.js + orbit controls.
+// Procedural 3D model of the dnhacks sensor node industrial design, derived
+// from the latest reference photo: gray mesh-fabric dome with a dark glossy
+// top cap, black rib cage (two crossing arch bands + rim band), black layered
+// base puck, whip antenna, and four spike legs. three.js + orbit controls.
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
+// Woven acoustic-fabric texture painted on a canvas.
+function fabricTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 256;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#b9b9b6";
+  ctx.fillRect(0, 0, 256, 256);
+  // Fine weave: alternating light/dark dots.
+  for (let y = 0; y < 256; y += 4) {
+    for (let x = 0; x < 256; x += 4) {
+      const v = 150 + Math.floor(Math.random() * 70);
+      ctx.fillStyle = `rgb(${v},${v},${v - 3})`;
+      ctx.fillRect(x + ((y / 4) % 2) * 2, y, 2, 2);
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(10, 5);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function buildNode(): THREE.Group {
   const node = new THREE.Group();
 
   // --- Materials -----------------------------------------------------------
-  const glossyDome = new THREE.MeshPhysicalMaterial({
-    color: 0xf4f4f6,
-    roughness: 0.18,
+  const fabric = new THREE.MeshStandardMaterial({
+    map: fabricTexture(),
+    roughness: 0.95,
+    metalness: 0.0,
+  });
+  const ribMatte = new THREE.MeshStandardMaterial({
+    color: 0x141416,
+    roughness: 0.9,
     metalness: 0.05,
+  });
+  const satinBlack = new THREE.MeshStandardMaterial({
+    color: 0x1a1a1d,
+    roughness: 0.55,
+    metalness: 0.15,
+  });
+  const glossyCap = new THREE.MeshPhysicalMaterial({
+    color: 0x0c0c0e,
+    roughness: 0.12,
+    metalness: 0.1,
     clearcoat: 1.0,
     clearcoatRoughness: 0.08,
   });
-  const matteShell = new THREE.MeshStandardMaterial({
-    color: 0xe8e8ea,
-    roughness: 0.92,
-    metalness: 0.05,
-  });
-  const satinPlastic = new THREE.MeshStandardMaterial({
-    color: 0xdedee2,
-    roughness: 0.55,
-    metalness: 0.1,
-  });
-  const barrelMetal = new THREE.MeshStandardMaterial({
-    color: 0xcfcfd4,
-    roughness: 0.3,
-    metalness: 0.7,
-  });
-  const lensDark = new THREE.MeshPhysicalMaterial({
-    color: 0x050506,
-    roughness: 0.05,
-    metalness: 0.2,
-    clearcoat: 1.0,
-  });
 
-  // --- Base disc (layered, like the 3D-printed puck in the photo) ---------
+  // --- Base puck (layered 3D-print look) ----------------------------------
   const base = new THREE.Mesh(
     new THREE.CylinderGeometry(0.52, 0.5, 0.16, 64),
-    satinPlastic,
+    satinBlack,
   );
   base.position.y = 0.08;
   node.add(base);
-  // Print-layer grooves: thin darker rings.
   for (let i = 0; i < 3; i++) {
     const groove = new THREE.Mesh(
       new THREE.TorusGeometry(0.512, 0.004, 8, 64),
-      matteShell,
+      ribMatte,
     );
     groove.rotation.x = Math.PI / 2;
     groove.position.y = 0.045 + i * 0.04;
@@ -63,143 +80,67 @@ function buildNode(): THREE.Group {
   const legGeo = new THREE.ConeGeometry(0.065, 0.34, 24);
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-    const leg = new THREE.Mesh(legGeo, satinPlastic);
-    leg.rotation.x = Math.PI; // point down
+    const leg = new THREE.Mesh(legGeo, satinBlack);
+    leg.rotation.x = Math.PI;
     leg.position.set(Math.cos(a) * 0.36, -0.15, Math.sin(a) * 0.36);
     node.add(leg);
   }
 
-  // --- Matte rim shroud (the foam-textured ring behind the dome) ----------
-  const shroud = new THREE.Mesh(
-    new THREE.SphereGeometry(0.5, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2),
-    matteShell,
-  );
-  shroud.position.y = 0.16;
-  shroud.scale.set(1.06, 1.0, 1.06);
-  node.add(shroud);
-
-  // --- Glossy dome ---------------------------------------------------------
+  // --- Fabric mesh dome ----------------------------------------------------
   const dome = new THREE.Mesh(
-    new THREE.SphereGeometry(0.48, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2),
-    glossyDome,
+    new THREE.SphereGeometry(0.47, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2),
+    fabric,
   );
   dome.position.y = 0.17;
   node.add(dome);
 
-  // --- Twin barrel sensor ports (angled out from dome front) --------------
-  // --- Three mic ports, equally spaced 120° apart (top view) --------------
-  const mkPort = (yaw: number) => {
-    const port = new THREE.Group();
-    const barrel = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.085, 0.095, 0.16, 32),
-      barrelMetal,
+  // --- Dark glossy top cap (electronics dome peeking above the fabric) ----
+  const cap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.478, 64, 24, 0, Math.PI * 2, 0, 0.55),
+    glossyCap,
+  );
+  cap.position.y = 0.175;
+  node.add(cap);
+
+  // --- Rib cage: two crossing arch bands over the dome ---------------------
+  // Each band is a half-torus lying in a vertical plane, with a rectangular
+  // cross-section feel (thick tube), like the foam-covered ribs in the photo.
+  const mkArch = (rotY: number) => {
+    const arch = new THREE.Mesh(
+      new THREE.TorusGeometry(0.5, 0.045, 12, 64, Math.PI),
+      ribMatte,
     );
-    barrel.rotation.x = Math.PI / 2;
-    port.add(barrel);
-    // Knurled collar ridges.
-    for (let i = 0; i < 2; i++) {
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.088, 0.006, 8, 32),
-        satinPlastic,
-      );
-      ring.position.z = 0.02 + i * 0.045;
-      port.add(ring);
-    }
-    // Recessed lens/mic opening.
-    const lens = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.055, 0.055, 0.02, 32),
-      lensDark,
-    );
-    lens.rotation.x = Math.PI / 2;
-    lens.position.z = 0.07;
-    port.add(lens);
-    // Place on dome surface, radially outward at the given yaw (top view).
-    const pitch = -0.12; // slightly below equator-facing
-    const dir = new THREE.Vector3(
-      Math.sin(yaw) * Math.cos(pitch),
-      Math.sin(pitch),
-      Math.cos(yaw) * Math.cos(pitch),
-    );
-    port.position
-      .copy(dir)
-      .multiplyScalar(0.47)
-      .add(new THREE.Vector3(0, 0.4, 0));
-    port.lookAt(port.position.clone().add(dir));
-    return port;
+    arch.position.y = 0.17;
+    arch.rotation.y = rotY;
+    arch.scale.z = 0.75; // flatten toward the dome surface
+    return arch;
   };
-  // One facing front (yaw 0), the others at ±120°.
-  for (let i = 0; i < 3; i++) node.add(mkPort((i * 2 * Math.PI) / 3));
+  node.add(mkArch(0), mkArch(Math.PI / 2));
+
+  // --- Rim band around the equator (clamps the fabric at the base) --------
+  const rim = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.505, 0.51, 0.1, 64, 1, true),
+    ribMatte,
+  );
+  rim.position.y = 0.2;
+  node.add(rim);
 
   // --- Whip antenna --------------------------------------------------------
   const antenna = new THREE.Group();
   const mast = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.018, 0.022, 0.55, 16),
-    satinPlastic,
+    new THREE.CylinderGeometry(0.018, 0.026, 0.5, 16),
+    satinBlack,
   );
-  mast.position.y = 0.275;
+  mast.position.y = 0.25;
   antenna.add(mast);
-  const collar = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.03, 0.03, 0.05, 16),
-    barrelMetal,
+  const cap2 = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.032, 0.05, 8, 16),
+    satinBlack,
   );
-  collar.position.y = 0.5;
-  antenna.add(collar);
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.028, 16, 12), satinPlastic);
-  cap.position.y = 0.55;
-  antenna.add(cap);
-  antenna.position.set(0, 0.62, -0.05);
-  antenna.rotation.z = -0.06; // slight lean like the photo
+  cap2.position.y = 0.53;
+  antenna.add(cap2);
+  antenna.position.set(0, 0.62, 0);
   node.add(antenna);
-
-  // --- Black solar panel cap on top of the dome ---------------------------
-  // Spherical cap conforming to the dome, with a photovoltaic cell grid
-  // painted onto a canvas texture.
-  const cellCanvas = document.createElement("canvas");
-  cellCanvas.width = 512;
-  cellCanvas.height = 512;
-  const ctx = cellCanvas.getContext("2d")!;
-  ctx.fillStyle = "#0b1020"; // deep blue-black PV color
-  ctx.fillRect(0, 0, 512, 512);
-  ctx.strokeStyle = "#2a3350"; // cell divider lines
-  ctx.lineWidth = 4;
-  const cells = 8;
-  for (let i = 1; i < cells; i++) {
-    const p = (i * 512) / cells;
-    ctx.beginPath();
-    ctx.moveTo(p, 0);
-    ctx.lineTo(p, 512);
-    ctx.moveTo(0, p);
-    ctx.lineTo(512, p);
-    ctx.stroke();
-  }
-  const cellTex = new THREE.CanvasTexture(cellCanvas);
-  cellTex.colorSpace = THREE.SRGBColorSpace;
-  const panelMat = new THREE.MeshPhysicalMaterial({
-    map: cellTex,
-    roughness: 0.25,
-    metalness: 0.1,
-    clearcoat: 0.8,
-    clearcoatRoughness: 0.15,
-  });
-  const panel = new THREE.Mesh(
-    // Cap covering the top ~40 degrees, sitting on the outer shroud surface
-    // (shroud is an ellipsoid: r=0.5 scaled 1.06 in x/z at y=0.16).
-    new THREE.SphereGeometry(0.507, 64, 24, 0, Math.PI * 2, 0, 0.7),
-    panelMat,
-  );
-  panel.scale.set(1.06, 1.0, 1.06);
-  panel.position.y = 0.16; // same center as the shroud
-  node.add(panel);
-  // Trim ring around the panel edge.
-  const trimR = 0.507 * Math.sin(0.7);
-  const trim = new THREE.Mesh(
-    new THREE.TorusGeometry(trimR, 0.008, 8, 64),
-    new THREE.MeshStandardMaterial({ color: 0x18181c, roughness: 0.6 }),
-  );
-  trim.rotation.x = Math.PI / 2;
-  trim.scale.set(1.06, 1.06, 1.0);
-  trim.position.y = 0.16 + 0.507 * Math.cos(0.7);
-  node.add(trim);
 
   return node;
 }
@@ -237,7 +178,7 @@ export default function NodeModel() {
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.8;
 
-    // Studio-style lighting so the glossy dome reads like the photo.
+    // Studio-style lighting so the fabric and glossy cap read like the photo.
     scene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 1.4));
     const key = new THREE.DirectionalLight(0xffffff, 3.0);
     key.position.set(2, 4, 3);
@@ -248,7 +189,7 @@ export default function NodeModel() {
     const front = new THREE.PointLight(0xffffff, 3.0, 12);
     front.position.set(0.5, 1.4, 2.5);
     scene.add(front);
-    // Soft overhead softbox reflection for the glossy dome highlight.
+    // Soft overhead softbox reflection for the glossy cap highlight.
     const soft = new THREE.RectAreaLight(0xffffff, 3.0, 3, 2);
     soft.position.set(0, 3, 1);
     soft.lookAt(0, 0.4, 0);
