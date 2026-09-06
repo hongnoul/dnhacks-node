@@ -1,7 +1,7 @@
 # Running the mesh
 
     cd sim-demo
-    npm install          # also vendors the detector + ONNX model from ml-demo
+    npm install
     python3 -m venv server/.venv && ./server/.venv/bin/pip install -r server/requirements.txt
 
 Two processes:
@@ -70,9 +70,9 @@ deployment those hops are radio links (ARCHITECTURE.md §4.0).
 
 ## What the console shows
 
-**detections** — each node's CRNN confidence over the last 60 s, at ml-demo's 0.5
-threshold. Drawn from records that gossiped here, so the graph is both the detection
-picture and evidence that replication works.
+**detections** — each node's CRNN confidence over the last 60 s, at the shared
+SkyMesh detection threshold. Drawn from records that gossiped here, so the graph is both
+the detection picture and evidence that replication works.
 
 **topology** — the adjacency graph. Imposed, standing in for radio range.
 
@@ -107,23 +107,14 @@ position, confidence, and per-link up/cut state.
 
 ## Detection
 
-Detection is ml-demo's, not a re-implementation, and it is **stateful**: hysteresis
-(trip 0.35, release 0.25) plus a marginal trip (3 straight ticks ≥ 0.22, for a distant
-drone that never reaches the trip point), scored at 4 Hz. `detection.ts` mirrors that
-latch, and the verdict travels on the wire as `d` — a peer cannot recover it by comparing
-`p` to a threshold, and if it tried, the mesh and the standalone demo would disagree about
-the same audio.
-
-Re-check `detection.ts` whenever ml-demo retunes.
-
-The vendoring: `npm install` vendors `mel.ts`,
-`detector.ts`, `audio.ts` and `drone_crnn.onnx` from `../ml-demo` via
-`vendor-detector.mjs`, so the CRNN and its bit-parity mel front end stay a single
-source of truth. Re-run `npm run vendor` after ml-demo changes.
+Detection is canonical in this app and **stateful**: hysteresis (trip 0.35, release
+0.25) plus a marginal trip (3 straight ticks ≥ 0.22, for a distant drone that never
+reaches the trip point), scored at 4 Hz. `detection.ts` owns that latch, and the verdict
+travels on the wire as `d` — a peer cannot recover it by comparing `p` to a threshold.
 
 `scoring.ts` adds one thing on top: a **level channel**. The detector peak-normalises
 every window before the mel front end, so its probability carries no distance
 information — measured at p = 1.00 from across a room. Fusion localises by comparing
-levels between nodes, so range comes from `bandLoudness` (RMS in the drone band, taken
-before that normalisation) against a tracked noise floor. The CRNN answers "is it a
-drone"; the level answers "how close".
+levels between nodes, so range comes from `snrDb` (RMS over the same raw window,
+before that normalisation). The CRNN answers "is it a drone"; the level answers
+"how close".

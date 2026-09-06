@@ -1,27 +1,13 @@
 node_modules/
 .next/
-ml-demo/server/.venv/
-ml-demo/server/clips/
-ml-demo/server/events.jsonl
 .vercel/
-ml-demo/.vercel
-ml-demo/server/models/
-ml-demo/server/testdata/
-ml-demo/server/uvicorn.log
-ml-demo/server/drone_tone.wav
-ml-demo/server/map-screenshot.png
-ml-demo/server/sessions/
-ml-demo/server/events.backup.jsonl
-ml-demo/server/map-tunnel.png
-ml-demo/server/tunnel.log
 *.tsbuildinfo
 sim-demo/node_modules/
 sim-demo/.next/
 sim-demo/frontend/node_modules/
 sim-demo/frontend/.next/
-ml-demo/public/ort/
 .vercel
 
-# stray root build output (apps live in ml-demo/ and sim-demo/)
+# stray root build output
 .next/
 node_modules/

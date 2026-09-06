@@ -1,6 +1,6 @@
 // scenario.ts — demo-layer scenario controls for the admin console.
 //
-// Ported from ml-demo/app/operator/OperatorMap.tsx (avery/frontend-map), rescaled
+// Ported from SkyMesh/app/operator/OperatorMap.tsx (avery/frontend-map), rescaled
 // from street metres to room metres and rewired from Leaflet/mock state to live
 // mesh primitives. Everything here is pure: geometry, placement validation, BFS
 // alert routing, network health, and the activity-log reducer. The page wires

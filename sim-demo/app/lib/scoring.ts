@@ -1,7 +1,7 @@
 // scoring.ts — microphone to drone verdict, on-device.
 //
-// Wraps ml-demo's pipeline unchanged: MicCapture → TS mel front end → CRNN via
-// ONNX Runtime Web, then ml-demo's own hysteresis latch (detection.ts). Nothing
+// Wraps SkyMesh's pipeline unchanged: MicCapture → TS mel front end → CRNN via
+// ONNX Runtime Web, then SkyMesh's own hysteresis latch (detection.ts). Nothing
 // here re-implements or second-guesses the detector.
 //
 // What this module adds is the *level channel* the mesh needs.
@@ -16,15 +16,15 @@
 //
 // Fusion localises by comparing levels between nodes (ARCHITECTURE.md §6.2,
 // §10), so range has to come from the raw signal before that normalisation.
-// ml-demo used to expose `bandLoudness`, but the AnalyserNode was removed for
+// SkyMesh used to expose `bandLoudness`, but the AnalyserNode was removed for
 // latency, so we take RMS over the same window we hand the detector — the true
 // pre-normalisation level, one pass over an array we already have.
 //
 // The CRNN answers "is it a drone"; the level answers "how close". Drop the
 // second and the mesh detects perfectly and localises not at all.
 
-import { MicCapture } from "./vendor/audio.ts";
-import { DroneDetector } from "./vendor/detector.ts";
+import { MicCapture } from "./detector/audio.ts";
+import { DroneDetector } from "./detector/detector.ts";
 import { DetectionLatch, SCORE_INTERVAL_MS } from "./detection.ts";
 
 export interface Score {
@@ -32,7 +32,7 @@ export interface Score {
   p: number;
   /** Smoothed + peak-held, for display only. */
   display: number;
-  /** ml-demo's latched verdict. Stateful, so it travels on the wire. */
+  /** SkyMesh's latched verdict. Stateful, so it travels on the wire. */
   detecting: boolean;
   /** log(p/(1−p)) — dynamic range where p saturates. */
   logit: number;

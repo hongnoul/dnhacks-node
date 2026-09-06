@@ -1,6 +1,6 @@
 # SkyMesh — Phone Mesh Architecture
 
-**Owner:** Mark. **Scope:** Demo 1 — real phones, in real browsers, talking to *each
+**Owner:** Mark. **Scope:** SkyMesh — real phones, in real browsers, talking to *each
 other*, set up and controlled from an admin console.
 
 Two planes, and the distinction runs through the whole design:

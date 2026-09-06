@@ -1,4 +1,4 @@
-// detector-smoke.mjs — end-to-end check that the ml-demo CRNN really drives the
+// detector-smoke.mjs — end-to-end check that the SkyMesh CRNN really drives the
 // mesh. Chromium synthesises the microphone from a WAV, so this exercises the
 // whole path: fake mic → MicCapture → TS mel → ONNX CRNN → reading → gossip.
 //
@@ -39,7 +39,7 @@ await page.waitForFunction(() => /drone confidence|DRONE DETECTED/i.test(documen
 const noMic = await page.evaluate(() => /Detector unavailable/.test(document.body.innerText));
 if (noMic) bad("fake mic was rejected");
 
-// The banner is ml-demo's, and the mesh must agree with it about what counts.
+// The banner is SkyMesh's, and the mesh must agree with it about what counts.
 const banner = await page.evaluate(() => /DRONE DETECTED/.test(document.body.innerText));
 
 // Poll the on-screen likelihood while the drone WAV plays into the fake mic.
@@ -68,7 +68,7 @@ const records = await page.evaluate(() => {
 records > 0 ? ok(`readings reaching the log (${records} records)`) : bad("no records published");
 
 const finalBanner = await page.evaluate(() => /DRONE DETECTED/.test(document.body.innerText));
-(banner || finalBanner) ? ok("banner fired via ml-demo's latch (trip 0.35 / marginal 0.22)")
+(banner || finalBanner) ? ok("banner fired via SkyMesh's latch (trip 0.35 / marginal 0.22)")
                         : bad("confidence rose but the banner never fired");
 
 if (errors.length) { console.log("\npage errors:"); errors.slice(0, 5).forEach((e) => console.log("   ", e.split("\n")[0])); }

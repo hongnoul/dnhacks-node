@@ -1,6 +1,6 @@
 // ConfidenceGraph.tsx — CRNN confidence over time.
 //
-// Mirrors ml-demo's node-page graph (same 60 s window, same 0.5 threshold, same
+// Mirrors SkyMesh's node-page graph (same 60 s window, same 0.5 threshold, same
 // green-below/red-above treatment) so a node reads the same in either app.
 //
 // The point of interest: on the operator console this is drawn from *replicated
@@ -78,7 +78,7 @@ export function ConfidenceGraph({
       }
     }
 
-    // Threshold line — the same 0.5 ml-demo calls a detection.
+    // Threshold line — the same 0.5 SkyMesh calls a detection.
     ctx.save();
     ctx.strokeStyle = MUTED;
     ctx.setLineDash([4, 4]);

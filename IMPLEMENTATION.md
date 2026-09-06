@@ -192,7 +192,7 @@ iteration-order dependence.
 
 | To | Contract |
 |---|---|
-| **ML** | ✅ **landed.** ml-demo's CRNN runs in-browser via ONNX Runtime Web; vendored by `sim-demo/vendor-detector.mjs`. The band-energy stub is gone |
+| **ML** | ✅ **landed.** SkyMesh's CRNN runs in-browser via ONNX Runtime Web; vendored by `sim-demo/canonical detector module`. The band-energy stub is gone |
 | **Frontend** | Room map + heatmap render from `fusion.ts` output. Admin page owns topology and link controls |
 
 Both can proceed against the stub. Neither blocks the mesh.
@@ -267,11 +267,9 @@ Five things the plan got wrong, found by building it. All are reflected in
 
 ## 11. Detector integration
 
-The stub is retired: `sim-demo` now runs ml-demo's CRNN unchanged, vendored at
-`npm install` (`vendor-detector.mjs` copies `mel.ts`, `detector.ts`, `audio.ts`,
-`drone_crnn.onnx` and the ORT wasm). Copying rather than re-implementing keeps one
-source of truth; copying rather than cross-importing keeps sim-demo a standalone
-Next app. Re-run `npm run vendor` after ml-demo changes.
+The stub is retired: `sim-demo` now runs the canonical SkyMesh CRNN directly from
+`app/lib/detector/`, with `drone_crnn.onnx` and the ORT wasm checked into `public/`.
+There is one source of truth inside the product app.
 
 **Their normalisation makes the level channel mandatory.** `detector.ts` peak-normalises
 every 1 s window before the mel front end (`NORM_PEAK / peak`, mirroring `model.py`) so
@@ -293,7 +291,7 @@ confidently reporting silence it never measured.
 
 ---
 
-## 12. Aligning with ml-demo's UX
+## 12. Detection-first UX
 
 The console had drifted into being mostly network-emulation knobs, which is the wrong
 thing to lead with: sliders for latency and packet loss say nothing about the model
@@ -308,7 +306,7 @@ producing the probabilities.
 - **One publish rate.** Nodes publish every scored window at the CRNN's own 500 ms hop
   rather than a separate 1 Hz wire rate, so the log is the single source of truth for
   the graph. ~160 B/s per node.
-- **Shared constants.** `detection.ts` re-states ml-demo's `DETECT_THRESHOLD = 0.5` and
+- **Shared constants.** `detection.ts` defines SkyMesh's `DETECT_THRESHOLD = 0.5` and
   `SCORE_INTERVAL_MS = 500`. The mesh and the standalone demo must agree about what
   counts as a detection, or the same audio reads as a hit on one screen and a miss on
   the other.
@@ -334,14 +332,14 @@ the demo can claim.
 
 ---
 
-## 13. Tracking ml-demo's detection changes
+## 13. Detection state on the wire
 
 main retuned detection substantially (4 Hz scoring, trip 0.35 / release 0.25, a marginal
 trip at 0.22 over 3 ticks, EMA display smoothing with a 1.5 s peak hold) and dropped the
 AnalyserNode for latency. Three consequences:
 
 1. **Detection is stateful, so the verdict goes on the wire.** `detection.ts` mirrors
-   ml-demo's latch, and readings carry `d` alongside `p`. A peer cannot recompute the
+   SkyMesh's latch, and readings carry `d` alongside `p`. A peer cannot recompute the
    verdict from `p` — hysteresis and the marginal counter depend on history — and if it
    guessed, the mesh and the standalone demo would call the same audio differently. The
    mesh now reports what each node *decided*, not what a threshold says about its score.
@@ -361,10 +359,9 @@ spun), and the admin dashboard — admission, map, topology, link health — on
 the right. Previously two pages (`/station` + `/admin`); `/admin` now
 redirects to `/station` preserving `?session`.
 
-The QR is the part that differs. ml-demo's station links to a fixed apex URL because each
-phone is standalone; a mesh node has to land in *this* session on *this* host, so the link
-is built from `window.location.origin` plus the session at render time — which is what
-makes it work behind an ephemeral tunnel.
+The QR is built from `window.location.origin` plus the session at render time, so a
+mesh node lands in *this* session on *this* host. That is what makes the console work
+behind an ephemeral tunnel.
 
 ### Serving phones at all
 

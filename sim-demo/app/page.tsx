@@ -60,7 +60,7 @@ export default function NodePage() {
       if (!scorer?.ready) return; // absent beats a false "heard nothing" (§6.1)
       const s = scorer.latest();
       setScore(s);
-      // The verdict is the scorer's latch (ml-demo's), not a threshold applied here.
+      // The verdict is the scorer's latch (SkyMesh's), not a threshold applied here.
       if (s.detecting && !wasDetecting.current) {
         setDetections((n) => n + 1);
         try {

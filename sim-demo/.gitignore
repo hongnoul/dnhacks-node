@@ -6,13 +6,6 @@ __pycache__/
 *.pyc
 tsconfig.tsbuildinfo
 
-# vendored from ml-demo by vendor-detector.mjs at install — not a second source of truth
-app/lib/vendor/
-public/ort/
-public/drone_crnn.onnx
-public/drone-demo.wav
-public/drone-tone.wav
-public/models/
 
 # static export output (npm run build:static)
 out/

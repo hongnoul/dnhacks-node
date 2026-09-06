@@ -632,7 +632,7 @@ export function AdminDashboard() {
             <h2>detections</h2>
             <p className="dim" style={{ fontSize: 12, marginTop: 0 }}>
               Each node&apos;s on-device CRNN confidence, drawn from records that gossiped
-              here. Dashed line is ml-demo&apos;s {DETECT_THRESHOLD} threshold.
+              here. Dashed line is SkyMesh&apos;s {DETECT_THRESHOLD} threshold.
             </p>
             {admitted.length === 0 && <span className="dim">no nodes yet</span>}
             {admitted.map((n) => {

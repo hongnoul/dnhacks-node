@@ -23,7 +23,7 @@ export interface Reading extends MeshRecord {
   type: "reading";
   p: number; // raw CRNN score, 0..1 — fusion's input
   /**
-   * ml-demo's latched detection verdict.
+   * SkyMesh's latched detection verdict.
    *
    * On the wire because it is *stateful*: hysteresis plus a marginal-trip
    * counter mean a peer cannot recover it by comparing p to a threshold, and if

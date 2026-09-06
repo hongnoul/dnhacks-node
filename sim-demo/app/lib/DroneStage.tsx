@@ -21,7 +21,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 const MODEL_SRC = "/models/drone-sillyfear.glb";
 
-// Drone is the real thing (DADS clips). Wind and music are ml-demo's
+// Drone is the real thing (DADS clips). Wind and music are SkyMesh's
 // false-positive stress tests: play them loud and the CRNN should stay quiet,
 // which is a more convincing demo than only ever showing it succeed.
 const SOUNDS = [

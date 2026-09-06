@@ -159,7 +159,7 @@ export const MAX_RESIDUAL_SIGMAS = 3;
 
 // A node counts as silent when its own latch says it hears nothing. Falling
 // back to a bare threshold keeps synthetic test data working.
-const SILENT_BELOW = 0.22; // ml-demo's MARGINAL_FLOOR
+const SILENT_BELOW = 0.22; // SkyMesh's MARGINAL_FLOOR
 const hears = (r: NodeReading) =>
   typeof r.detecting === "boolean" ? r.detecting : r.p >= SILENT_BELOW;
 

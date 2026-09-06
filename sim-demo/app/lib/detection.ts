@@ -1,11 +1,11 @@
-// detection.ts — detection semantics, mirrored from ml-demo.
+// detection.ts — detection semantics, mirrored from SkyMesh.
 //
-// These constants and the latch below are ml-demo/app/page.tsx's, not new ones.
+// These constants and the latch below are SkyMesh/app/page.tsx's, not new ones.
 // Detection is a *stateful* verdict now, not a threshold on the latest score, so
 // the mesh cannot just compare p to a number and expect to agree with the
-// standalone demo. Re-check this file whenever ml-demo's tuning changes.
+// standalone demo. Update this file whenever detector tuning changes.
 
-/** ml-demo: SCORE_INTERVAL_MS — 4 Hz. */
+/** SkyMesh: SCORE_INTERVAL_MS — 4 Hz. */
 export const SCORE_INTERVAL_MS = 250;
 
 /** Trip point. */
@@ -27,7 +27,7 @@ export const PEAK_HOLD_MS = 1500;
 /** Visible history window on the confidence graph. */
 export const GRAPH_WINDOW_MS = 60_000;
 
-// ml-demo's palette, so a node reads the same in either app.
+// SkyMesh's palette, so a node reads the same in either app.
 export const GREEN = "#3ddc97";
 export const RED = "#ff6b4a";
 export const RED_FILL = "rgba(255,107,74,0.14)";
@@ -44,7 +44,7 @@ export interface Verdict {
 }
 
 /**
- * ml-demo's detection state machine.
+ * SkyMesh's detection state machine.
  *
  * Detection uses the raw score with hysteresis so smoothing never delays the
  * verdict; display uses an EMA plus max-hold so the number is readable. Kept as
