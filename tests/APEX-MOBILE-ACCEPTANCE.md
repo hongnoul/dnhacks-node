@@ -37,3 +37,16 @@ All three browser suites were rerun after the implementation commit and passed. 
 Automated acceptance covers the main workflows and integration boundaries. Traceability remains partial for the physical-device and zoom checks explicitly listed as not run. Do not describe this as complete iOS acceptance.
 
 Safe-area follow-up: the initial CDP method name was incorrect. The supported `Emulation.setSafeAreaInsetsOverride` succeeded and is now covered by the committed suite.
+
+## WebKit and enlarged-content follow-up
+
+`UI_BASE_URL=http://localhost:3199 node tests/apex-webkit-ui.mjs` passed on Chromium and WebKit 26.6 after rebuilding the production app.
+
+| Changed output / requirement | Check | Observed result |
+| --- | --- | --- |
+| Browser-engine compatibility | Both engines at 320x568, 390x664, 390x844, 844x390 | All sensor tabs, QR/video viewport bounds, loading/failure join, and minimize/restore passed. WebKit is not physical Safari UI. |
+| Enlarged onboarding and Monitor text | Synthetic doubling of computed sizes of text-bearing elements, excluding graphical ASCII/SVG/canvas | Found real sensor overflow before fix: document width377 at configured width320 in Chromium, plus WebKit failure. After compact tab/readout wrapping and heading/metric wrapping, both engines pass width <=320 and minimize/restore remains usable. This is content stress, not a native OS text-size test. |
+| Reliable mobile overflow checks | Compare document scrollWidth with configured Playwright viewport width, not window.innerWidth | Hardened both new mobile suites. Prevents mobile layout viewport expansion from masking overflow. All scenarios pass. |
+| Existing presentation/runtime behavior | Rerun apex-mobile, sensor-ui, and desktop-drag-ui against rebuilt production app | All passed, including nonzero safe-area simulation, admin redirect, live stream/socket continuity, and desktop dragging. |
+
+The only application change in this follow-up is compact-layout wrapping in `SensorDesktop.module.css`. Admin and shared/global styling remain unchanged. Physical Safari toolbar, standalone mode, native enlarged-text settings, and interaction while physically zoomed remain outside the observed evidence.

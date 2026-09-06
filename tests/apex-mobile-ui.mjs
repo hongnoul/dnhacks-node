@@ -8,7 +8,7 @@ try {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  const fits = async () => assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'No horizontal overflow');
+  const fits = async () => assert(await page.evaluate(() => document.documentElement.scrollWidth) <= page.viewportSize().width, 'No horizontal overflow');
   for (const [width, height] of [[320, 568], [390, 844], [844, 390]]) {
     await page.setViewportSize({ width, height });
     await page.goto(base);

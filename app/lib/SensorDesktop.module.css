@@ -166,6 +166,8 @@
   .stationImage strong { font-size: 11px; }
   .window, .qrViewer { translate: none !important; }
   .titlebar { touch-action: auto; cursor: default; }
+  .tabs, .readout { flex-wrap: wrap; }
+  .metrics dt, .heading h1 { overflow-wrap: anywhere; }
   .tabPanel { min-height: 0; }
   .graph { height: clamp(140px, 30svh, 240px); }
 }
