@@ -24,7 +24,7 @@ try {
     });
     assert(centered.dx<1 && centered.dy<1, 'ASCII art must center within its own media container');
     assert.equal(centered.children,1, 'Media container contains only ASCII art');
-    assert.match(await logo.textContent(), /^[ #+.\n]+$/);
+    assert.match(await logo.textContent(), /^[ #+.\n-]+$/);
     assert((await logo.textContent()).split('\n').length >= 20);
     const button = page.getByRole('button', { name: 'Enable microphone & join' });
     assert((await button.boundingBox()).height >= 48);

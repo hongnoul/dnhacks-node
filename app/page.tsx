@@ -21,6 +21,7 @@ import { DEFAULT_ROOM } from "./lib/mesh.ts";
 export default function NodePage() {
   const [joined, setJoined] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sensorReady, setSensorReady] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [score, setScore] = useState<Score>(SILENT);
   const [detections, setDetections] = useState(0);
@@ -36,6 +37,7 @@ export default function NodePage() {
       // Loads the CRNN (~6 MB, cached after first visit) then opens the mic.
       await scorer.start();
       scorerRef.current = scorer;
+      setSensorReady(true);
     } catch (e) {
       // start() may have loaded the model and opened the mic before failing.
       // Without this the wasm session and the mic track leak for the life of
@@ -45,11 +47,17 @@ export default function NodePage() {
       // evidence, and silence from it is not mistaken for a quiet room because
       // it publishes nothing at all.
       setMicError(String(e));
-    } finally {
       setLoading(false);
       setJoined(true);
     }
   }
+
+  // Let the mascot acknowledge successful setup before entering the node view.
+  useEffect(() => {
+    if (!sensorReady) return;
+    const timer = setTimeout(() => { setLoading(false); setJoined(true); }, 650);
+    return () => clearTimeout(timer);
+  }, [sensorReady]);
 
   // Publish a reading every second, whatever its value: a quiet node is evidence
   // (§6.1), and silence is what pushes the posterior away from empty space.
@@ -109,14 +117,14 @@ export default function NodePage() {
               <li>Keep this screen open to listen.</li>
             </ol>
             <button className={styles.joinButton} type="button" onClick={join} disabled={loading}>
-              {loading ? "Preparing your sensor…" : "Enable microphone & join"}
+              {sensorReady ? "Sensor ready!" : loading ? "Preparing your sensor…" : "Enable microphone & join"}
             </button>
             <p className={styles.note} role="status" aria-live="polite">
-              {loading ? "Loading the detector (~6 MB). Please wait…" : "Only detection scores are shared. Never your audio."}
+              {sensorReady ? "Sensor ready. Joining the mesh…" : loading ? "Loading the detector (~6 MB). Please wait…" : "Only detection scores are shared. Never your audio."}
             </p>
           </div>
           <div className={styles.brand}>
-            <AsciiLogo className={styles.logo} />
+            <AsciiLogo className={styles.logo} mood={sensorReady ? "happy" : loading ? "loading" : "idle"} />
           </div>
         </section>
       </main>

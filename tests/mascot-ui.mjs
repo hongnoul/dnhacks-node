@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+const base=process.env.UI_BASE_URL??'http://localhost:3109';
+const browser=await chromium.launch({headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
+try {
+  const page=await browser.newPage();
+  await page.clock.install();
+  await page.goto(base);
+  const art=page.getByRole('img',{name:'SkyMesh robot logo in ASCII art'});
+  await art.waitFor();
+  const initial=await art.textContent();const box=await art.boundingBox();
+  await page.clock.runFor(5250);
+  assert.equal(await art.getAttribute('data-eye-frame'),'half');
+  await page.clock.runFor(70);
+  assert.equal(await art.getAttribute('data-eye-frame'),'closed');
+  assert.deepEqual(await art.boundingBox(),box);
+  await page.clock.runFor(150);
+  assert.equal(await art.textContent(),initial);
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.waitForFunction(()=>document.querySelector('[data-eye-frame]').dataset.reducedMotion==='true');
+  await page.clock.runFor(20000);
+  assert.equal(await art.getAttribute('data-eye-frame'),'open');
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.waitForFunction(()=>document.querySelector('[data-eye-frame]').dataset.reducedMotion==='false');
+  let release;
+  const held=new Promise(r=>{release=r;});
+  await page.route('**/drone_crnn.onnx',async route=>{await held;await route.abort();});
+  await page.getByRole('button',{name:'Enable microphone & join'}).click();
+  assert.equal(await art.getAttribute('data-mood'),'loading');
+  await page.waitForFunction(()=>document.querySelector('[data-eye-frame]').dataset.eyeFrame==='left');
+  await page.clock.runFor(1000);
+  assert.equal(await art.getAttribute('data-eye-frame'),'right');
+  release();
+  await page.getByText(/Detector unavailable:/).waitFor();
+  await page.close();
+  // Exercise the real model and browser's fake microphone, not a stubbed scorer.
+  const success=await browser.newPage();
+  await success.goto(base);
+  await success.getByRole('button',{name:'Enable microphone & join'}).click();
+  const happy=success.locator('[data-mood="happy"][data-eye-frame="happy"]');
+  await happy.waitFor({timeout:60000});
+  assert(await success.getByRole('button',{name:'Sensor ready!'}).isDisabled());
+  await success.getByRole('heading',{name:/^Node /}).waitFor();
+  console.log('PASS: idle blink, stable bounding box, reduced motion, loading gaze, failure fallback, real-model success smile and transition.');
+}finally{await browser.close();}
