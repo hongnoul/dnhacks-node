@@ -108,7 +108,7 @@ export default function NodePage() {
         <TrajectoryHero />
         <section data-join-panel className={`${styles.dialog} ${sensorReady ? styles.departing : ""}`} aria-labelledby="join-title" aria-busy={loading}>
           <div className={styles.content}>
-            <h1 id="join-title" className={styles.title}>Welcome to SkyMesh Client</h1>
+            <h1 id="join-title" className={styles.title}>Welcome to SkyMesh P2P</h1>
             <div className={styles.rule} />
             <p className={styles.intro}>A shared sky. Powered by your phone.</p>
             <dl className={styles.fields}>
