@@ -18,7 +18,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AdminChannel, edgesToTopology, preset, type Preset } from "./admin.ts";
 import { relayUrl, sessionId } from "./config.ts";
 import { useMesh } from "./useMesh.ts";
-import { RoomMap, linkKey } from "./RoomMap.tsx";
+import { linkKey } from "./RoomMap.tsx";
+import dynamic from "next/dynamic";
+const GeographicMap = dynamic(() => import("./GeographicMap"), { ssr: false, loading: () => <p role="status">Loading geographic map…</p> });
 import { ConfidenceGraph } from "./ConfidenceGraph.tsx";
 import { DETECT_THRESHOLD } from "./detection.ts";
 import { DEFAULT_ROOM } from "./mesh.ts";
@@ -565,13 +567,13 @@ export function AdminDashboard({ onboarding }: { onboarding?: ReactNode }) {
 
       <div className="dashboard-grid">
         <div className="panel map-card" id="participant-map" tabIndex={-1}>
-          <div className="card-heading"><h2>Participant map</h2><span className="map-coordinate-label">Real participants · room coordinates</span></div>
+          <div className="card-heading"><h2>Participant map</h2><span className="map-coordinate-label">Real participants · geographic basemap</span></div>
           <div className="map-toolbar">
             <ActionButton className={linking ? "primary" : ""} onClick={() => { setLinking(!linking); setPendingEdge(null); }}>{linking ? "Done linking" : "Link participants"}</ActionButton>
             <span className="dim">{admitted.length} participants · {unplaced.size} awaiting placement</span>
           </div>
           <div ref={mapBox.ref} className="map-viewport">
-            <RoomMap
+            <GeographicMap
               room={DEFAULT_ROOM}
               positions={mapPositions}
               unplaced={unplaced}

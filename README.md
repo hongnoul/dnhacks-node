@@ -11,7 +11,7 @@ Dedicated counter-UAS radar costs $100k+ per site and creates a single point of 
 SkyMesh is one app:
 
 - **Phone node (`/`)** — live microphone → TypeScript mel-spectrogram → CRNN via ONNX Runtime Web → drone confidence. Audio never leaves the phone; only likelihood records are shared.
-- **Unified workspace (`/station`)** — a dominant room map with real admitted participants. The right-hand control column contains onboarding, participant directory, scenario controls, inspector, topology, confidence, activity, and link emulation. It scrolls independently on desktop and stacks below the map on phones. No FitBoard scaling, panel switching, or pagination.
+- **Unified workspace (`/station`)** — a dominant geographic basemap with real admitted participants. The right-hand control column contains onboarding, participant directory, scenario controls, inspector, topology, confidence, activity, and link emulation. It scrolls independently on desktop and stacks below the map on phones. No FitBoard scaling, panel switching, or pagination.
 - **Scenario controls** — flight overlays, impact, interference, isolation, and replay operate on the same participant topology. Synthetic drone overlays never create microphone readings. Link-failure controls intentionally affect the real session relay.
 - **Compatibility (`/admin`, `/operator`)** — both redirect to the unified `/station` page with the session preserved. There is no separate fake-node simulator in the navigation.
 - **Relay (`server/relay.py`)** — WebSocket transport for browser nodes. It routes opaque peer messages and serves the static export for one-origin HTTPS demos.
@@ -116,8 +116,18 @@ entrypoints. Live mobile microphone permissions still require device testing.
 
 ## Unified participant map and simulation
 
-The room map is deliberately not a geographic/GPS map. Real phones do not supply
-GPS coordinates. Admitted participants without assigned positions appear as
+The console uses a Leaflet/OpenStreetMap geographic basemap with the live room
+frame projected over it. **Street overview** shows the surrounding streets;
+**Fit participant area** zooms into the outlined room. Real phones do not supply
+GPS coordinates. The default Washington, DC anchor is explicitly illustrative.
+**Set map anchor** accepts a site latitude/longitude and saves this display
+preference per session in this browser only. It does not change room coordinates,
+fusion inputs, or participant records, and is not synchronized to other consoles.
+Pan outside the outlined room and use its interior for participant/scenario
+interactions. External tiles require network access; an explicit warning appears
+on failure while the live overlay stays usable.
+
+Admitted participants without assigned positions appear as
 dashed **unplaced** markers in a staging row. Those temporary display coordinates
 are never published or used for fusion. Dragging a marker, explicitly placing a
 selected participant, or choosing **auto-place** publishes its room configuration
@@ -135,7 +145,7 @@ source modules under `app/operator/`, but the active page uses live `RoomMap`,
 `AdminChannel`, mesh records, and room-scale scenario controls. The geographic
 placement optimizer and independent synthetic `SimWorld` are not used as truth for
 real participants. Adapting that advisor to calibrated room-scale parameters
-remains separate work. The live page does not request external map tiles.
+remains separate work. Geographic tiles are a visual reference, not sensor evidence.
 
 Acceptance commands (use a free local port):
 
@@ -146,10 +156,13 @@ npm run build:static
 server/.venv/bin/uvicorn relay:app --app-dir server --host 127.0.0.1 --port 8128
 # In another terminal:
 APP_URL=http://127.0.0.1:8128 node tests/operator-ui.mjs
+APP_URL=http://127.0.0.1:8128 node tests/geographic-ui.mjs
 UI_BASE_URL=http://127.0.0.1:8128 node tests/ui-viewport-smoke.mjs
 APP_URL=http://127.0.0.1:8128 node tests/ui-smoke.mjs
 ```
 
+`geographic-ui.mjs` verifies real loaded map tiles, attribution, camera controls,
+anchor validation/persistence, and tile-outage fallback.
 `operator-ui.mjs` checks actual browser join/admission, no fabricated markers,
 staging versus physical placement, position propagation, keyboard inspection,
 scenario overlays on the same nodes, departure cleanup, and legacy-route session

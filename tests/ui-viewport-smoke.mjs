@@ -14,7 +14,7 @@ try {
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),'no horizontal overflow');
     const map = await page.locator('.map-card').boundingBox();
     const sidebar = await page.locator('.dashboard-cards').boundingBox();
-    const canvas = await page.locator('.map-card svg').boundingBox();
+    const canvas = await page.locator('.map-card .room-map svg').boundingBox();
     if (width > 900) {
       assert(map.width > sidebar.width * 1.7,'map dominates desktop');
       assert(canvas.y >= 0 && canvas.y + canvas.height <= height,'whole room canvas visible');

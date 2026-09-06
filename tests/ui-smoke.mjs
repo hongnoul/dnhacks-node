@@ -60,6 +60,7 @@ async function openPanel(name) {
   if (await picker.isVisible()) await picker.selectOption(name);
 }
 console.log("topology + placement");
+await admin.getByRole("button", {name:"Fit participant area",exact:true}).click();
 await openPanel('topology');
 await admin.getByRole("button", { name: /two clusters \+ bridge/i }).click();
 await admin.waitForTimeout(300);
@@ -172,7 +173,7 @@ await openPanel("scenario");
 await admin.getByRole("button", { name: /simulate drone/i }).click();
 await admin.waitForFunction(() => document.body.innerText.includes("Click to place the drone start."), { timeout: 5000 })
   .then(() => ok("drone mode arms")).catch(() => bad("drone mode did not arm"));
-const map = admin.locator('.map-card svg');
+const map = admin.locator('.map-card .room-map svg');
 await map.scrollIntoViewIfNeeded();
 const mapBox = await map.boundingBox();
 await map.click({ position: { x: mapBox.width * 0.3, y: mapBox.height * 0.3 } });

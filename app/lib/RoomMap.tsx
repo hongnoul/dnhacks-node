@@ -21,6 +21,8 @@ export interface RoomMapProps {
   estimate: Estimate | null;
   /** Staging markers are real participants without assigned physical coordinates. */
   unplaced?: Set<string>;
+  /** Transparent room overlay when rendered over geographic map tiles. */
+  geographic?: boolean;
   /** node → neighbours, drawn as edges. */
   topology?: Record<string, string[]>;
   /** Links the admin has cut, drawn dashed. */
@@ -129,7 +131,7 @@ export function RoomMap(props: RoomMapProps) {
   const now = Date.now();
 
   return (
-    <div style={{ position: "relative", width: w, maxWidth: "100%", aspectRatio: `${w} / ${h}`, flex: "0 0 auto" }}>
+    <div className="room-map" style={{ position: "relative", width: w, maxWidth: "100%", aspectRatio: `${w} / ${h}`, flex: "0 0 auto" }}>
       <canvas
         ref={canvasRef}
         width={w}
@@ -139,7 +141,7 @@ export function RoomMap(props: RoomMapProps) {
           inset: 0,
           width: "100%", height: "100%",
           borderRadius: 8,
-          background: "#0e1620",
+          background: props.geographic ? "rgba(15, 25, 35, .12)" : "#0e1620",
           border: "1px solid var(--line)",
         }}
       />
@@ -204,10 +206,10 @@ export function RoomMap(props: RoomMapProps) {
       >
         {/* one-metre grid */}
         {Array.from({ length: Math.floor(room.w) + 1 }, (_, i) => (
-          <line key={`v${i}`} x1={toPx(i, 0)[0]} y1={0} x2={toPx(i, 0)[0]} y2={h} stroke="#1b2735" />
+          <line key={`v${i}`} x1={toPx(i, 0)[0]} y1={0} x2={toPx(i, 0)[0]} y2={h} stroke={props.geographic ? "rgba(80, 150, 200, .25)" : "#1b2735"} />
         ))}
         {Array.from({ length: Math.floor(room.h) + 1 }, (_, i) => (
-          <line key={`hh${i}`} x1={0} y1={toPx(0, i)[1]} x2={w} y2={toPx(0, i)[1]} stroke="#1b2735" />
+          <line key={`hh${i}`} x1={0} y1={toPx(0, i)[1]} x2={w} y2={toPx(0, i)[1]} stroke={props.geographic ? "rgba(80, 150, 200, .25)" : "#1b2735"} />
         ))}
 
         {edges.map(([a, b]) => {

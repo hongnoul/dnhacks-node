@@ -11,6 +11,7 @@ try {
   const page = await context.newPage();
   await page.goto(`${base}/operator/?session=${session}`);
   await page.locator('.unified-console').waitFor();
+  await page.getByRole('button',{name:'Fit participant area',exact:true}).click();
   assert.match(page.url(), /\/station\//);
   assert(new URL(page.url()).searchParams.get('session') === session);
   const markers = page.locator('.map-card [data-node-id]');
@@ -30,12 +31,15 @@ try {
   await page.locator('[data-section=inspector]').getByRole('heading',{name:'real-phone',exact:true}).waitFor();
   await page.getByLabel('Participant to place',{exact:true}).selectOption('real-phone');
   await page.getByRole('button',{name:'place node',exact:true}).click();
-  const map = page.locator('.map-card svg');
+  const map = page.locator('.map-card .room-map svg');
   await map.scrollIntoViewIfNeeded();
   let box = await map.boundingBox();
   await map.click({position:{x:box.width*.5,y:box.height*.5}});
   await page.waitForFunction(() => document.querySelector('[data-node-id="real-phone"]')?.getAttribute('data-placed') === 'true');
-  await page.locator('[data-section=nodes]').getByText('6.0, 4.0',{exact:true}).waitFor();
+  await page.waitForFunction(() => {
+    const pos = document.querySelector('[data-section=nodes] tbody tr td:nth-child(3)')?.textContent?.split(',').map(Number);
+    return pos?.length === 2 && Math.abs(pos[0]-6) < .15 && Math.abs(pos[1]-4) < .15;
+  });
   await phone.waitForFunction(() => /[1-9]\d* records held/.test(document.body.innerText));
   assert.equal(await markers.count(),1,'placing assigns the existing participant, never creates a sensor');
   await page.getByRole('button',{name:/simulate drone/i}).click();
