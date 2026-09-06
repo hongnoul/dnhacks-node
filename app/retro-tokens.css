@@ -1,0 +1,14 @@
+/* Shared welcome, sensor, and operations desktop palette. */
+:root {
+  --retro-desktop: #aaa;
+  --retro-surface: #dedede;
+  --retro-button: #c0c0c0;
+  --retro-ink: #171717;
+  --retro-muted: #454545;
+  --retro-title: #000080;
+  --retro-heading: #0000cf;
+  --retro-shadow: #808080;
+  --retro-edge: #262626;
+  --retro-font: Arial, Helvetica, sans-serif;
+  --retro-mono: 'Courier New', monospace;
+}

@@ -1,0 +1,86 @@
+/* Route-scoped chrome. Dark instruments retain their semantic palette. */
+.retro-console {
+  --bg: var(--retro-surface);
+  --panel: var(--retro-surface);
+  --text: var(--retro-ink);
+  --fg: var(--text);
+  --dim: var(--retro-muted);
+  --line: var(--retro-shadow);
+  --accent: var(--retro-title);
+  --hot: #a01f0f;
+  --ok: #135c35;
+  --warn: #705000;
+  --cds-text-primary: var(--text);
+  --cds-text-secondary: var(--dim);
+  --cds-link-primary: var(--retro-title);
+  --cds-layer-02: #c0c0c0;
+  min-height: 100dvh;
+  background: var(--retro-desktop);
+  color: var(--text);
+  color-scheme: light;
+  font-family: var(--retro-font);
+}
+.retro-console-header {
+  max-width: 1700px; margin: 0 auto 14px; padding: 8px 12px;
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; flex-wrap: wrap;
+  background: var(--retro-title); color: white;
+  border: 2px solid; border-color: #eee var(--retro-edge) var(--retro-edge) #eee;
+  box-shadow: 2px 2px #000;
+}
+.retro-console-header h1 { color: white; font: bold 20px/1.4 var(--retro-font); margin: 0; }
+.retro-console-header h1 span { font-weight: normal; }
+.retro-console-header nav { display: flex; flex-wrap: wrap; gap: 4px; }
+.retro-console-header a { color: white; padding: 10px; text-decoration: underline; }
+.retro-console .panel {
+  border: 2px solid; border-color: #eee var(--retro-edge) var(--retro-edge) #eee;
+  border-radius: 0; background: var(--retro-surface);
+  box-shadow: inset 1px 1px white, inset -2px -2px var(--retro-shadow), 2px 2px #000;
+}
+.retro-console .metrics { gap: 8px; background: transparent; }
+.retro-console .metric strong { font-family: var(--retro-mono); color: var(--retro-title); }
+.retro-console h2 { color: var(--text); font: bold 15px/1.4 var(--retro-font); }
+.retro-console .card-heading { border-bottom: 2px groove white; }
+.retro-console .map-coordinate-label { font-family: var(--retro-mono); }
+.retro-console .cds--btn, .retro-console button:not(.cds--btn) {
+  background: var(--retro-button); color: var(--retro-ink);
+  border: 2px solid; border-color: white #343434 #343434 white;
+  border-radius: 0; box-shadow: inset -1px -1px var(--retro-shadow);
+  font: bold 13px/1.4 var(--retro-font); min-height: 44px;
+  padding: 8px 12px; transition: none;
+}
+.retro-console .cds--btn:hover:not(:disabled), .retro-console button:hover:not(:disabled) { background: #d3d3d3; color: var(--retro-ink); }
+.retro-console .cds--btn--primary { background: var(--retro-title); color: white; }
+.retro-console .cds--btn--primary:hover:not(:disabled) { background: #0000a0; color: white; }
+.retro-console .cds--btn--danger--tertiary { color: var(--hot); }
+.retro-console .cds--btn:active:not(:disabled), .retro-console button:active:not(:disabled) {
+  border-color: #343434 white white #343434; box-shadow: inset 1px 1px var(--retro-shadow);
+}
+.retro-console .cds--btn:disabled, .retro-console button:disabled { background: #c0c0c0; color: #595959; opacity: 1; cursor: not-allowed; }
+.retro-console :focus-visible { outline: 2px dotted var(--retro-title); outline-offset: 2px; }
+.retro-console-header a:focus-visible { outline-color: white; }
+.retro-console select, .retro-console input:not([type='checkbox']):not([type='range']) {
+  background: #eee; color: var(--retro-ink); border: 2px solid;
+  border-color: var(--retro-shadow) white white var(--retro-shadow);
+  border-radius: 0; font: 13px var(--retro-font); min-height: 36px;
+}
+.retro-console input { accent-color: var(--retro-title); }
+.retro-console .empty-state { border: 1px dashed #666; }
+.retro-console .cds--tag { border-radius: 0; font-family: var(--retro-mono); }
+.retro-console .dashboard th { background: #c0c0c0; }
+.retro-console .dashboard td { font-family: var(--retro-mono); }
+.retro-console .map-viewport {
+  --panel: #161616; --bg: #161616; --text: #f4f4f4; --fg: #f4f4f4;
+  --dim: #c6c6c6; --accent: #78a9ff; --hot: #ff8389; --ok: #42be65; --warn: #f1c21b;
+  color: var(--text); background: #161616;
+  padding: 8px; border: 2px solid; border-color: #808080 white white #808080;
+}
+.retro-console .map-viewport :focus-visible { outline-color: white; }
+.retro-console [data-section='confidence'] canvas {
+  background: #111; border: 1px solid #666; max-width: 100%;
+}
+@media (max-width: 560px) {
+  .retro-console-header { padding: 8px; gap: 4px; }
+  .retro-console-header h1 { font-size: 18px; }
+  .retro-console-header a { display: inline-block; padding: 12px 8px; }
+}
