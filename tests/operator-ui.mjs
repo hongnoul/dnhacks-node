@@ -12,7 +12,7 @@ try {
   await page.goto(`${base}/operator/?session=${session}`);
   await page.locator('.unified-console').waitFor();
   await page.getByRole('button',{name:'Fit participant area',exact:true}).click();
-  assert.match(page.url(), /\/station\//);
+  assert.match(new URL(page.url()).pathname, /^\/station\/?$/);
   assert(new URL(page.url()).searchParams.get('session') === session);
   const markers = page.locator('.map-card [data-node-id]');
   assert.equal(await markers.count(),0,'empty session has no fabricated sensors');
