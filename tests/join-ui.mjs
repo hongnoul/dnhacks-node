@@ -48,7 +48,10 @@ try {
   let release;
   const held = new Promise(resolve => { release = resolve; });
   await page.route('**/drone_crnn.onnx', async route => { await held; await route.abort(); });
-  await page.getByRole('button', { name: 'Enable microphone & join' }).click();
+  // Start clean after the pressed-state checks, with routing installed before hydration.
+  await page.goto(base);
+  await page.waitForTimeout(500); // Allow the client action to hydrate before clicking SSR markup.
+  await page.getByRole('button', { name: /Enable microphone & join|Resume sensor/ }).click();
   const preparing = page.getByRole('button', { name: 'Preparing your sensor…' });
   await preparing.waitFor();
   assert(await preparing.isDisabled());

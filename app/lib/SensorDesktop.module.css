@@ -1,0 +1,72 @@
+.desktop {
+  min-height: 100dvh; position: relative; isolation: isolate; display: grid;
+  align-content: center; justify-items: center; padding: 88px 24px 108px;
+  background: #aaa; color: #171717; color-scheme: light; font: 14px/1.5 Arial, Helvetica, sans-serif;
+}
+.desktopLabel { z-index: 1; background: #aaa; padding: 3px 6px; position: absolute; top: 28px; left: 32px; font: 11px 'Courier New', monospace; letter-spacing: .14em; color: #333; }
+.window { position: relative; z-index: 1; width: min(100%, 760px); padding: 4px; background: #dedede; border: 2px solid; border-color: #eee #262626 #262626 #eee; box-shadow: inset 1px 1px #fff, inset -2px -2px #808080, 3px 3px #000; transform-origin: bottom left; animation: windowOpen 220ms steps(4, end) both; }
+.window:focus { outline: none; }
+.titlebar { min-height: 42px; padding: 3px 4px 3px 12px; background: #000080; color: white; display: flex; align-items: center; justify-content: space-between; font-weight: bold; }
+.desktop button { border: 2px solid; border-color: #fff #343434 #343434 #fff; border-radius: 0; box-shadow: inset -1px -1px #808080; background: #c0c0c0; color: #111; font: 700 13px Arial, Helvetica, sans-serif; min-height: 44px; padding: 8px 14px; transition: none; }
+.desktop button:hover:not(:disabled) { background: #d3d3d3; border-color: #fff #343434 #343434 #fff; }
+.desktop button:active:not(:disabled) { border-color: #343434 #fff #fff #343434; box-shadow: inset 1px 1px #808080; }
+.desktop :focus-visible { outline: 2px dotted #000080; outline-offset: -5px; }
+.titlebar button { width: 44px; padding: 0; min-height: 36px; font-size: 20px; }
+.body { padding: 24px; }
+.heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+.eyebrow { font-size: 11px; color: #555; margin: 0 0 5px; }
+.desktop h1 { font: italic 28px/1.2 Arial, Helvetica, sans-serif; letter-spacing: 0; color: #0000cf; margin: 0; }
+.desktop h2 { color: #171717; font: 700 16px/1.4 Arial, Helvetica, sans-serif; letter-spacing: 0; margin: 0; }
+.status { padding: 6px 10px; border: 1px solid #958052; background: #eee5c6; color: #5e4700; font-size: 12px; }
+.status[data-active='true'] { color: #135c35; background: #d6e7d9; border-color: #71947b; }
+.tabs { display: flex; align-items: flex-end; gap: 4px; border-bottom: 2px solid #808080; }
+.tabs button { background: #c0c0c0; font-weight: normal; border-bottom: 0; }
+.tabs button[aria-selected='true'] { background: #dedede; color: #000080; font-weight: bold; position: relative; padding-top: 12px; }
+.tabs button[aria-selected='true']::after { content: ''; position: absolute; height: 3px; background: #dedede; bottom: -2px; left: 0; right: 0; }
+.content { padding-top: 24px; min-width: 0; }
+.tabPanel { animation: tabOpen 120ms steps(2, end); min-height: 330px; }
+.readout { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.readout strong { font: 40px/1 'Courier New', monospace; color: #000080; }
+.readout strong[data-detecting='true'] { color: #a01f0f; }
+.instrument { padding: 12px; background: #0d1720; border: 2px solid; border-color: #808080 #fff #fff #808080; }
+.metrics { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 8px; margin: 18px 0; }
+.metrics > div { border: 2px solid; border-color: #808080 #eee #eee #808080; padding: 8px; min-width: 0; }
+.metrics dt { color: #555; font-size: 11px; margin-bottom: 4px; }
+.metrics dd { margin: 0; font: 13px/1.4 'Courier New', monospace; overflow-wrap: anywhere; }
+.note { margin: 12px 0 0; color: #454545; font-size: 12px; line-height: 1.6; }
+.map { margin-top: 16px; overflow: hidden; }
+.map > div { border-radius: 0 !important; }
+.diagnostics { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0; margin: 18px 0; font: 13px/1.5 'Courier New', monospace; }
+.diagnostics dt, .diagnostics dd { padding: 10px; border-bottom: 1px solid #aaa; margin: 0; overflow-wrap: anywhere; }
+.diagnostics dt { color: #555; }
+.warning { margin: 0 0 20px; padding: 12px; background: #eee5c6; border: 1px solid #958052; color: #5e4700; font-size: 12px; overflow-wrap: anywhere; }
+.statusbar { display: flex; gap: 4px; padding: 0 3px 3px; font: 11px/1.5 'Courier New', monospace; flex-wrap: wrap; }
+.statusbar span { padding: 4px 8px; border: 1px solid; border-color: #808080 #fff #fff #808080; flex: 1 1 auto; }
+.taskbar { position: fixed; z-index: 5; bottom: 0; left: 0; right: 0; display: flex; align-items: center; gap: 8px; padding: 6px 12px max(6px, env(safe-area-inset-bottom)); background: #c0c0c0; border-top: 2px solid #fff; box-shadow: 0 -1px #808080; }
+.wordmark { color: #000080; font-style: italic; font-weight: bold; padding: 0 12px; }
+.taskActivity { margin-left: auto; font: 11px 'Courier New', monospace; }
+.minimizedNote { position: relative; padding: 24px; background: #dedede; border: 2px solid; border-color: #eee #808080 #808080 #eee; max-width: 480px; }
+.minimizedNote p { margin-top: 16px; }
+.closing { animation: windowClose 180ms steps(4, end) both; pointer-events: none; }
+@keyframes windowOpen { from { opacity: 0; transform: translateY(36px) scaleY(.06); } 40% { opacity: 1; transform: translateY(12px) scaleY(.3); } to { opacity: 1; transform: none; } }
+@keyframes windowClose { to { opacity: 0; transform: translateY(60px) scale(.2, .04); } }
+@keyframes tabOpen { from { opacity: .2; clip-path: inset(0 0 90% 0); } to { opacity: 1; clip-path: inset(0); } }
+@media (max-width: 560px) {
+  .desktop { padding: 64px 12px 148px; align-content: start; }
+  .desktopLabel { top: 22px; left: 16px; font-size: 10px; }
+  .body { padding: 18px 12px; }
+  .desktop h1 { font-size: 25px; }
+  .heading { gap: 12px; margin-bottom: 18px; }
+  .tabs { gap: 2px; }
+  .tabs button { padding: 8px 10px; font-size: 12px; flex: 1; }
+  .metrics { gap: 4px; }
+  .metrics > div { padding: 6px; }
+  .metrics dd { font-size: 11px; }
+  .taskbar { flex-wrap: wrap; gap: 6px; padding-left: 8px; padding-right: 8px; }
+  .wordmark { display: none; }
+  .taskActivity { order: 3; width: 100%; text-align: center; padding: 4px; }
+  .taskbar button:first-of-type { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .window, .closing, .tabPanel { animation: none; }
+}

@@ -85,3 +85,8 @@
   .logo { font-size: 7.5px; line-height: 9px; flex-shrink: 0; }
   .title { margin-bottom: 18px; }
 }
+
+/* Acknowledgement first, then hand the desktop over to the sensor window. */
+.departing { animation: welcomeClose 180ms steps(4, end) 470ms both; transform-origin: center; }
+@keyframes welcomeClose { to { opacity: 0; transform: scaleY(.04) scaleX(.85); } }
+@media (prefers-reduced-motion: reduce) { .departing { animation: none; } }
